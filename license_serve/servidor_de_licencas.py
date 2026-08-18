@@ -31,7 +31,7 @@ class Cliente(db.Model):
 
 class Licenca(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=False)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=False)
     machine_id = db.Column(db.String(200), nullable=False)
     data_expiracao = db.Column(db.Date, nullable=False)
     modulo_iot = db.Column(db.Boolean, default=False)
