@@ -3,7 +3,7 @@ from sqlalchemy import Integer, String, Date, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 
-db = SQLAlchemy() # Importa o db do servidor_de_licencas.py, não do app.py principal
+from servidor_de_licencas import db # Importa a instância 'db' do servidor_de_licencas.py
 
 class Cliente(db.Model):
     __tablename__ = 'clientes'

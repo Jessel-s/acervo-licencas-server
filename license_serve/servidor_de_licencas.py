@@ -18,11 +18,13 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'uma-chave-secreta-para-
 # Esta chave NUNCA sai deste servidor. Ela será injetada como variável de ambiente no Render.
 LICENSE_MASTER_KEY = os.environ.get('LICENSE_MASTER_KEY', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode('utf-8')
 
-db = SQLAlchemy(app)
+db = SQLAlchemy() # Inicializa o db sem o app por enquanto
 
 # Importa os modelos do arquivo separado para melhor organização
 from models import Cliente, Licenca
 
+# Inicializa o db com o app após os modelos serem carregados
+db.init_app(app)
 # --- API DE ATIVAÇÃO ---
 
 @app.route('/api/ativar', methods=['POST'])
