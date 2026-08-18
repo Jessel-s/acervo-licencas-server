@@ -20,22 +20,8 @@ LICENSE_MASTER_KEY = os.environ.get('LICENSE_MASTER_KEY', 'V2FGVzQ1dGdfSGVscERlc
 
 db = SQLAlchemy(app)
 
-# --- MODELOS DE DADOS DO SERVIDOR ---
-
-class Cliente(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    nome = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    # Chave que você envia para o cliente para ele ativar o software
-    chave_de_compra = db.Column(db.String(50), unique=True, nullable=False)
-
-class Licenca(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=False)
-    machine_id = db.Column(db.String(200), nullable=False)
-    data_expiracao = db.Column(db.Date, nullable=False)
-    modulo_iot = db.Column(db.Boolean, default=False)
-    data_ativacao = db.Column(db.DateTime, default=datetime.utcnow)
+# Importa os modelos do arquivo separado para melhor organização
+from models import Cliente, Licenca
 
 # --- API DE ATIVAÇÃO ---
 
