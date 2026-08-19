@@ -8,9 +8,8 @@ import os
 
 from models import db, Compra
 
-# Inicializa as extensões fora da função de fábrica
-admin = Admin(name='Painel de Licenças', template_mode='bootstrap4')
-basic_auth = BasicAuth()
+# Inicializa a extensão de autenticação globalmente
+basic_auth = BasicAuth() # BasicAuth pode ser global
 
 def create_app():
     """Cria e configura uma instância da aplicação Flask."""
@@ -29,7 +28,8 @@ def create_app():
 
     # --- INICIALIZAÇÃO DAS EXTENSÕES ---
     db.init_app(app)
-    admin.init_app(app)
+    # O Admin deve ser inicializado DENTRO da fábrica para evitar conflitos de nome
+    admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
     basic_auth.init_app(app)
 
     # --- PROTEÇÃO DO PAINEL ADMIN ---
