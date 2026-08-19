@@ -59,8 +59,15 @@ def create_app():
     app.logger.info("5. Criando a view do painel de administração (CompraView)...")
     class CompraView(ModelView):
         def is_accessible(self):
-            return basic_auth.check()
+            # CORREÇÃO: O método 'check()' não existe.
+            # A forma correta é verificar se a autenticação é necessária e se o usuário está autenticado.
+            if not basic_auth.authenticate():
+                return False
+            return True
 
+        def inaccessible_callback(self, name, **kwargs):
+            # CORREÇÃO: Se o acesso for negado, força o navegador a pedir o login e senha.
+            return basic_auth.challenge()
         column_list = ['nome_cliente', 'chave_compra', 'inclui_iot', 'ativado', 'machine_id_ativado', 'data_ativacao']
         column_searchable_list = ['nome_cliente', 'chave_compra', 'machine_id_ativado']
         column_filters = ['ativado', 'inclui_iot']
