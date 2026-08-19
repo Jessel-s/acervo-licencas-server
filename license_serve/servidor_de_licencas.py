@@ -59,15 +59,10 @@ def create_app():
     app.logger.info("5. Criando a view do painel de administração (CompraView)...")
     class CompraView(ModelView):
         def is_accessible(self):
-            # CORREÇÃO: O método 'check()' não existe.
-            # A forma correta é verificar se a autenticação é necessária e se o usuário está autenticado.
-            if not basic_auth.authenticate():
-                return False
+            # CORREÇÃO FINAL: Este método precisa retornar True para que o menu sempre apareça.
+            # A proteção real será feita pelo decorator @basic_auth.required
             return True
 
-        def inaccessible_callback(self, name, **kwargs):
-            # CORREÇÃO: Se o acesso for negado, força o navegador a pedir o login e senha.
-            return basic_auth.challenge()
         column_list = ['nome_cliente', 'chave_compra', 'inclui_iot', 'ativado', 'machine_id_ativado', 'data_ativacao']
         column_searchable_list = ['nome_cliente', 'chave_compra', 'machine_id_ativado']
         column_filters = ['ativado', 'inclui_iot']
@@ -75,8 +70,11 @@ def create_app():
     app.logger.info("   OK: View do admin criada.")
 
     # Adiciona a view ao admin DENTRO da fábrica
+    # CORREÇÃO FINAL: Protege a view com o decorator da biblioteca de autenticação.
+    # Isso garante que o pop-up de login apareça.
     app.logger.info("6. Adicionando a view ao painel de administração...")
-    admin.add_view(CompraView(Compra, db.session))
+    # O endpoint 'compra' é o nome interno que o Flask-Admin usa para a URL /admin/compra/
+    admin.add_view(basic_auth.required(CompraView)(Compra, db.session, endpoint='compra'))
     app.logger.info("   OK: View adicionada ao admin.")
 
     # --- ROTAS DA APLICAÇÃO ---
