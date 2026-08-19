@@ -37,7 +37,8 @@ def create_app():
     app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
 
     # --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
-    license_secret_key = os.environ.get('LICENSE_SECRET', 'fallback_secret_key_for_dev').encode()
+    # A chave padrão DEVE ser uma chave base64 válida de 32 bytes.
+    license_secret_key = os.environ.get('LICENSE_SECRET', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode()
     fernet = Fernet(license_secret_key)
 
     # --- PAINEL DE ADMINISTRAÇÃO ---
