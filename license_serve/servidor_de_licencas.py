@@ -24,38 +24,33 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 
 db.init_app(app)
 
+# --- PROTEÇÃO DO PAINEL ADMIN ---
+# DEFINA ESSAS VARIÁVEIS DE AMBIENTE NO RENDER.COM
+app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER', 'admin')
+app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
+basic_auth = BasicAuth(app)
+
+# --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
+# DEFINA ESSA VARIÁVEL DE AMBIENTE NO RENDER.COM
+LICENSE_SECRET_KEY = os.environ.get('LICENSE_SECRET', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode()
+fernet = Fernet(LICENSE_SECRET_KEY)
 
 # --- PAINEL DE ADMINISTRAÇÃO ---
 class CompraView(ModelView):
     # Protege a view com senha
     def is_accessible(self):
+        # Agora o 'basic_auth' já existe quando este método é chamado.
         return basic_auth.check()
 
     # Colunas visíveis na lista
     column_list = ['nome_cliente', 'chave_compra', 'inclui_iot', 'ativado', 'machine_id_ativado', 'data_ativacao']
-    # Campos para busca
     column_searchable_list = ['nome_cliente', 'chave_compra', 'machine_id_ativado']
-    # Filtros
     column_filters = ['ativado', 'inclui_iot']
-    # Campos no formulário de criação/edição
     form_columns = ['nome_cliente', 'email_cliente', 'inclui_iot']
 
-with app.app_context():
-    # --- PROTEÇÃO DO PAINEL ADMIN ---
-    # DEFINA ESSAS VARIÁVEIS DE AMBIENTE NO RENDER.COM
-    app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER', 'admin')
-    app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
-    basic_auth = BasicAuth(app)
-
-    # --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
-    # DEFINA ESSA VARIÁVEL DE AMBIENTE NO RENDER.COM
-    LICENSE_SECRET_KEY = os.environ.get('LICENSE_SECRET', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode()
-    fernet = Fernet(LICENSE_SECRET_KEY)
-
-    # Inicializa o painel de admin dentro do contexto da aplicação
-    admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
-    admin.add_view(CompraView(Compra, db.session))
-
+# Inicializa o painel de admin
+admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
+admin.add_view(CompraView(Compra, db.session))
 
 # --- ROTA PRINCIPAL (para não dar erro "Not Found") ---
 @app.route('/')
