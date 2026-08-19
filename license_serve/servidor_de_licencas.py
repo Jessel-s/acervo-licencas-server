@@ -5,6 +5,7 @@ from flask_basicauth import BasicAuth
 from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 import os
+import logging
 
 from models import db, Compra
 
@@ -14,34 +15,48 @@ basic_auth = BasicAuth() # BasicAuth pode ser global
 def create_app():
     """Cria e configura uma instância da aplicação Flask."""
     app = Flask(__name__)
+    
+    # Configura o sistema de logs para nos dar mais detalhes no Render.com
+    logging.basicConfig(level=logging.INFO)
+    app.logger.info("--- INICIANDO DIAGNÓSTICO DO SERVIDOR DE LICENÇAS ---")
 
     # --- CONFIGURAÇÃO DE SEGURANÇA E BANCO DE DADOS ---
+    app.logger.info("1. Configurando SECRET_KEY e DATABASE_URL...")
     app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'uma-chave-secreta-muito-forte-para-desenvolvimento')
     database_url = os.environ.get('DATABASE_URL')
 
     if not database_url:
+        app.logger.critical("FALHA: A variável de ambiente 'DATABASE_URL' não foi encontrada.")
         raise ValueError("ERRO CRÍTICO: A variável de ambiente 'DATABASE_URL' não foi encontrada.")
 
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.logger.info("   OK: Configuração do banco de dados concluída.")
 
     # --- INICIALIZAÇÃO DAS EXTENSÕES ---
+    app.logger.info("2. Inicializando extensões (DB, Admin, Auth)...")
     db.init_app(app)
     # O Admin deve ser inicializado DENTRO da fábrica para evitar conflitos de nome
     admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
     basic_auth.init_app(app)
+    app.logger.info("   OK: Extensões inicializadas.")
 
     # --- PROTEÇÃO DO PAINEL ADMIN ---
+    app.logger.info("3. Configurando autenticação do painel de admin...")
     app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER', 'admin')
     app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
+    app.logger.info("   OK: Autenticação configurada.")
 
     # --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
+    app.logger.info("4. Configurando chave de criptografia (Fernet)...")
     # A chave padrão DEVE ser uma chave base64 válida de 32 bytes.
     license_secret_key = os.environ.get('LICENSE_SECRET', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode()
     fernet = Fernet(license_secret_key)
+    app.logger.info("   OK: Chave de criptografia carregada.")
 
     # --- PAINEL DE ADMINISTRAÇÃO ---
+    app.logger.info("5. Criando a view do painel de administração (CompraView)...")
     class CompraView(ModelView):
         def is_accessible(self):
             return basic_auth.check()
@@ -50,13 +65,17 @@ def create_app():
         column_searchable_list = ['nome_cliente', 'chave_compra', 'machine_id_ativado']
         column_filters = ['ativado', 'inclui_iot']
         form_columns = ['nome_cliente', 'email_cliente', 'inclui_iot']
+    app.logger.info("   OK: View do admin criada.")
 
     # Adiciona a view ao admin DENTRO da fábrica
+    app.logger.info("6. Adicionando a view ao painel de administração...")
     admin.add_view(CompraView(Compra, db.session))
+    app.logger.info("   OK: View adicionada ao admin.")
 
     # --- ROTAS DA APLICAÇÃO ---
     @app.route('/')
     def index():
+        app.logger.info("Acesso à rota principal ('/').")
         return "Servidor de Licenças AcervoTI - Online", 200
 
     @app.route('/api/ativar', methods=['POST'])
@@ -94,8 +113,11 @@ def create_app():
         })
 
     # --- COMANDOS DE INICIALIZAÇÃO ---
+    app.logger.info("7. Sincronizando modelos com o banco de dados (db.create_all)...")
     with app.app_context():
         db.create_all()
+    app.logger.info("   OK: Banco de dados sincronizado.")
+    app.logger.info("--- DIAGNÓSTICO CONCLUÍDO. APLICAÇÃO PRONTA. ---")
 
     return app
 
