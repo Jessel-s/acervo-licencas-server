@@ -1,5 +1,7 @@
-Flask==2.3.3
-Flask-SQLAlchemy==3.1.1
-cryptography==41.0.5
-gunicorn==21.2.0
-psycopg2-binary==2.9.9 # Para conectar ao PostgreSQL do Render
+Flask
+Flask-SQLAlchemy
+psycopg2-binary
+cryptography
+Flask-Admin==1.6.1
+Flask-BasicAuth==0.2.0
+gunicorn

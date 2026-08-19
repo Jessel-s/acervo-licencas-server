@@ -1,102 +1,105 @@
-# c:\DESENVOLVIMENTO\license_server\servidor_de_licencas.py
-
 from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
+from flask_admin import Admin
+from flask_admin.contrib.sqla import ModelView
+from flask_basicauth import BasicAuth
 from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 import os
 
+from models import db, Compra
+
 app = Flask(__name__)
 
-# --- CONFIGURAÇÃO ---
-# Em um servidor real, use variáveis de ambiente para segurança e flexibilidade!
-# Render.com injetará essas variáveis.
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///licenses.db')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'uma-chave-secreta-para-proteger-a-api') # Chave da API, não da licença
+# --- CONFIGURAÇÃO DE SEGURANÇA E BANCO DE DADOS ---
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'uma-chave-secreta-muito-forte-para-desenvolvimento')
+# CORREÇÃO PARA O RENDER: O Render usa 'postgres://', mas o SQLAlchemy espera 'postgresql://'
+database_url = os.environ.get('DATABASE_URL')
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 
-# A chave mestra que criptografa as licenças dos clientes
-# Esta chave NUNCA sai deste servidor. Ela será injetada como variável de ambiente no Render.
-LICENSE_MASTER_KEY = os.environ.get('LICENSE_MASTER_KEY', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode('utf-8')
-
-db = SQLAlchemy() # Inicializa o db sem o app por enquanto
-
-# Importa os modelos do arquivo separado para melhor organização
-from models import Cliente, Licenca
-
-# Inicializa o db com o app após os modelos serem carregados
 db.init_app(app)
-# --- API DE ATIVAÇÃO ---
 
+# --- PROTEÇÃO DO PAINEL ADMIN ---
+# DEFINA ESSAS VARIÁVEIS DE AMBIENTE NO RENDER.COM
+app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER', 'admin')
+app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
+basic_auth = BasicAuth(app)
+
+# --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
+# DEFINA ESSA VARIÁVEL DE AMBIENTE NO RENDER.COM
+LICENSE_SECRET_KEY = os.environ.get('LICENSE_SECRET', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode()
+fernet = Fernet(LICENSE_SECRET_KEY)
+
+# --- PAINEL DE ADMINISTRAÇÃO ---
+class CompraView(ModelView):
+    # Protege a view com senha
+    def is_accessible(self):
+        return basic_auth.check()
+
+    # Colunas visíveis na lista
+    column_list = ['nome_cliente', 'chave_compra', 'inclui_iot', 'ativado', 'machine_id_ativado', 'data_ativacao']
+    # Campos para busca
+    column_searchable_list = ['nome_cliente', 'chave_compra', 'machine_id_ativado']
+    # Filtros
+    column_filters = ['ativado', 'inclui_iot']
+    # Campos no formulário de criação/edição
+    form_columns = ['nome_cliente', 'email_cliente', 'inclui_iot']
+
+admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
+admin.add_view(CompraView(Compra, db.session))
+
+# --- ROTA PRINCIPAL (para não dar erro "Not Found") ---
+@app.route('/')
+def index():
+    return "Servidor de Licenças AcervoTI - Online", 200
+
+# --- API DE ATIVAÇÃO (LÓGICA ATUALIZADA) ---
 @app.route('/api/ativar', methods=['POST'])
-def ativar_licenca():
-    data = request.json
+def ativar():
+    data = request.get_json()
     chave_compra = data.get('chave_compra')
     machine_id = data.get('machine_id')
 
     if not chave_compra or not machine_id:
-        return jsonify({'sucesso': False, 'mensagem': 'Dados incompletos.'}), 400
+        return jsonify({'sucesso': False, 'mensagem': 'Dados incompletos.'})
 
-    # 1. Encontra o cliente pela chave de compra
-    cliente = Cliente.query.filter_by(chave_de_compra=chave_compra).first()
-    if not cliente:
-        return jsonify({'sucesso': False, 'mensagem': 'Chave de compra inválida.'}), 403
+    compra = Compra.query.filter_by(chave_compra=chave_compra).first()
 
-    # 2. Verifica se já existe uma licença para este cliente/máquina
-    licenca_existente = Licenca.query.filter_by(cliente_id=cliente.id).first()
-    if licenca_existente:
-        # Lógica de renovação ou reativação poderia entrar aqui
-        # Por enquanto, vamos apenas gerar uma nova chave com os dados existentes
-        licenca = licenca_existente
-        licenca.machine_id = machine_id # Atualiza o ID da máquina se for uma reinstalação
-        licenca.data_ativacao = datetime.utcnow()
-    else:
-        # 3. Cria uma nova licença para o cliente (Ex: 1 ano de validade)
-        data_expiracao = datetime.now().date() + timedelta(days=365)
-        licenca = Licenca(
-            cliente_id=cliente.id,
-            machine_id=machine_id,
-            data_expiracao=data_expiracao,
-            modulo_iot=False # Lógica para ativar módulos premium iria aqui
-        )
-        db.session.add(licenca)
-    
+    if not compra:
+        return jsonify({'sucesso': False, 'mensagem': 'Chave de Compra inválida ou não encontrada.'})
+
+    if compra.ativado:
+        # Se já foi ativado, verifica se é para a mesma máquina (reinstalação)
+        if compra.machine_id_ativado == machine_id:
+             pass # Permite reativar na mesma máquina
+        else:
+            return jsonify({'sucesso': False, 'mensagem': f'Esta Chave de Compra já foi utilizada em outra máquina.'})
+
+    # Atualiza o registro da compra
+    compra.ativado = True
+    compra.machine_id_ativado = machine_id
+    compra.data_ativacao = datetime.now().isoformat()
     db.session.commit()
 
-    # 4. Gera a string da licença criptografada para enviar de volta ao cliente
-    try:
-        fernet_obj = Fernet(LICENSE_MASTER_KEY)
-        
-        modulos = []
-        if licenca.modulo_iot:
-            modulos.append('IOT=TRUE')
-        modulos_str = '|'.join(modulos)
+    # Gera a licença final
+    validade = (datetime.now() + timedelta(days=366)).strftime('%Y-%m-%d')
+    modulos = f"|IOT={'TRUE' if compra.inclui_iot else 'FALSE'}"
+    
+    dados_licenca = f"{machine_id}|{validade}{modulos}"
+    chave_licenca_final = fernet.encrypt(dados_licenca.encode()).decode()
 
-        # Formato: MACHINE_ID|YYYY-MM-DD|MODULOS...
-        dados_licenca = f"{licenca.machine_id}|{licenca.data_expiracao.strftime('%Y-%m-%d')}|{modulos_str}"
-        
-        chave_final_cliente = fernet_obj.encrypt(dados_licenca.encode()).decode()
+    return jsonify({
+        'sucesso': True,
+        'mensagem': 'Sistema ativado com sucesso!',
+        'chave_licenca': chave_licenca_final
+    })
 
-        return jsonify({
-            'sucesso': True,
-            'mensagem': 'Software ativado com sucesso!',
-            'chave_licenca': chave_final_cliente
-        })
-
-    except Exception as e:
-        return jsonify({'sucesso': False, 'mensagem': f'Erro interno ao gerar licença: {e}'}), 500
+# Comando para criar o banco de dados na primeira vez
+with app.app_context():
+    db.create_all()
 
 if __name__ == '__main__':
-    # Este bloco é para execução local. No Render, Gunicorn será usado.
-    with app.app_context():
-        # Cria o banco de dados se ele não existir (útil para o primeiro deploy no Render)
-        db.create_all()
-        # Adiciona um cliente de exemplo se o banco estiver vazio
-        if not Cliente.query.first():
-            cliente_teste = Cliente(nome='Cliente Exemplo', email='exemplo@email.com', chave_de_compra='COMPRA-123-XYZ')
-            db.session.add(cliente_teste)
-            db.session.commit()
-            print("Cliente de exemplo 'COMPRA-123-XYZ' adicionado ao banco de dados.")
-    
-    # Para execução local, use app.run(). Para produção no Render, Gunicorn será o servidor.
-    # app.run(debug=True, port=5001) # Comente ou remova esta linha para deploy no Render
-    # Render usará 'gunicorn servidor_de_licencas:app'
+    # O Render.com usa um servidor de produção (como Gunicorn), então esta parte não é executada lá.
+    # A porta 5000 é um padrão para desenvolvimento Flask.
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
