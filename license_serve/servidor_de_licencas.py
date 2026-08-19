@@ -14,7 +14,11 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'uma-chave-secreta-muito-forte-para-desenvolvimento')
 # CORREÇÃO PARA O RENDER: O Render usa 'postgres://', mas o SQLAlchemy espera 'postgresql://'
 database_url = os.environ.get('DATABASE_URL')
-if database_url and database_url.startswith("postgres://"):
+
+if not database_url:
+    raise ValueError("ERRO CRÍTICO: A variável de ambiente 'DATABASE_URL' não foi encontrada. Verifique as configurações do serviço no Render.com e garanta que um banco de dados PostgreSQL está vinculado.")
+
+if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 
