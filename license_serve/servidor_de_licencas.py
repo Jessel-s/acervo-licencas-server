@@ -24,16 +24,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 
 db.init_app(app)
 
-# --- PROTEÇÃO DO PAINEL ADMIN ---
-# DEFINA ESSAS VARIÁVEIS DE AMBIENTE NO RENDER.COM
-app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER', 'admin')
-app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
-basic_auth = BasicAuth(app)
-
-# --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
-# DEFINA ESSA VARIÁVEL DE AMBIENTE NO RENDER.COM
-LICENSE_SECRET_KEY = os.environ.get('LICENSE_SECRET', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode()
-fernet = Fernet(LICENSE_SECRET_KEY)
 
 # --- PAINEL DE ADMINISTRAÇÃO ---
 class CompraView(ModelView):
@@ -50,8 +40,22 @@ class CompraView(ModelView):
     # Campos no formulário de criação/edição
     form_columns = ['nome_cliente', 'email_cliente', 'inclui_iot']
 
-admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
-admin.add_view(CompraView(Compra, db.session))
+with app.app_context():
+    # --- PROTEÇÃO DO PAINEL ADMIN ---
+    # DEFINA ESSAS VARIÁVEIS DE AMBIENTE NO RENDER.COM
+    app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER', 'admin')
+    app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
+    basic_auth = BasicAuth(app)
+
+    # --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
+    # DEFINA ESSA VARIÁVEL DE AMBIENTE NO RENDER.COM
+    LICENSE_SECRET_KEY = os.environ.get('LICENSE_SECRET', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode()
+    fernet = Fernet(LICENSE_SECRET_KEY)
+
+    # Inicializa o painel de admin dentro do contexto da aplicação
+    admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
+    admin.add_view(CompraView(Compra, db.session))
+
 
 # --- ROTA PRINCIPAL (para não dar erro "Not Found") ---
 @app.route('/')
