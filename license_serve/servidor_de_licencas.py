@@ -48,10 +48,6 @@ class CompraView(ModelView):
     column_filters = ['ativado', 'inclui_iot']
     form_columns = ['nome_cliente', 'email_cliente', 'inclui_iot']
 
-# Inicializa o painel de admin
-admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
-admin.add_view(CompraView(Compra, db.session))
-
 # --- ROTA PRINCIPAL (para não dar erro "Not Found") ---
 @app.route('/')
 def index():
@@ -100,7 +96,11 @@ def ativar():
 
 # Comando para criar o banco de dados na primeira vez
 with app.app_context():
-    db.create_all()
+    db.create_all() # Garante que as tabelas existam
+
+    # Inicializa o painel de admin DEPOIS que as tabelas foram criadas
+    admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
+    admin.add_view(CompraView(Compra, db.session))
 
 if __name__ == '__main__':
     # O Render.com usa um servidor de produção (como Gunicorn), então esta parte não é executada lá.
