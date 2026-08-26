@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from flask_admin import Admin
+from flask_admin import Admin, AdminIndexView
 from flask_admin.contrib.sqla import ModelView
 from flask_basicauth import BasicAuth
 from cryptography.fernet import Fernet
@@ -37,8 +37,6 @@ def create_app():
     # --- INICIALIZAÇÃO DAS EXTENSÕES ---
     app.logger.info("2. Inicializando extensões (DB, Admin, Auth)...")
     db.init_app(app)
-    # O Admin deve ser inicializado DENTRO da fábrica para evitar conflitos de nome
-    admin = Admin(app, name='Painel de Licenças', template_mode='bootstrap4')
     basic_auth.init_app(app)
     app.logger.info("   OK: Extensões inicializadas.")
 
@@ -47,6 +45,21 @@ def create_app():
     app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER', 'admin')
     app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
     app.logger.info("   OK: Autenticação configurada.")
+
+    class SecureAdminIndexView(AdminIndexView):
+        def is_accessible(self):
+            return basic_auth.authenticate()
+
+        def inaccessible_callback(self, name, **kwargs):
+            return basic_auth.challenge()
+
+    # Protege também a Home do Flask-Admin; sem isso as views protegidas ficam ocultas.
+    admin = Admin(
+        app,
+        name='Painel de Licenças',
+        template_mode='bootstrap4',
+        index_view=SecureAdminIndexView(name='Home')
+    )
 
     # --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
     app.logger.info("4. Configurando chave de criptografia (Fernet)...")
