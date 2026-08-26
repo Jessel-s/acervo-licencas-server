@@ -24,9 +24,9 @@ def create_app():
 
     # --- CONFIGURAÇÃO DE SEGURANÇA E BANCO DE DADOS ---
     app.logger.info("1. Configurando SECRET_KEY e DATABASE_URL...")
-    app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY')
+    app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY') or os.environ.get('SECRET_KEY')
     if not app.config['SECRET_KEY']:
-        raise ValueError("ERRO CRÍTICO: A variável 'FLASK_SECRET_KEY' não foi encontrada.")
+        raise ValueError("ERRO CRÍTICO: Configure FLASK_SECRET_KEY (ou SECRET_KEY) no ambiente.")
     database_url = os.environ.get('DATABASE_URL')
 
     if not database_url:
