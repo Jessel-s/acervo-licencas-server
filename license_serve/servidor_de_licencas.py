@@ -162,7 +162,7 @@ def create_app():
                     return jsonify({'sucesso': False, 'mensagem': 'Esta Chave de Compra já foi utilizada em outra máquina.'})
 
         validade = (datetime.now() + timedelta(days=366)).strftime('%Y-%m-%d')
-        modulos = f"|IOT={'TRUE' if compra.inclui_iot else 'FALSE'}"
+        modulos = f"|IOT={'TRUE' if compra.inclui_iot else 'FALSE'}|ONLINE=TRUE"
         dados_licenca = f"{machine_id}|{validade}{modulos}"
         chave_licenca_final = fernet.encrypt(dados_licenca.encode()).decode()
 
@@ -171,6 +171,22 @@ def create_app():
             'mensagem': 'Sistema ativado com sucesso!',
             'chave_licenca': chave_licenca_final
         })
+
+    @app.route('/api/validar', methods=['POST'])
+    def validar_licenca():
+        data = request.get_json(silent=True) or {}
+        machine_id = str(data.get('machine_id', '')).strip()
+        if not machine_id:
+            return jsonify({'valida': False, 'mensagem': 'ID de máquina ausente.'}), 400
+
+        compra = Compra.query.filter_by(
+            ativado=True,
+            machine_id_ativado=machine_id
+        ).first()
+        if not compra:
+            return jsonify({'valida': False, 'mensagem': 'Licença revogada ou não encontrada.'})
+
+        return jsonify({'valida': True})
 
     @app.route('/admin/compra/reset/<int:compra_id>', methods=['POST'])
     def resetar_ativacao(compra_id):

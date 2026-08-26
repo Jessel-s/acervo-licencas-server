@@ -121,8 +121,8 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
     if force_revalidate:
         _license_cache = {'time': 0, 'data': None}
 
-    # CACHE DE ALTA PERFORMANCE: Verifica a licença real apenas a cada 1 hora
-    if not force_revalidate and _license_cache['data'] and time.time() - _license_cache['time'] < 3600:
+    # Revalida licenças online com frequência suficiente para permitir revogação.
+    if not force_revalidate and _license_cache['data'] and time.time() - _license_cache['time'] < 300:
         return _license_cache['data']
 
     # --- ADAPTAÇÃO PARA CLOUD: Ignora a verificação de licença em ambiente de produção ---
@@ -181,6 +181,25 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
                 # Itera sobre as partes da licença para encontrar o módulo IoT
                 for part in parts[2:]: # Começa do índice 2 para pular MAC e DATA
                     if 'IOT=TRUE' in part: modules['iot'] = True
+
+                # Licenças emitidas pelo servidor podem ser revogadas no painel.
+                if 'ONLINE=TRUE' in parts[2:]:
+                    try:
+                        import json
+                        validation_data = json.dumps({'machine_id': current_machine_id}).encode('utf-8')
+                        validation_request = urllib.request.Request(
+                            'https://acervo-licencas-server.onrender.com/api/validar',
+                            data=validation_data,
+                            headers={'Content-Type': 'application/json'}
+                        )
+                        with urllib.request.urlopen(validation_request, timeout=8) as response:
+                            validation_result = json.loads(response.read().decode('utf-8'))
+                        if not validation_result.get('valida', False):
+                            app.logger.warning('Licença online revogada pelo servidor.')
+                            return 'INVALID', 0, default_modules
+                    except Exception as validation_error:
+                        # Mantém uma pequena tolerância para indisponibilidade temporária da internet.
+                        app.logger.warning(f'Não foi possível revalidar a licença online: {validation_error}')
 
                 # LÓGICA HÍBRIDA: Se a licença não tem IoT, mas o trial ainda está ativo, libera o IoT temporariamente.
                 if not modules['iot']:
