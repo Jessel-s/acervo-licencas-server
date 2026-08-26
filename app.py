@@ -125,8 +125,9 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
     if not force_revalidate and _license_cache['data'] and time.time() - _license_cache['time'] < 300:
         return _license_cache['data']
 
-    # --- ADAPTAÇÃO PARA CLOUD: Ignora a verificação de licença em ambiente de produção ---
-    if os.environ.get('CLOUD_DEPLOY') == 'TRUE':
+    # O modo cloud pertence ao servidor de licenças, não ao executável do cliente.
+    # Nunca ignore a licença no cliente, pois isso impede revogação remota.
+    if os.environ.get('CLOUD_DEPLOY') == 'TRUE' and os.environ.get('LICENSE_SERVER_MODE') == 'TRUE':
         all_modules = {'iot': True, 'helpdesk': True, 'storeroom': True}
         result = ('VALID', 36500, all_modules) # Licença "infinita" para o seu próprio servidor
         _license_cache = {'time': time.time(), 'data': result}
@@ -198,8 +199,8 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
                             app.logger.warning('Licença online revogada pelo servidor.')
                             return 'INVALID', 0, default_modules
                     except Exception as validation_error:
-                        # Mantém uma pequena tolerância para indisponibilidade temporária da internet.
-                        app.logger.warning(f'Não foi possível revalidar a licença online: {validation_error}')
+                        app.logger.error(f'Falha na validação obrigatória da licença online: {validation_error}')
+                        return 'INVALID', 0, default_modules
 
                 # LÓGICA HÍBRIDA: Se a licença não tem IoT, mas o trial ainda está ativo, libera o IoT temporariamente.
                 if not modules['iot']:
