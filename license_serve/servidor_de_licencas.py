@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for
 from flask_admin import Admin, AdminIndexView
 from flask_admin.contrib.sqla import ModelView
 from flask_basicauth import BasicAuth
@@ -6,6 +6,8 @@ from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 import os
 import logging
+from sqlalchemy import update
+from markupsafe import Markup
 
 from models import db, Compra
 
@@ -22,7 +24,9 @@ def create_app():
 
     # --- CONFIGURAÇÃO DE SEGURANÇA E BANCO DE DADOS ---
     app.logger.info("1. Configurando SECRET_KEY e DATABASE_URL...")
-    app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'uma-chave-secreta-muito-forte-para-desenvolvimento')
+    app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY')
+    if not app.config['SECRET_KEY']:
+        raise ValueError("ERRO CRÍTICO: A variável 'FLASK_SECRET_KEY' não foi encontrada.")
     database_url = os.environ.get('DATABASE_URL')
 
     if not database_url:
@@ -42,8 +46,10 @@ def create_app():
 
     # --- PROTEÇÃO DO PAINEL ADMIN ---
     app.logger.info("3. Configurando autenticação do painel de admin...")
-    app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER', 'admin')
-    app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS', 'senhaSuperSecreta')
+    app.config['BASIC_AUTH_USERNAME'] = os.environ.get('ADMIN_USER')
+    app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('ADMIN_PASS')
+    if not app.config['BASIC_AUTH_USERNAME'] or not app.config['BASIC_AUTH_PASSWORD']:
+        raise ValueError("ERRO CRÍTICO: Configure ADMIN_USER e ADMIN_PASS no ambiente.")
     app.logger.info("   OK: Autenticação configurada.")
 
     class SecureAdminIndexView(AdminIndexView):
@@ -64,7 +70,10 @@ def create_app():
     # --- CHAVE DE CRIPTOGRAFIA DA LICENÇA ---
     app.logger.info("4. Configurando chave de criptografia (Fernet)...")
     # A chave padrão DEVE ser uma chave base64 válida de 32 bytes.
-    license_secret_key = os.environ.get('LICENSE_SECRET', 'V2FGVzQ1dGdfSGVscERlc2tfU2VjcmV0S2V5XzIwMjQ=').encode()
+    license_secret_key = os.environ.get('LICENSE_SECRET')
+    if not license_secret_key:
+        raise ValueError("ERRO CRÍTICO: A variável 'LICENSE_SECRET' não foi encontrada.")
+    license_secret_key = license_secret_key.encode()
     fernet = Fernet(license_secret_key)
     app.logger.info("   OK: Chave de criptografia carregada.")
 
@@ -84,6 +93,21 @@ def create_app():
         column_searchable_list = ['nome_cliente', 'chave_compra', 'machine_id_ativado']
         column_filters = ['ativado', 'inclui_iot']
         form_columns = ['nome_cliente', 'email_cliente', 'inclui_iot']
+
+        @staticmethod
+        def format_activation_action(view, context, model, name):
+            if not model.ativado:
+                return Markup('<span class="text-muted">Ainda não ativada</span>')
+            action_url = url_for('resetar_ativacao', compra_id=model.id)
+            return Markup(
+                f'<form method="post" action="{action_url}" '
+                'onsubmit="return confirm(\'Liberar esta chave para outro computador?\');" '
+                'style="display:inline">'
+                '<button type="submit" class="btn btn-sm btn-warning">'
+                'Liberar máquina</button></form>'
+            )
+
+        column_formatters = {'data_ativacao': format_activation_action}
     app.logger.info("   OK: View do admin criada.")
     app.logger.info("6. Adicionando a view ao painel de administração...")
     admin.add_view(CompraView(Compra, db.session))
@@ -97,9 +121,9 @@ def create_app():
 
     @app.route('/api/ativar', methods=['POST'])
     def ativar():
-        data = request.get_json()
-        chave_compra = data.get('chave_compra')
-        machine_id = data.get('machine_id')
+        data = request.get_json(silent=True) or {}
+        chave_compra = str(data.get('chave_compra', '')).strip().upper()
+        machine_id = str(data.get('machine_id', '')).strip()
 
         if not chave_compra or not machine_id:
             return jsonify({'sucesso': False, 'mensagem': 'Dados incompletos.'})
@@ -112,14 +136,24 @@ def create_app():
         if compra.ativado and compra.machine_id_ativado != machine_id:
             return jsonify({'sucesso': False, 'mensagem': 'Esta Chave de Compra já foi utilizada em outra máquina.'})
 
-        compra.ativado = True
-        compra.machine_id_ativado = machine_id
-        compra.data_ativacao = datetime.now().isoformat()
-        db.session.commit()
+        if not compra.ativado:
+            ativacao = db.session.execute(
+                update(Compra)
+                .where(Compra.id == compra.id, Compra.ativado.is_(False))
+                .values(
+                    ativado=True,
+                    machine_id_ativado=machine_id,
+                    data_ativacao=datetime.now().isoformat()
+                )
+            )
+            db.session.commit()
+            if ativacao.rowcount != 1:
+                compra = db.session.get(Compra, compra.id)
+                if not compra or compra.machine_id_ativado != machine_id:
+                    return jsonify({'sucesso': False, 'mensagem': 'Esta Chave de Compra já foi utilizada em outra máquina.'})
 
         validade = (datetime.now() + timedelta(days=366)).strftime('%Y-%m-%d')
         modulos = f"|IOT={'TRUE' if compra.inclui_iot else 'FALSE'}"
-        
         dados_licenca = f"{machine_id}|{validade}{modulos}"
         chave_licenca_final = fernet.encrypt(dados_licenca.encode()).decode()
 
@@ -128,6 +162,21 @@ def create_app():
             'mensagem': 'Sistema ativado com sucesso!',
             'chave_licenca': chave_licenca_final
         })
+
+    @app.route('/admin/compra/reset/<int:compra_id>', methods=['POST'])
+    def resetar_ativacao(compra_id):
+        if not basic_auth.authenticate():
+            return basic_auth.challenge()
+
+        compra = db.session.get(Compra, compra_id)
+        if not compra:
+            return 'Compra não encontrada.', 404
+
+        compra.ativado = False
+        compra.machine_id_ativado = None
+        compra.data_ativacao = None
+        db.session.commit()
+        return redirect(url_for('compra.index_view'))
 
     # --- COMANDOS DE INICIALIZAÇÃO ---
     app.logger.info("7. Sincronizando modelos com o banco de dados (db.create_all)...")
