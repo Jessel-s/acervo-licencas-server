@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Histórico de Movimentações{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 2rem;">
+    <h2 class="card-header" style="margin-top: 0;"><span class="material-icons-round">manage_search</span> Filtros Avançados</h2>
+    <form action="{{ url_for('storeroom.historico') }}" method="GET" class="form-container">
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+                <label>Data Inicial</label>
+                <input type="date" name="data_inicio" value="{{ data_inicio }}">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>Data Final</label>
+                <input type="date" name="data_fim" value="{{ data_fim }}">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>Tipo de Operação</label>
+                <select name="tipo">
+                    <option value="">Todas</option>
+                    <option value="ENTRADA" {% if filtro_tipo == 'ENTRADA' %}selected{% endif %}>Entrada (Reposição)</option>
+                    <option value="SAIDA" {% if filtro_tipo == 'SAIDA' %}selected{% endif %}>Saída (Consumo)</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 2;">
+                <label>Busca Livre (SKU, Produto, Solicitante ou Usuário)</label>
+                <input type="text" name="busca" value="{{ filtro_busca }}" placeholder="Digite para buscar...">
+            </div>
+        </div>
+        <div class="actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+            <a href="{{ url_for('storeroom.historico') }}" class="btn btn-outline" style="text-decoration: none;">Limpar Filtros</a>
+            <button type="submit" class="btn btn-primary"><span class="material-icons-round">search</span> Filtrar Resultados</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2 class="card-header"><span class="material-icons-round">history</span> Registros de Movimentação</h2>
+    <div class="table-container">
+        <table class="table dataTable">
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Data/Hora</th>
+                    <th style="text-align: left;">Produto</th>
+                    <th style="text-align: left;">SKU</th>
+                    <th style="text-align: center;">Operação</th>
+                    <th style="text-align: center;">Qtd</th>
+                    <th style="text-align: left;">Destino/Solicitante</th>
+                    <th style="text-align: left;">Observação</th>
+                    <th style="text-align: left;">Registrado por</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mov in movimentacoes %}
+                <tr>
+                    <td style="white-space: nowrap; font-size: 0.9rem; color: var(--text-muted);">{{ mov.data_movimentacao }}</td>
+                    <td><strong style="color: var(--text-main);">{{ mov.nome }}</strong></td>
+                    <td style="font-family: monospace; color: var(--info);">{{ mov.sku }}</td>
+                    <td style="text-align: center;">
+                        {% if mov.tipo == 'ENTRADA' %}
+                        <span class="status-badge status-disponivel">ENTRADA</span>
+                        {% else %}
+                        <span class="status-badge status-inativo">SAÍDA</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center; font-weight: bold; font-size: 1.1rem; color: {% if mov.tipo == 'ENTRADA' %}#10b981{% else %}#ef4444{% endif %};">
+                        {% if mov.tipo == 'ENTRADA' %}+{% else %}-{% endif %}{{ mov.quantidade }}
+                    </td>
+                    <td style="font-size: 0.9rem;">{{ mov.destino_id or '-' }}</td>
+                    <td style="font-size: 0.9rem; color: var(--text-muted);">{{ mov.observacao or '-' }}</td>
+                    <td style="font-size: 0.9rem;">{{ mov.usuario }}</td>
+                </tr>
+                {% endfor %}
+                {% if not movimentacoes %}
+                <tr><td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">Nenhuma movimentação encontrada com estes filtros.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

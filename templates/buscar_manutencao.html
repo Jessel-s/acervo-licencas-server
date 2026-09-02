@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Identificar Item com Defeito{% endblock %}
+
+{% block content %}
+<div class="d-flex" style="justify-content: center;">
+    <div class="form-container card" style="max-width: 600px; width: 100%; text-align: center;">
+        
+        <div style="margin-bottom: 20px;">
+            <span class="material-icons-round" style="font-size: 48px; color: var(--danger);">build_circle</span>
+            <h3 style="margin-top: 10px;">Reportar Problema</h3>
+            <p style="color: var(--text-muted);">Escaneie ou digite o código do equipamento para registrar o defeito.</p>
+        </div>
+
+        <div id="reader" style="width: 100%; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 20px;"></div>
+
+        <button type="button" class="btn btn-outline" onclick="startScanner()" id="btn-scan" style="width: 100%; margin-bottom: 20px; padding: 15px;">
+            <span class="material-icons-round">qr_code_scanner</span> Ativar Câmera
+        </button>
+
+        <div class="form-group">
+            <div class="input-with-icon">
+                <span class="material-icons-round">search</span>
+                <input type="text" id="manual_input" placeholder="DIGITE OU BIPE O ID..." autofocus style="text-transform: uppercase; text-align: center; font-weight: bold; font-size: 1.2rem;" onkeyup="if(event.key === 'Enter') buscarItem()">
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-primary" onclick="buscarItem()" style="width: 100%; margin-top: 10px;">
+            CONTINUAR <span class="material-icons-round">arrow_forward</span>
+        </button>
+
+    </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+    let html5QrCode;
+
+    function startScanner() {
+        document.getElementById('reader').style.display = 'block';
+        document.getElementById('btn-scan').style.display = 'none';
+        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => { 
+                html5QrCode.stop();
+                console.log("QR Raw:", decodedText);
+                let id = decodedText;
+                
+                try {
+                    // Limpeza básica da URL
+                    let cleanText = decodedText.trim();
+                    // Remove barra no final se tiver
+                    if (cleanText.endsWith('/')) cleanText = cleanText.slice(0, -1);
+                    // Remove parâmetros de URL (tudo depois de ?)
+                    cleanText = cleanText.split('?')[0];
+
+                    // Divide a URL pelas barras
+                    const parts = cleanText.split('/');
+                    let lastSegment = parts[parts.length - 1];
+
+                    // SE a última parte for "SCAN" (ignora maiúscula/minúscula), pega a penúltima
+                    if (lastSegment.toUpperCase() === 'SCAN' && parts.length > 1) {
+                        id = parts[parts.length - 2];
+                    } else {
+                        // Se não for SCAN, a última parte já é o ID
+                        id = lastSegment;
+                    }
+                } catch (e) {
+                    console.log("Erro ao processar URL do QR:", e);
+                }
+
+                id = id.trim().toUpperCase(); // Sanitização final: maiúsculo e sem espaços
+                redirecionar(id); 
+            },
+            (errorMessage) => {}
+        ).catch(err => console.log(err));
+    }
+
+    async function buscarItem() {
+        const id = document.getElementById('manual_input').value.trim().toUpperCase();
+        if (!id) return;
+        redirecionar(id);
+    }
+
+    async function redirecionar(id) {
+        // Verifica se existe antes de ir
+        try {
+            const response = await fetch(`/api/verificar_ativo/${id}`);
+            const data = await response.json();
+
+            if (!data.exists) {
+                Toast.fire({ icon: 'error', title: `Ativo "${id}" não encontrado!` });
+                return;
+            }
+
+            // Redireciona para a tela de preencher o defeito
+            let targetUrl = `/notebook/${id}/reportar_problema`;
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('kiosk')) { targetUrl += `?kiosk=1`; }
+            
+            window.location.href = targetUrl;
+
+        } catch (error) {
+            Toast.fire({ icon: 'error', title: "Erro de conexão" });
+        }
+    }
+</script>
+{% endblock %}

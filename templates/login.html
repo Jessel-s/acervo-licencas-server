@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Gestão Ativos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg-body);
+        }
+        body.dark-mode { background: var(--bg-body); }
+        
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            background: var(--bg-card);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-color);
+        }
+        .login-header { display: flex; flex-direction: column; align-items: center; margin-bottom: 2rem; }
+        /* Ajuste da marca para fundo claro */
+        .login-header .brand-text { color: var(--text-main); font-size: 2rem; }
+        .login-header .brand-symbol { width: 48px; height: 48px; margin-bottom: 10px; }
+        .login-header .brand-symbol::before { width: 24px; height: 24px; top: 12px; left: 12px; border-width: 3px; }
+        .login-header .brand-symbol::after { width: 12px; height: 12px; bottom: 12px; right: 12px; }
+        .login-header p { color: var(--text-muted); font-size: 0.875rem; }
+    </style>
+</head>
+<body>
+    <!-- Script Anti-Flash (Executa antes da renderização visual) -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light-mode';
+            if (savedTheme === 'dark-mode') document.body.classList.add('dark-mode');
+        })();
+    </script>
+
+    <div class="login-card">
+        <div class="login-header">
+            <div class="brand-symbol"></div>
+            <span class="brand-text">Acervo</span>
+            <p>Entre com suas credenciais para continuar</p>
+        </div>
+
+        <!-- Feedback de Erro -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div style="background-color: rgba(239, 68, 68, 0.1); color: var(--danger); padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.875rem; text-align: center;">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <!-- Token de Segurança CSRF Obrigatório -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 1rem;">
+                <label for="username" style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: var(--text-main);">Usuário</label>
+                <input type="text" id="username" name="username" placeholder="ex: admin" required autofocus>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <label for="password" style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: var(--text-main);">Senha</label>
+                <input type="password" id="password" name="password" placeholder="••••••••" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem; font-size: 1rem;">
+                Entrar no Sistema
+            </button>
+        </form>
+        
+        <p style="text-align: center; margin-top: 1.5rem; color: var(--text-muted); font-size: 0.75rem;">© <script>document.write(new Date().getFullYear());</script> Acervo</p>
+    </div>
+
+</body>
+</html>

@@ -2,10 +2,11 @@
 from flask import Flask, render_template, render_template_string, request, redirect, url_for, flash, g, send_file, session, jsonify
 import sqlite3
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import func, or_, and_
+from sqlalchemy import event, func, or_, and_
 import os
 import uuid
 import hashlib
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 import traceback
@@ -26,6 +27,8 @@ from settings import settings_bp # Importa o novo Blueprint de Configurações
 from storeroom import storeroom_bp # Importa o Blueprint de Almoxarifado
 from models import db, Notebook, Historico, SessaoUso, Agendamento, AlmoxProduto, Problema # Importação já existe
 from utils import trigger_iot_relay
+from availability import is_available_after_return, parse_datetime_value, schedule_start
+from backup import create_database_backup
 
 # Define o caminho absoluto para a pasta do projeto
 if getattr(sys, 'frozen', False):
@@ -34,7 +37,7 @@ else:
     basedir = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'), static_folder=os.path.join(basedir, 'static'))
-app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['TEMPLATES_AUTO_RELOAD'] = False
 
 # --- CONFIGURAÇÃO DO BANCO DE DADOS (SQLAlchemy) ---
 # --- ADAPTAÇÃO PARA CLOUD: Lê a URL do banco de uma variável de ambiente ---
@@ -45,8 +48,20 @@ if database_url and database_url.startswith('postgres'):
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url.replace("postgres://", "postgresql://", 1)
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "patrimonio_ti.db")}'
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {'check_same_thread': False, 'timeout': 30}
+    }
 db.init_app(app)
 migrate = Migrate(app, db)
+
+if not database_url:
+    with app.app_context():
+        with db.engine.connect() as connection:
+            connection.exec_driver_sql('PRAGMA journal_mode = WAL')
+
+        @event.listens_for(db.engine, 'connect')
+        def configure_sqlite_connection(dbapi_connection, _):
+            dbapi_connection.execute('PRAGMA busy_timeout = 30000')
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(inventory_bp) 
@@ -87,6 +102,7 @@ csrf.exempt(kiosk_exit)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+SLOW_REQUEST_SECONDS = 1.0
 
 # --- TRATAMENTO GLOBAL DE ERROS ---
 @app.errorhandler(Exception)
@@ -112,6 +128,31 @@ def get_license_secret():
     return None
 
 _license_cache = {'time': 0, 'data': None}
+LICENSE_ONLINE_GRACE_SECONDS = 7 * 24 * 60 * 60
+
+def get_license_online_cache_path():
+    return os.path.join(basedir, '.license_online_cache.json')
+
+def save_license_online_validation(machine_id, license_key):
+    cache_data = {
+        'machine_id': machine_id,
+        'license_hash': hashlib.sha256(license_key.encode()).hexdigest(),
+        'validated_at': time.time()
+    }
+    with open(get_license_online_cache_path(), 'w', encoding='utf-8') as cache_file:
+        json.dump(cache_data, cache_file)
+
+def has_recent_online_validation(machine_id, license_key):
+    try:
+        with open(get_license_online_cache_path(), 'r', encoding='utf-8') as cache_file:
+            cache_data = json.load(cache_file)
+        return (
+            cache_data.get('machine_id') == machine_id and
+            cache_data.get('license_hash') == hashlib.sha256(license_key.encode()).hexdigest() and
+            time.time() - float(cache_data.get('validated_at', 0)) < LICENSE_ONLINE_GRACE_SECONDS
+        )
+    except (OSError, ValueError, TypeError):
+        return False
 
 def get_license_info(force_revalidate: bool = False) -> tuple:
     """Valida a licença e retorna o status e os módulos habilitados."""
@@ -185,22 +226,23 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
 
                 # Licenças emitidas pelo servidor podem ser revogadas no painel.
                 if 'ONLINE=TRUE' in parts[2:]:
-                    try:
-                        import json
-                        validation_data = json.dumps({'machine_id': current_machine_id}).encode('utf-8')
-                        validation_request = urllib.request.Request(
-                            'https://acervo-licencas-server.onrender.com/api/validar',
-                            data=validation_data,
-                            headers={'Content-Type': 'application/json'}
-                        )
-                        with urllib.request.urlopen(validation_request, timeout=8) as response:
-                            validation_result = json.loads(response.read().decode('utf-8'))
-                        if not validation_result.get('valida', False):
-                            app.logger.warning('Licença online revogada pelo servidor.')
+                    if not has_recent_online_validation(current_machine_id, stored_key):
+                        try:
+                            validation_data = json.dumps({'machine_id': current_machine_id}).encode('utf-8')
+                            validation_request = urllib.request.Request(
+                                'https://acervo-licencas-server.onrender.com/api/validar',
+                                data=validation_data,
+                                headers={'Content-Type': 'application/json'}
+                            )
+                            with urllib.request.urlopen(validation_request, timeout=8) as response:
+                                validation_result = json.loads(response.read().decode('utf-8'))
+                            if not validation_result.get('valida', False):
+                                app.logger.warning('Licença online revogada pelo servidor.')
+                                return 'INVALID', 0, default_modules
+                            save_license_online_validation(current_machine_id, stored_key)
+                        except Exception as validation_error:
+                            app.logger.error(f'Falha na validação online sem cache válido: {validation_error}')
                             return 'INVALID', 0, default_modules
-                    except Exception as validation_error:
-                        app.logger.error(f'Falha na validação obrigatória da licença online: {validation_error}')
-                        return 'INVALID', 0, default_modules
 
                 # LÓGICA HÍBRIDA: Se a licença não tem IoT, mas o trial ainda está ativo, libera o IoT temporariamente.
                 if not modules['iot']:
@@ -273,9 +315,27 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
     except (IOError, ValueError):
         return 'EXPIRED', 0, default_modules
 
+# --- MONITORAMENTO DE DESEMPENHO ---
+@app.before_request
+def start_request_timer():
+    g.request_started_at = time.perf_counter()
+
 # --- BLOQUEADOR DE CACHE PARA O TABLET ---
 @app.after_request
 def add_header(response):
+    started_at = getattr(g, 'request_started_at', None)
+    if started_at is not None:
+        elapsed_seconds = time.perf_counter() - started_at
+        if elapsed_seconds >= SLOW_REQUEST_SECONDS:
+            app.logger.warning(
+                'REQUISIÇÃO LENTA: %.3fs | %s %s | status=%s | ip=%s',
+                elapsed_seconds,
+                request.method,
+                request.path,
+                response.status_code,
+                request.remote_addr
+            )
+
     if 'text/html' in response.content_type:
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
@@ -301,7 +361,17 @@ def dated_url_for(endpoint, **values):
 
 @app.before_request
 def check_license_access():
+    license_check_started_at = time.perf_counter()
     status, days, modules = get_license_info()
+    license_check_elapsed = time.perf_counter() - license_check_started_at
+    if license_check_elapsed >= SLOW_REQUEST_SECONDS:
+        app.logger.warning(
+            'VALIDAÇÃO DE LICENÇA LENTA: %.3fs | %s %s | status=%s',
+            license_check_elapsed,
+            request.method,
+            request.path,
+            status
+        )
     
     g.license_status = status
     g.days_left = days
@@ -343,6 +413,9 @@ def limpar_reservas_expiradas():
         )
     ).all()
     
+    if not expirados:
+        return 0
+
     for exp in expirados:
         exp.status = 'Cancelado'
         exp.finalidade = (exp.finalidade or '') + ' (Cancelado Automático: Tempo Limite)'
@@ -350,7 +423,13 @@ def limpar_reservas_expiradas():
             ids = [x.strip() for x in str(exp.itens_reservados).split(',') if x.strip()]
             if ids:
                 Notebook.query.filter(Notebook.status == 'Reservado', Notebook.id.in_(ids)).update({'status': 'Disponível'}, synchronize_session=False)
-    db.session.commit()
+    try:
+        db.session.commit()
+        return len(expirados)
+    except Exception:
+        db.session.rollback()
+        app.logger.exception('Falha ao cancelar reservas expiradas.')
+        return 0
 
 @app.route('/')
 def dashboard():
@@ -459,7 +538,7 @@ def dashboard():
 
     agenda_map = {} # CORREÇÃO: Define agenda_map antes do loop
     for row in raw_agendamentos:
-        d = row['data_uso']
+        d = row.data_uso
         if d not in agenda_map: agenda_map[d] = [] # d é a data_uso (string)
         
         horario = f"{row.horario_retirada or '?'}h" # CORREÇÃO: Acessa atributo
@@ -601,14 +680,35 @@ def api_disponibilidade():
         agendamentos = Agendamento.query.filter_by(data_uso=data_uso, status='Agendado').all()
         
         # Inteligência: Busca a previsão de devolução dos equipamentos que estão fisicamente fora (Em uso)
-        sessoes_ativas = db.session.query(Historico.id_etiqueta, SessaoUso.previsao_devolucao).join(
-            SessaoUso, SessaoUso.data_inicio == Historico.data
-        ).join(
+        # A saída e seus itens são gravados em linhas separadas. Como os
+        # timestamps podem diferir por microssegundos, não usamos igualdade
+        # exata para relacionar a sessão ao histórico.
+        historicos_ativos = db.session.query(Historico).join(
             Notebook, Notebook.id == Historico.id_etiqueta
         ).filter(
             Notebook.status == 'Em uso', Historico.acao == 'Saída/Empréstimo'
         ).all()
-        previsao_em_uso = {row.id_etiqueta: row.previsao_devolucao for row in sessoes_ativas if row.previsao_devolucao}
+        sessoes_com_previsao = SessaoUso.query.filter(
+            SessaoUso.previsao_devolucao != None
+        ).all()
+        previsao_em_uso = {}
+        for historico in historicos_ativos:
+            data_historico = parse_datetime_value(historico.data)
+            sessoes_proximas = [
+                sessao for sessao in sessoes_com_previsao
+                if data_historico and parse_datetime_value(sessao.data_inicio)
+                and 0 <= (data_historico - parse_datetime_value(sessao.data_inicio)).total_seconds() <= 10
+            ]
+            if sessoes_proximas:
+                sessao = min(
+                    sessoes_proximas,
+                    key=lambda item: abs(
+                        (data_historico - parse_datetime_value(item.data_inicio)).total_seconds()
+                    )
+                )
+                previsao = parse_datetime_value(sessao.previsao_devolucao)
+                if previsao:
+                    previsao_em_uso[historico.id_etiqueta] = previsao
 
         blocked_ids = []
         
@@ -645,26 +745,13 @@ def api_disponibilidade():
             elif nb.status == 'Em manutenção':
                 status_visual = 'manutencao'
             elif nb.status == 'Em uso':
-                dt_obj = datetime.strptime(data_uso, '%Y-%m-%d')
                 prev_devolucao = previsao_em_uso.get(nb.id)
-                if data_uso < hoje_str:
+                # Um item em uso só fica indisponível até a previsão de devolução.
+                # Sem previsão, permanece bloqueado por segurança.
+                if not prev_devolucao or not is_available_after_return(
+                    data_uso, req_inicio, prev_devolucao
+                ):
                     status_visual = 'reservado'
-                elif data_uso == hoje_str:
-                    # Verifica a hora exata que foi prometida a entrega
-                    if prev_devolucao and isinstance(prev_devolucao, datetime):
-                        if prev_devolucao.date() == dt_obj.date(): # Se a devolução é no mesmo dia do agendamento
-                            prev_m = prev_devolucao.hour * 60 + prev_devolucao.minute
-                            if req_in_m < (prev_m + 10):
-                                status_visual = 'reservado'
-                        elif prev_devolucao.date() > dt_obj.date():
-                            status_visual = 'reservado'
-                    else:
-                        # Quem tirou não colocou hora de entrega, então bloqueia pro dia todo por segurança
-                        status_visual = 'reservado'
-                else:
-                    # Validando Agendamentos para dias futuros com saídas pendentes
-                    if prev_devolucao and isinstance(prev_devolucao, datetime) and prev_devolucao.date() >= dt_obj.date():
-                            status_visual = 'reservado'
                 
             resultado.append({
                 'id': nb.id,
@@ -834,7 +921,11 @@ def agendamento():
             )
             db.session.add(novo_agendamento)
             
-            Notebook.query.filter(Notebook.id.in_(itens_validos)).update({'status': 'Reservado'}, synchronize_session=False)
+            # Um equipamento ainda em uso mantém seu status físico até a devolução.
+            # A API de disponibilidade já considera a reserva futura pelo horário.
+            Notebook.query.filter(
+                Notebook.id.in_(itens_validos), Notebook.status == 'Disponível'
+            ).update({'status': 'Reservado'}, synchronize_session=False)
             
             db.session.commit() # CORREÇÃO: Salva o agendamento e a atualização de status no banco de dados.
             
@@ -1315,6 +1406,15 @@ def desligar_sistema():
 
 if __name__ == '__main__':
     try:
+        if os.name == 'nt':
+            import ctypes
+            instance_mutex = ctypes.windll.kernel32.CreateMutexW(
+                None, False, 'Global\\AcervoTI-Servidor-8080'
+            )
+            if ctypes.windll.kernel32.GetLastError() == 183:
+                print('O Sistema Acervo TI já está em execução neste computador.')
+                sys.exit(0)
+
         # --- HTTPS SETUP (MODERNIZADO E CORRIGIDO) ---
         from cryptography import x509
         from cryptography.x509.oid import NameOID
@@ -1324,6 +1424,17 @@ if __name__ == '__main__':
         import ipaddress
         from utils import obter_ip_local
         meu_ip = obter_ip_local()
+
+        try:
+            backup_path = create_database_backup(
+                os.path.join(basedir, 'patrimonio_ti.db'),
+                os.path.join(basedir, 'backups')
+            )
+            app.logger.info(f'Backup automático criado: {backup_path}')
+        except FileNotFoundError:
+            app.logger.warning('Backup automático ignorado: banco ainda não existe.')
+        except Exception:
+            app.logger.exception('Falha ao criar backup automático na inicialização.')
 
         cert_file = os.path.join(basedir, 'cert_secure.pem')
         key_file = os.path.join(basedir, 'key_secure.pem')

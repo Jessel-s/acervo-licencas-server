@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Histórico de Chamados{% endblock %}
+
+{% block content %}
+<!-- BARRA DE FERRAMENTAS E FILTROS FIXOS NO TOPO -->
+<form method="GET" action="{{ url_for('maintenance.historico_chamados') }}" class="table-toolbar">
+    <div class="filter-body">
+        <div class="input-with-icon">
+            <input type="date" name="data_inicio" value="{{ data_inicio }}" title="Data Inicial" class="form-input-std">
+        </div>
+        <span style="color: var(--text-muted); font-weight: bold;">até</span>
+        <div class="input-with-icon">
+            <input type="date" name="data_fim" value="{{ data_fim }}" title="Data Final" class="form-input-std">
+        </div>
+        <div class="input-with-icon" style="min-width: 180px;">
+            <span class="material-icons-round">filter_alt</span>
+            <select id="filtroStatus" class="form-input-std" style="padding-left: 40px; height: 42px;">
+                <option value="">Todos os Status</option>
+                <option value="Aberto">Abertos (Na Fila)</option>
+                <option value="Resolvido">Resolvidos</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <span class="material-icons-round">search</span> Filtrar
+        </button>
+        <a href="{{ url_for('maintenance.historico_chamados') }}" class="btn btn-outline">
+            <span class="material-icons-round">clear_all</span> Limpar
+        </a>
+    </div>
+</form>
+
+<div class="table-container">
+    <table class="table dataTable nowrap" id="tabelaHistChamados" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Ativo / Patrimônio</th>
+                    <th>Localização</th>
+                    <th>Categoria</th>
+                    <th>Defeito</th>
+                    <th>TMA (Tempo)</th>
+                    <th>Resolução / Parecer</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in problemas %}
+                <tr>
+                    <td data-sort="{{ p['data_registro'] }}">{{ p['data_formatada'] }}</td>
+                    <td>
+                        {% if p['notebook_id'] %}
+                            <strong>{{ p['notebook_id'] }}</strong>
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.8rem;">GERAL</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ p['local_incidente'] }}</td>
+                    <td><span class="perm-tag">{{ p['categoria'] }}</span></td>
+                    <td style="max-width: 200px; white-space: normal;"><strong>{{ p['tipo_problema'] }}</strong></td>
+                    <td>
+                        {% if p['tempo_atendimento'] != '-' %}
+                            <span style="background: rgba(14, 165, 233, 0.1); color: var(--info); padding: 4px 8px; border-radius: 4px; font-weight: 700; font-size: 0.8rem; border: 1px solid rgba(14, 165, 233, 0.2);"><span class="material-icons-round" style="font-size: 14px; vertical-align: middle;">timer</span> {{ p['tempo_atendimento'] }}</span>
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="max-width: 300px; white-space: normal; line-height: 1.4;">
+                        {% if p['parecer_tecnico'] %}
+                            <span style="color: var(--success); font-size: 0.85rem;"><span class="material-icons-round" style="font-size: 14px; vertical-align: middle;">check_circle</span> {{ p['parecer_tecnico'] }}</span>
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.85rem;">Aguardando atendimento...</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p['status'] == 'Resolvido' %}
+                            <span class="status-badge status-disponivel">Resolvido</span>
+                        {% else %}
+                            <span class="status-badge status-inativo">Aberto</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if ($.fn.DataTable.isDataTable('#tabelaHistChamados')) {
+        $('#tabelaHistChamados').DataTable().destroy();
+    }
+    var table = $('#tabelaHistChamados').DataTable({
+        "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json" },
+        "order": [[0, "desc"]], // Ordena pela data mais recente
+        "pageLength": 25,
+        "scrollX": true,
+        "dom": "<'d-flex justify-between align-center'Bf>tr<'d-flex justify-between align-center'lip>",
+        "buttons": [
+            {
+                extend: 'collection',
+                text: '<span class="material-icons-round" style="font-size: 1.2rem;">import_export</span> Exportar',
+                className: 'dt-export-btn',
+                autoClose: true,
+                buttons: [
+                    { extend: 'excelHtml5', text: '<span class="material-icons-round" style="color: #10b981;">table_view</span> Excel (.xlsx)' },
+                    {   extend: 'pdfHtml5', 
+                        text: '<span class="material-icons-round" style="color: #ef4444;">picture_as_pdf</span> Documento PDF (.pdf)', 
+                        orientation: 'landscape', 
+                        pageSize: 'A4',
+                        customize: function(doc) {
+                            doc.defaultStyle.fontSize = 8;
+                            doc.styles.tableHeader.fontSize = 9;
+                            doc.pageMargins = [20, 30, 20, 30];
+                            doc.defaultStyle.alignment = 'left';
+                            doc.styles.tableHeader.alignment = 'left';
+                            doc.content[1].table.widths = ['auto', 'auto', 'auto', 'auto', '*', 'auto', '*', 'auto'];
+                        }
+                    }
+                ]
+            }
+        ]
+    });
+
+    $('#filtroStatus').on('change', function() { table.column(6).search(this.value).draw(); });
+});
+</script>
+{% endblock %}

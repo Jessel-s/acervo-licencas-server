@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Abrir Novo Chamado{% endblock %}
+
+{% block content %}
+{% if request.args.get('kiosk') %}
+<style>
+    /* --- MODO KIOSK (FULLSCREEN & NO HEADER) --- */
+    .top-header, .local-page-header { display: none !important; }
+    
+    body {
+        margin: 0;
+        padding-top: 120px !important; /* Compensa o header fixo */
+    }
+
+    .content-wrapper { 
+        padding: 0 !important; 
+        background: transparent !important;
+    }
+
+    /* --- CABEÇALHO DO TOTEM --- */
+    .totem-header {
+        position: fixed;
+        top: 0; left: 0; width: 100%;
+        box-sizing: border-box;
+        background: #0f172a;
+        z-index: 1000;
+        padding: 20px 60px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .totem-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        letter-spacing: -0.5px;
+    }
+
+    .totem-btn-cancelar {
+        background: #ef4444;
+        color: #ffffff;
+        padding: 12px 25px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        transition: 0.3s;
+    }
+    .totem-btn-cancelar:hover {
+        background: #dc2626;
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        transform: translateY(-2px);
+    }
+
+    .kiosk-btn-voltar { display: none !important; }
+</style>
+
+<div class="totem-header">
+    <div class="totem-title">
+        <span class="material-icons-round" style="font-size: 2.8rem; color: #ef4444;">warning</span>
+        Reportar Defeito
+    </div>
+    <a href="{{ url_for('kiosk_home') }}" class="totem-btn-cancelar">
+        <span class="material-icons-round">cancel</span> Cancelar e Voltar
+    </a>
+</div>
+{% endif %}
+
+<div class="d-flex" style="justify-content: center; {% if request.args.get('kiosk') %}margin-top: 20px;{% endif %}">
+    <div class="form-container card" style="max-width: 800px; width: 100%;">
+        
+        <div class="card-header">
+            {% if notebook %}Abrir Chamado para o Ativo: {{ notebook['id'] }}{% else %}Abrir Novo Chamado (Help Desk Geral){% endif %}
+        </div>
+        {% if notebook %}
+            <p style="color: var(--text-muted); margin-top: -10px; margin-bottom: 20px;">Modelo: {{ notebook['modelo'] }}</p>
+        {% else %}
+            <p style="color: var(--text-muted); margin-top: -10px; margin-bottom: 20px;">Reporte incidentes de infraestrutura, rede, software ou equipamentos.</p>
+        {% endif %}
+
+        <form method="POST">
+            <!-- CSRF Token -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            {% if not notebook %}
+            <div class="form-group">
+                <label>Patrimônio do Equipamento {% if not session.modules or not session.modules.helpdesk %}(Obrigatório){% else %}(Opcional){% endif %}</label>
+                <div class="input-with-icon">
+                    <span class="material-icons-round">qr_code_scanner</span>
+                    <input type="text" name="patrimonio" placeholder="Bipe o QR Code ou digite o ID..." {% if not session.modules or not session.modules.helpdesk %}required{% endif %} style="text-transform: uppercase; font-weight: bold; color: var(--primary); font-size: 1.1rem;" oninput="this.value = this.value.toUpperCase()" autofocus>
+                </div>
+            </div>
+            {% else %}
+            <input type="hidden" name="patrimonio" value="{{ notebook['id'] }}">
+            {% endif %}
+
+            {% if session.modules and session.modules.helpdesk %}
+                <!-- MÓDULO HELP DESK ATIVO: Exibe todos os campos avançados de chamados -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Local / Setor do Incidente</label>
+                        <input type="text" name="local_incidente" value="{{ notebook['localizacao'] if notebook else '' }}" placeholder="EX: SALA 01..." required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                    <div class="form-group">
+                        <label>Categoria</label>
+                        <input type="text" name="categoria" list="lista_categorias" placeholder="EX: TI, ELÉTRICA..." required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                        <datalist id="lista_categorias">
+                            <option value="EQUIPAMENTOS / TI">
+                            <option value="SISTEMAS / SOFTWARE">
+                            <option value="INFRAESTRUTURA / PREDIAL">
+                            <option value="ELÉTRICA / ILUMINAÇÃO">
+                            <option value="HIDRÁULICA">
+                            <option value="MOBILIÁRIO / MÓVEIS">
+                            <option value="OUTROS">
+                        </datalist>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Prioridade</label>
+                    <select name="prioridade" required>
+                        <option value="Baixa">Baixa (Pode esperar)</option>
+                        <option value="Normal" selected>Normal</option>
+                        <option value="Alta" style="color: var(--warning); font-weight: bold;">Alta (Impacta o uso)</option>
+                        <option value="Crítica" style="color: var(--danger); font-weight: bold;">Crítica (Urgente)</option>
+                    </select>
+                </div>
+            {% else %}
+                <!-- MODO MANUTENÇÃO SIMPLES: Oculta a burocracia de tickets e envia valores padrão -->
+                <input type="hidden" name="local_incidente" value="{{ notebook['localizacao'] if notebook else 'NÃO INFORMADO' }}">
+                <input type="hidden" name="categoria" value="EQUIPAMENTOS / TI">
+                <input type="hidden" name="prioridade" value="Normal">
+            {% endif %}
+
+            <div class="form-group">
+                <label>Resumo do Problema</label>
+                <input type="text" name="tipo_problema" placeholder="EX: TELA QUEBRADA, TECLADO..." required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+            </div>
+
+            <div class="form-group">
+                <label>Descrição Detalhada</label>
+                <textarea name="descricao" rows="4" placeholder="Descreva o defeito..." required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"></textarea>
+            </div>
+
+            {% if notebook %}
+                <div class="alert info" style="margin-top: 20px; background-color: rgba(59, 130, 246, 0.1); color: var(--info); padding: 1rem; border-radius: var(--radius); display: flex; align-items: center; gap: 1rem;">
+                    <span class="material-icons-round">info</span>
+                    <span>Ao abrir o chamado, o status do ativo será alterado para <strong>"Em manutenção"</strong> e ele ficará bloqueado para empréstimos.</span>
+                </div>
+            {% endif %}
+
+            <div class="actions" style="margin-top: 30px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    <span class="material-icons-round">send</span> Abrir Chamado
+                </button>
+                <a href="{% if request.args.get('kiosk') %}{{ url_for('kiosk_home') }}{% else %}{{ url_for('maintenance.problemas') }}{% endif %}" class="btn btn-outline" style="flex: 1;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Notificações Padronizadas
+    document.addEventListener('DOMContentLoaded', function() {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
+
+        const flashMessages = {{ get_flashed_messages(with_categories=true) | tojson }};
+        if (flashMessages) {
+            flashMessages.forEach(([category, message]) => {
+                Toast.fire({ icon: category === 'message' ? 'info' : category, title: message });
+            });
+        }
+    });
+</script>
+{% endblock %}

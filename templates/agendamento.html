@@ -1,0 +1,849 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Totem de Agendamento{% endblock %}
+
+{% block content %}
+<style>
+    /* --- MODO KIOSK (FULLSCREEN & NO HEADER) --- */
+    .top-header, .local-page-header { display: none !important; }
+    
+    body {
+        background: #e2e8f0 !important; /* Cinza um pouco mais escuro/presente */
+        margin: 0;
+        overflow-x: hidden;
+    }
+
+    .content-wrapper { 
+        padding: 0 !important; 
+        max-width: 100% !important; 
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: transparent !important;
+    }
+
+    /* --- TWO-TONE SPLIT LAYOUT --- */
+    .split-top {
+        background: linear-gradient(135deg, #0f172a, #1e1b4b);
+        padding-top: 100px; /* Compensa o espaço do header fixo */
+        padding-bottom: 50px; 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        position: relative;
+        z-index: 5;
+    }
+
+    .split-bottom {
+        background: #e2e8f0; /* Cinza Slate (menos pálido) */
+        flex: 1;
+        padding: 50px 60px 180px 60px;
+        position: relative;
+    }
+
+    /* --- CABEÇALHO DO TOTEM --- */
+    .totem-header {
+        position: fixed;
+        top: 0; left: 0; width: 100%;
+        box-sizing: border-box;
+        background: #0f172a; /* Garante fundo sólido ao rolar */
+        z-index: 1000;
+        padding: 20px 60px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .totem-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        letter-spacing: -0.5px;
+    }
+
+    .totem-title .material-icons-round {
+        color: #38bdf8; 
+    }
+
+    /* Novo Botão Cancelar Fixo e Vermelho */
+    .totem-btn-cancelar {
+        background: #ef4444;
+        color: #ffffff;
+        padding: 12px 25px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        transition: 0.3s;
+    }
+    .totem-btn-cancelar:hover {
+        background: #dc2626;
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        transform: translateY(-2px);
+    }
+
+    /* Esconde o botão flutuante padrão do Kiosk para focar apenas no do cabeçalho */
+    .kiosk-btn-voltar { display: none !important; }
+
+    /* --- FORMULÁRIO --- */
+    .form-container {
+        padding: 30px 60px 30px 60px;
+    }
+
+    .totem-panel-title-light {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin-bottom: 30px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .touch-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 30px;
+    }
+
+    .touch-input-group {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .touch-input-group label {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #94a3b8; 
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .touch-input-dark {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px;
+        padding: 20px 25px;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #ffffff;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .touch-input-dark::placeholder { color: #64748b; }
+    
+    .touch-input-dark:focus {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: #38bdf8;
+        outline: none;
+        box-shadow: 0 10px 25px rgba(56, 189, 248, 0.2);
+        transform: translateY(-2px);
+    }
+    
+    ::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        opacity: 0.6;
+        cursor: pointer;
+    }
+
+    /* --- EQUIPAMENTOS --- */
+    .totem-panel-title-dark {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .search-input-light {
+        background: #ffffff;
+        border: 2px solid #cbd5e1;
+        border-radius: 50px;
+        padding: 15px 20px 15px 55px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #0f172a;
+        width: 320px;
+        transition: 0.3s;
+    }
+    .search-input-light:focus {
+        border-color: #3b82f6;
+        outline: none;
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.1);
+    }
+
+    .btn-outline-dark {
+        background: #ffffff;
+        border: 2px solid #cbd5e1;
+        color: #475569;
+        padding: 10px 20px;
+        font-size: 1rem;
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: 0.3s;
+    }
+    .btn-outline-dark:hover {
+        border-color: #0f172a;
+        color: #0f172a;
+    }
+
+    .device-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 15px;
+        margin-top: 30px;
+        background: #ffffff; /* Fundo branco puro criando a bandeja */
+        border: 1px solid #cbd5e1; /* Contorno cinza claro delimitando o espaço */
+        border-radius: 25px; /* Cantos arredondados acompanhando o estilo dos cards */
+        padding: 30px; /* Respiro interno para os equipamentos não grudarem na borda */
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); /* Sombra muito suave para soltar a bandeja do fundo gelo */
+    }
+
+    /* CARTÃO LIVRE (VERDE) BEM ARREDONDADO */
+    .device-card {
+        background: #ecfdf5; /* Fundo Verde Bebê Suave */
+        border: 2px solid #34d399; /* Borda Verde Claro */
+        border-radius: 20px; /* Mais contido e redondo */
+        padding: 20px 15px;
+        text-align: center;
+        box-shadow: 0 6px 15px rgba(16, 185, 129, 0.08);
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
+        overflow: hidden;
+        user-select: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .device-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(16, 185, 129, 0.15);
+        border-color: #10b981;
+    }
+
+    .device-card:active {
+        transform: scale(0.97);
+    }
+
+    .device-icon {
+        font-size: 3.5rem; /* Ícone menor */
+        color: #10b981; /* Ícone Verde Esmeralda */
+        transition: 0.3s;
+    }
+    .device-card:hover .device-icon { color: #047857; }
+
+    .device-id {
+        font-size: 1.3rem; /* Fonte menor */
+        font-weight: 900;
+        color: #064e3b; /* Texto Verde Super Escuro */
+        letter-spacing: -0.5px;
+    }
+
+    .device-model {
+        font-size: 0.75rem; /* Texto auxiliar menor */
+        color: #059669;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* CARTÃO SELECIONADO (AZUL VIBRANTE) */
+    .device-card.selecionado {
+        background: #eff6ff; /* Fundo Azul Bebê */
+        border: 3px solid #3b82f6; /* Borda Azul Forte */
+        transform: scale(1.05) translateY(-5px);
+        box-shadow: 0 15px 30px rgba(59, 130, 246, 0.2);
+    }
+
+    .device-card.selecionado .device-icon {
+        color: #3b82f6; /* Ícone Azul */
+    }
+    
+    .device-card.selecionado .device-id {
+        color: #1e3a8a; /* Texto Azul Escuro */
+    }
+    
+    .device-card.selecionado .device-model {
+        color: #2563eb; 
+    }
+
+    .check-badge {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: #3b82f6; /* Badge Azul */
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transform: scale(0);
+        transition: 0.3s;
+        box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+    }
+    .device-card.selecionado .check-badge {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    /* --- RODAPÉ DE FINALIZAÇÃO --- */
+    .totem-footer {
+        position: fixed;
+        bottom: 0; left: 0; width: 100%;
+        background: #0f172a; 
+        border-top: 5px solid #3b82f6; /* Agora a borda é azul combinando com a seleção */
+        padding: 25px 60px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 1000;
+        box-shadow: 0 -15px 50px rgba(0,0,0,0.3);
+        transform: translateY(100%);
+        transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .totem-footer.show { transform: translateY(0); }
+
+    .footer-info {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+    }
+
+    .cart-circle {
+        background: #3b82f6; /* Circulo Azul para combinar com itens selecionados */
+        color: white;
+        width: 75px; height: 75px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 2.4rem; font-weight: 900;
+        box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+    }
+
+    .cart-text h4 {
+        margin: 0; font-size: 1.9rem; font-weight: 800; color: #ffffff;
+    }
+    .cart-text p {
+        margin: 6px 0 0 0; font-size: 1.1rem; color: #94a3b8; font-weight: 500;
+    }
+
+    .btn-checkout {
+        background: #10b981; /* Botão de Confirmação Final verde pra chamar ação */
+        color: white;
+        border: none;
+        padding: 22px 60px;
+        border-radius: 60px;
+        font-size: 1.7rem; font-weight: 900;
+        cursor: pointer;
+        display: flex; align-items: center; gap: 15px;
+        box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+        transition: all 0.3s;
+        text-transform: uppercase;
+    }
+    .btn-checkout:hover {
+        transform: translateY(-3px); background: #059669;
+        box-shadow: 0 15px 35px rgba(16, 185, 129, 0.4);
+    }
+    .btn-checkout:active { transform: translateY(2px); }
+
+</style>
+
+<!-- TELA TOTEM -->
+<form method="POST" id="formAgendamento" onsubmit="return validarEnvio()" style="height: 100%; display: flex; flex-direction: column;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="itens_selecionados" id="inputItens" required>
+    <input type="hidden" name="modo" value="{{ modo }}">
+    <input type="hidden" name="kiosk" value="{{ request.args.get('kiosk', '') }}">
+
+    <!-- BLOCO AZUL SUPERIOR -->
+    <div class="split-top">
+        <!-- HEADER DO TOTEM -->
+        <div class="totem-header">
+            <div class="totem-title">
+                <span class="material-icons-round" style="font-size: 2.8rem;">touch_app</span>
+                {% if modo == 'express' %}
+                    Saída Rápida
+                {% else %}
+                    Novo Agendamento
+                {% endif %}
+            </div>
+            <a href="{{ url_for('kiosk_home') if request.args.get('kiosk') else url_for('dashboard') }}" class="totem-btn-cancelar">
+                <span class="material-icons-round">cancel</span> Cancelar e Voltar
+            </a>
+        </div>
+
+        <!-- FORMULÁRIO -->
+        <div class="form-container">
+            <div class="totem-panel-title-light">
+                <span class="material-icons-round" style="color: #38bdf8; font-size: 2rem;">schedule</span>
+                {% if modo == 'express' %}
+                    1. Informe o Destino
+                {% else %}
+                    1. Defina o Horário e o Responsável
+                {% endif %}
+            </div>
+            
+            <div class="touch-grid">
+                {% if modo != 'express' %}
+                    <div class="touch-input-group">
+                        <label>Data de Retirada</label>
+                        <input type="date" name="data_uso" id="inputDataUso" class="touch-input-dark" required oninput="atualizarDisponibilidade()" onchange="atualizarDisponibilidade()">
+                    </div>
+                    <div class="touch-input-group">
+                        <label>Hora Retirada</label>
+                        <input type="time" name="horario_retirada" id="inputInicio" class="touch-input-dark" required oninput="atualizarDisponibilidade()" onchange="atualizarDisponibilidade()">
+                    </div>
+                    <div class="touch-input-group">
+                        <label>Hora Devolução</label>
+                        <input type="time" name="horario_devolucao" id="inputFim" class="touch-input-dark" required oninput="atualizarDisponibilidade()" onchange="atualizarDisponibilidade()">
+                    </div>
+                    <div class="touch-input-group">
+                        <label>Responsável</label>
+                        <input type="text" name="solicitante" class="touch-input-dark" value="{{ username if username != 'admin' else '' }}" placeholder="Toque para digitar..." required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                {% else %}
+                    <input type="hidden" name="data_uso" id="inputDataUso">
+                    <input type="hidden" name="horario_retirada" id="inputInicio">
+                    <div class="touch-input-group">
+                        <label>Data de Devolução</label>
+                        <input type="date" name="data_devolucao" id="inputDataDev" class="touch-input-dark" required oninput="atualizarDisponibilidade()" onchange="atualizarDisponibilidade()">
+                    </div>
+                    <div class="touch-input-group">
+                        <label>Hora de Devolução</label>
+                        <input type="time" name="horario_devolucao" id="inputFim" class="touch-input-dark" required oninput="atualizarDisponibilidade()" onchange="atualizarDisponibilidade()">
+                    </div>
+                    <div class="touch-input-group">
+                        <label>Responsável</label>
+                        <input type="text" name="solicitante" class="touch-input-dark" value="{{ username if username != 'admin' else '' }}" placeholder="Toque para digitar..." required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                {% endif %}
+                <div class="touch-input-group" style="grid-column: 1 / -1;">
+                    <label>Destino / Finalidade (Sala ou Evento)</label>
+                    <input type="text" name="finalidade" class="touch-input-dark" placeholder="Ex: SALA 01 - REUNIÃO COM DIRETORIA" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BLOCO INFERIOR (MAIS ESCURO QUE BRANCO) -->
+    <div class="split-bottom">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <div class="totem-panel-title-dark">
+                <span class="material-icons-round" style="color: #0f172a; font-size: 2.2rem;">devices</span>
+                {% if modo == 'express' %}
+                    2. Toque no Equipamento para Retirar
+                {% else %}
+                    2. Toque nos Equipamentos Desejados
+                {% endif %}
+            </div>
+            
+            <div style="display: flex; gap: 20px;">
+                <button type="button" class="btn-outline-dark" onclick="selecionarTodos()" id="btnSelecionarTodos">
+                    <span class="material-icons-round">done_all</span> Selecionar Tudo
+                </button>
+                <div style="position: relative;">
+                    <span class="material-icons-round" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.5rem;">search</span>
+                    <input type="text" id="filtroGrid" placeholder="Buscar ID ou Modelo..." class="search-input-light" onkeyup="filtrarGrid()">
+                </div>
+            </div>
+        </div>
+
+        <div class="device-grid" id="gridEquipamentos">
+            <!-- Os cards serão injetados aqui via JavaScript -->
+        </div>
+    </div>
+
+    <!-- RODAPÉ FIXO -->
+    <div class="totem-footer" id="totemFooter">
+        <div class="footer-info">
+            <div class="cart-circle" id="contadorSelecaoBadge">0</div>
+            <div class="cart-text">
+                <h4>Equipamentos Selecionados</h4>
+                <p id="cart-details">Aguardando seleção...</p>
+            </div>
+        </div>
+        <button type="submit" class="btn-checkout" id="btnSubmit">
+            {% if modo == 'express' %}
+                Retirar e Abrir Porta <span class="material-icons-round" style="font-size: 2rem;">lock_open</span>
+            {% else %}
+                Confirmar Reserva <span class="material-icons-round" style="font-size: 2rem;">arrow_forward</span>
+            {% endif %}
+        </button>
+    </div>
+</form>
+
+<script>
+    // LÓGICA DE SELEÇÃO E RENDERIZAÇÃO
+    let selecionados = new Set();
+    let todosItens = [];
+    let itensFiltrados = [];
+    let availabilityDelay;
+    let availabilityRequestController;
+    let availabilityRequestSequence = 0;
+
+    const modo = "{{ modo }}"; // Captura o modo do Flask
+
+    function atualizarDisponibilidade() {
+        clearTimeout(availabilityDelay);
+        availabilityDelay = setTimeout(carregarDisponibilidadeAtual, 250);
+    }
+
+    function carregarDisponibilidadeAtual() {
+        // Se for modo express, sempre carrega itens disponíveis para o dia atual
+        if (modo === 'express') {
+            const today = new Date();
+            const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            document.getElementById('inputDataUso').value = dateString;
+            carregarItens(dateString, "00:00", "23:59"); // Dia todo
+        } else {
+            carregarItens();
+        }
+    }
+
+    function getIconePorTipo(tipo) {
+        tipo = (tipo || '').toUpperCase();
+        if (tipo.includes('TABLET') || tipo.includes('IPAD')) return 'tablet_mac';
+        if (tipo.includes('PROJETOR') || tipo.includes('DATA')) return 'videocam';
+        if (tipo.includes('CAIXA') || tipo.includes('SOM')) return 'speaker';
+        return 'laptop_mac';
+    }
+
+    async function carregarItens(dataOverride = null, horaInicioOverride = null, horaFimOverride = null) {
+        let dateString = dataOverride || document.getElementById('inputDataUso').value;
+        let hInicio = horaInicioOverride || document.getElementById('inputInicio').value;
+        let hFim = horaFimOverride || document.getElementById('inputFim').value;
+
+        if (!dateString || !hInicio || !hFim) {
+            // Se estiver no modo express, preenche com o dia atual e horários padrão
+            if (modo === 'express') {
+                const today = new Date();
+                dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                hInicio = "00:00";
+                hFim = "23:59";
+            } else {
+                return; // No modo reserva, precisa de todos os campos
+            }
+        }
+        
+        const grid = document.getElementById('gridEquipamentos');
+        if (availabilityRequestController) {
+            availabilityRequestController.abort();
+        }
+        availabilityRequestController = new AbortController();
+        const requestSequence = ++availabilityRequestSequence;
+        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 80px;"><div class="spinner" style="width: 60px; height: 60px; border-color: #10b981 transparent #10b981 transparent; margin: 0 auto;"></div><p style="font-size: 1.3rem; font-weight: 700; color: #64748b; margin-top: 30px;">Buscando equipamentos na base...</p></div>';
+        selecionados.clear();
+        atualizarContador();
+
+        try {
+            const url = `{{ url_for('api_disponibilidade') }}?data=${dateString}&hora_inicio=${hInicio}&hora_fim=${hFim}`;
+            const response = await fetch(url, { signal: availabilityRequestController.signal });
+            
+            if (!response.ok) throw new Error('Erro na rede');
+            
+            const dados = await response.json();
+            if (requestSequence !== availabilityRequestSequence) return;
+            grid.innerHTML = '';
+
+            todosItens = dados.items || [];
+            filtrarGrid();
+
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            console.error("Erro ao carregar:", error);
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; background: #fee2e2; border-radius: 20px; padding: 40px; border: 1px solid #f87171;"><span class="material-icons-round" style="font-size: 4rem; color: #ef4444; margin-bottom: 10px;">error_outline</span><p style="color:#b91c1c; font-size: 1.4rem; font-weight: 800; margin: 0;">Falha de Conexão. Tente novamente.</p></div>';
+        }
+    }
+
+    function filtrarGrid() {
+        const termo = document.getElementById('filtroGrid').value.toLowerCase();
+        
+        // A OPINIÃO DO UX: "ou e quando mover sai da tela" - Itens Indisponíveis/Vermelhos não aparecem para não poluir
+
+        let apenasLivres = todosItens.filter(item => item.status_visual === 'livre');
+
+        itensFiltrados = apenasLivres.filter(item => {
+            const texto = (item.id + ' ' + item.carrinho + ' ' + item.tipo + ' ' + item.modelo).toLowerCase();
+            return texto.includes(termo);
+        });
+
+        renderizarGrid();
+    }
+
+    function renderizarGrid() {
+        const grid = document.getElementById('gridEquipamentos');
+        grid.innerHTML = '';
+        
+        if (itensFiltrados.length === 0) {
+            let mensagem = "Nenhum equipamento livre encontrado para este horário.";
+            if (modo === 'express') {
+                mensagem = "Nenhum equipamento disponível para retirada.";
+            }
+            grid.innerHTML = `<p style="grid-column: 1/-1; text-align:center; font-size: 1.4rem; font-weight:bold; color:#64748b; padding: 60px;">${mensagem}</p>`;
+            return;
+        }
+        
+        itensFiltrados.forEach(item => {
+            const card = document.createElement('div');
+            card.className = `device-card`;
+            if (selecionados.has(item.id)) card.classList.add('selecionado');
+            
+            const iconName = getIconePorTipo(item.tipo);
+
+            card.innerHTML = `
+                <div class="check-badge"><span class="material-icons-round" style="font-size: 1.2rem; font-weight: bold;">check</span></div>
+                <span class="material-icons-round device-icon">${iconName}</span>
+                <div class="device-id">${item.id}</div>
+                <div class="device-model" title="${item.modelo}">${item.modelo || 'Sem Modelo'}</div>
+            `;
+
+            card.onclick = function() { toggleItem(this, item.id); };
+            grid.appendChild(card);
+        });
+    }
+
+    function toggleItem(el, id) {
+        if (!validarHorarioConfigurado()) return;
+        
+        if (window.navigator.vibrate) window.navigator.vibrate(50);
+        if (selecionados.has(id)) {
+            selecionados.delete(id);
+            el.classList.remove('selecionado');
+        } else {
+            selecionados.add(id); // Adiciona o novo
+            el.classList.add('selecionado');
+        }
+        atualizarContador();
+    }
+
+    function selecionarTodos() {
+        if (!validarHorarioConfigurado()) return;
+        
+        if (window.navigator.vibrate) window.navigator.vibrate(50);
+        
+        const todosSelecionados = itensFiltrados.length > 0 && itensFiltrados.every(item => selecionados.has(item.id));
+
+        if (todosSelecionados && itensFiltrados.length > 0) {
+            itensFiltrados.forEach(item => selecionados.delete(item.id));
+            Swal.fire({toast: true, position: 'top', icon: 'info', title: 'Seleção limpa', showConfirmButton: false, timer: 1500});
+        } else {
+            let mudou = false;
+            itensFiltrados.forEach(item => {
+                if (!selecionados.has(item.id)) {
+                    selecionados.add(item.id);
+                    mudou = true;
+                }
+            });
+            if(!mudou) Swal.fire({toast: true, position: 'top', icon: 'warning', title: 'Nenhum item livre', showConfirmButton: false, timer: 2000});
+        }
+        atualizarContador();
+        renderizarGrid();
+    }
+
+    function validarHorarioConfigurado() {
+        const now = new Date();
+
+        if (modo !== 'express') {
+            const dataUso = document.getElementById('inputDataUso').value;
+            const horaInicio = document.getElementById('inputInicio').value;
+            const horaFim = document.getElementById('inputFim').value;
+            
+            if (dataUso && horaInicio) {
+                const dataAgendamento = new Date(`${dataUso}T${horaInicio}`);
+                if (dataAgendamento < now) {
+                    Swal.fire({
+                        title: 'Horário Inválido',
+                        html: 'Não é possível agendar para uma data ou hora que <b>já passou</b>.<br><br>Por favor, ajuste o horário de retirada.',
+                        icon: 'error',
+                        confirmButtonText: 'ENTENDI',
+                        confirmButtonColor: '#ef4444',
+                        backdrop: `rgba(15, 23, 42, 0.95)`
+                    });
+                    return false;
+                }
+            }
+
+            if (dataUso && horaInicio && horaFim) {
+                const startMins = parseInt(horaInicio.split(':')[0]) * 60 + parseInt(horaInicio.split(':')[1]);
+                const endMins = parseInt(horaFim.split(':')[0]) * 60 + parseInt(horaFim.split(':')[1]);
+                
+                if (endMins <= startMins) {
+                    Swal.fire({
+                        title: 'Horário Inválido',
+                        html: 'O horário de devolução deve ser <b>maior</b> que o horário de retirada.',
+                        icon: 'error',
+                        confirmButtonText: 'ENTENDI',
+                        confirmButtonColor: '#ef4444',
+                        backdrop: `rgba(15, 23, 42, 0.95)`
+                    });
+                    return false;
+                }
+            }
+        } else {
+            const dataDev = document.getElementById('inputDataDev');
+            const horaFim = document.getElementById('inputFim');
+            
+            if (dataDev && horaFim && dataDev.value && horaFim.value) {
+                const dataDevolucao = new Date(`${dataDev.value}T${horaFim.value}`);
+                if (dataDevolucao < now) {
+                    Swal.fire({
+                        title: 'Horário Inválido',
+                        html: 'A previsão de devolução não pode estar no <b>passado</b>.<br><br>Por favor, ajuste o horário.',
+                        icon: 'error',
+                        confirmButtonText: 'ENTENDI',
+                        confirmButtonColor: '#ef4444',
+                        backdrop: `rgba(15, 23, 42, 0.95)`
+                    });
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    function atualizarContador() {
+        const count = selecionados.size;
+        document.getElementById('inputItens').value = Array.from(selecionados).join(',');
+        
+        const btnSel = document.getElementById('btnSelecionarTodos');
+        if (btnSel) {
+            const todosLivresSelecionados = itensFiltrados.length > 0 && itensFiltrados.every(i => selecionados.has(i.id));
+            if (todosLivresSelecionados) {
+                btnSel.innerHTML = '<span class="material-icons-round">remove_done</span> Desmarcar Todos';
+            } else {
+                btnSel.innerHTML = '<span class="material-icons-round">done_all</span> Selecionar Tudo';
+            }
+        }
+
+        const badge = document.getElementById('contadorSelecaoBadge');
+        const detailsText = document.getElementById('cart-details');
+        const footer = document.getElementById('totemFooter');
+        
+        badge.innerText = count;
+        
+        if (count > 0) {
+            badge.style.transform = 'scale(1.2)';
+            setTimeout(() => badge.style.transform = 'scale(1)', 200);
+            
+            const idsArr = Array.from(selecionados);
+            detailsText.innerText = "IDs: " + (idsArr.length > 5 ? idsArr.slice(0,5).join(', ') + '...' : idsArr.join(', '));
+            footer.classList.add('show');
+        } else {
+            footer.classList.remove('show');
+        }
+    }
+
+    function validarEnvio() {
+        const itens = document.getElementById('inputItens').value;
+        if (!itens || itens.trim() === '') {
+            Swal.fire({
+                title: 'Atenção', 
+                text: modo === 'express' ? 'Selecione o equipamento que deseja retirar.' : 'Selecione pelo menos um equipamento na tela.', 
+                icon: 'warning',
+                confirmButtonColor: '#10b981'
+            });
+            return false;
+        }
+
+        if (!validarHorarioConfigurado()) return false;
+
+        const btn = document.getElementById('btnSubmit');
+        btn.innerHTML = '<span class="spinner" style="width: 25px; height: 25px; border-color: white transparent white transparent; margin-right: 15px;"></span> Finalizando...';
+        btn.disabled = true;
+        return true;
+    }
+
+    // Inicialização
+    (function() {
+        const dataInput = document.getElementById('inputDataUso');
+        const inicioInput = document.getElementById('inputInicio');
+        const fimInput = document.getElementById('inputFim');
+
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const d = String(today.getDate()).padStart(2, '0');
+        const dateString = `${y}-${m}-${d}`;
+
+        if (modo === 'express') {
+            dataInput.value = dateString;
+            inicioInput.value = "00:00"; // Para garantir que a API de disponibilidade pegue todos os itens do dia
+            fimInput.value = "23:59";
+            
+            const dataDev = document.getElementById('inputDataDev');
+            if (dataDev) {
+                dataDev.value = dateString;
+                dataDev.min = dateString;
+            }
+            carregarItens(dateString, "00:00", "23:59");
+        } else {
+            dataInput.value = dateString;
+            dataInput.min = dateString;
+            inicioInput.value = "07:00";
+            fimInput.value = "12:00";
+            carregarItens();
+        }
+    })();
+
+</script>
+
+{% if request.args.get('success_code') %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const successCode = "{{ request.args.get('success_code') }}";
+        Swal.fire({
+            title: 'Reserva Confirmada!',
+            html: `<p style="color: #94a3b8; font-size: 1.3rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0;">Tire foto, anote ou imprima:</p>
+                   <img src="/api/gerar_qr/${successCode}" style="width: 180px; height: 180px; border-radius: 16px; margin-top: 15px; border: 5px solid #10b981; box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);">
+                   <h1 style="font-size: 4rem; color: #10b981; font-weight: 900; letter-spacing: 8px; margin: 15px 0;">${successCode}</h1>`,
+            icon: 'success',
+            background: '#1e293b',
+            color: '#ffffff',
+            confirmButtonColor: '#10b981',
+            confirmButtonText: 'TIREI FOTO / ENTENDI',
+            allowOutsideClick: false
+        }).then(() => {
+            window.history.replaceState({}, document.title, window.location.pathname + "?kiosk=1"); // Limpa a barra de endereços
+        });
+    });
+</script>
+{% elif request.args.get('modo') == 'express' %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% for category, message in get_flashed_messages(with_categories=true) %}
+            {% if category == 'success' %}
+                let msg = `{{ message|safe }}`;
+                Swal.fire({
+                    icon: 'success', title: 'Retirada Liberada!', html: msg,
+                    confirmButtonText: 'ENTENDI', confirmButtonColor: '#3b82f6', backdrop: `rgba(15, 23, 42, 0.85)`
+                }).then(() => { window.history.replaceState({}, document.title, window.location.pathname + window.location.search); });
+            {% endif %}
+        {% endfor %}
+    });
+</script>
+{% endif %}
+{% endblock %}

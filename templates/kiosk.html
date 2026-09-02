@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Tags Mágicas para PWA / Fullscreen em Celulares e Tablets -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="display" content="standalone">
+    <title>Totem - Acervo TI</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <style>
+        /* Design 100% Fullscreen e Limpo */
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #0f172a; /* Fundo escuro elegante */
+            font-family: Arial, sans-serif;
+            overflow-y: auto; /* Permite rolagem no celular para sumir a barra nativa */
+            -webkit-user-select: none; /* Bloqueia selecao de texto no touch */
+            user-select: none;
+        }
+        .kiosk-title {
+            color: #ffffff;
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+        }
+        .kiosk-subtitle {
+            color: #94a3b8;
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+        }
+        .kiosk-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            width: 90%;
+            max-width: 1000px;
+        }
+        .kiosk-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 30px 20px;
+            text-align: center;
+            color: #e2e8f0;
+            text-decoration: none;
+            font-size: 1.5rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+        .kiosk-btn:active {
+            transform: scale(0.95);
+            background: #3b82f6;
+        }
+        .kiosk-btn.btn-resgatar { border-bottom: 6px solid #10b981; }
+        .kiosk-btn.btn-retirar { border-bottom: 6px solid #3b82f6; }
+        .kiosk-btn.btn-devolver { border-bottom: 6px solid #10b981; }
+        .kiosk-btn.btn-defeito { border-bottom: 6px solid #ef4444; }
+        .kiosk-btn.btn-agendar { border-bottom: 6px solid #a855f7; grid-column: span 2; }
+        .kiosk-icon { font-size: 3.8rem; margin-bottom: 5px;}
+
+        /* --- Responsividade para Celulares (Quando lê o QR Code) --- */
+        @media (max-width: 768px) {
+            body { height: auto; padding: 40px 0; justify-content: flex-start; }
+            .kiosk-grid { grid-template-columns: 1fr; gap: 20px; }
+            .kiosk-btn.btn-agendar { grid-column: span 1; }
+            .kiosk-btn { 
+                padding: 25px 20px; 
+                font-size: 1.5rem; 
+                flex-direction: row; 
+                justify-content: flex-start; 
+                text-align: left;
+                border-bottom-width: 6px;
+            }
+            .kiosk-icon { font-size: 3rem; margin-right: 20px; margin-left: 10px; }
+            .kiosk-title { font-size: 2.2rem; text-align: center; }
+            .kiosk-subtitle { font-size: 1.1rem; text-align: center; margin-bottom: 30px; padding: 0 15px;}
+        }
+
+        /* --- Adaptação Automática para Totem Vertical (Retrato) --- */
+        @media (orientation: portrait) and (min-width: 769px) {
+            .kiosk-title { font-size: 4rem; margin-top: 20px; }
+            .kiosk-subtitle { font-size: 1.8rem; margin-bottom: 60px; }
+            .kiosk-grid { 
+                grid-template-columns: 1fr; /* 1 coluna empilhada */
+                max-width: 850px; 
+                gap: 25px; 
+            }
+            .kiosk-btn.btn-agendar { grid-column: span 1; }
+            .kiosk-btn { 
+                flex-direction: row; /* Ícone na esquerda, texto na direita */
+                justify-content: flex-start;
+                padding: 35px 50px;
+                font-size: 2.2rem;
+            }
+            .kiosk-icon { font-size: 5rem; margin-right: 40px; margin-bottom: 0; margin-left: 20px;}
+        }
+
+        /* --- TELA DE BLOQUEIO (LOCK SCREEN) --- */
+        .kiosk-lock-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(15, 23, 42, 0.98); backdrop-filter: blur(15px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 999999; opacity: 0; visibility: hidden; transition: opacity 0.3s ease;
+        }
+        .kiosk-lock-overlay.active { opacity: 1; visibility: visible; }
+        .lock-box {
+            background: #1e293b; padding: 60px 50px; border-radius: 24px;
+            border: 1px solid #334155; text-align: center; width: 90%; max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+            transform: translateY(30px); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .kiosk-lock-overlay.active .lock-box { transform: translateY(0); }
+        .lock-icon-container { margin-bottom: 20px; }
+        .lock-input {
+            width: 100%; padding: 22px; margin-bottom: 20px; border-radius: 12px;
+            border: 2px solid #334155; background: #0f172a; color: white;
+            font-size: 1.5rem; box-sizing: border-box; text-align: center;
+            transition: border-color 0.3s;
+        }
+        .lock-input:focus { outline: none; border-color: #3b82f6; }
+        .lock-btn {
+            width: 100%; padding: 22px; background: #3b82f6; color: white;
+            border: none; border-radius: 12px; font-size: 1.5rem; font-weight: bold;
+            cursor: pointer; transition: all 0.2s; margin-top: 10px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .lock-btn:active { background: #2563eb; transform: scale(0.97); }
+        .lock-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .lock-error { color: #ef4444; margin-top: 20px; display: none; font-weight: bold; font-size: 1.1rem;}
+        
+        .btn-admin-exit {
+            color: #64748b; font-size: 0.9rem; text-decoration: underline; 
+            margin-top: 20px; display: inline-block; cursor: pointer; transition: 0.2s;
+        }
+        .btn-admin-exit:hover { color: #ffffff; }
+
+        /* --- GLOBAL LOADER --- */
+        .global-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.9); z-index: 9999999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s;
+        }
+        .global-loader.active { opacity: 1; visibility: visible; }
+        .spinner {
+            width: 60px; height: 60px; border: 5px solid rgba(59, 130, 246, 0.3);
+            border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loader-text { color: white; margin-top: 20px; font-size: 1.2rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <!-- LOADER DE PROCESSAMENTO IOT -->
+    <div id="globalLoader" class="global-loader">
+        <div class="spinner"></div>
+        <div class="loader-text">Processando...</div>
+    </div>
+
+    <!-- OVERLAY DE BLOQUEIO -->
+    <div id="kiosk-lock-overlay" class="kiosk-lock-overlay">
+        <div class="lock-box">
+            <div class="lock-icon-container"><span style="font-size: 5rem;">🔒</span></div>
+            <h2 style="color: white; margin-bottom: 10px; font-size: 2rem;">Totem Bloqueado</h2>
+            <p style="color: #94a3b8; margin-bottom: 30px; font-size: 1.1rem;">Insira suas credenciais para acessar</p>
+            
+            <input type="text" id="lock-username" class="lock-input" placeholder="Usuário" autocomplete="off">
+            <input type="password" id="lock-password" class="lock-input" placeholder="Senha">
+            
+            <button id="btn-unlock" class="lock-btn">Desbloquear</button>
+            <p id="lock-error" class="lock-error"></p>
+            <a href="#" id="btn-admin-exit" class="btn-admin-exit">Sair do Totem (Acesso Admin)</a>
+        </div>
+    </div>
+
+    <h1 class="kiosk-title">Autoatendimento TI</h1>
+    <p class="kiosk-subtitle">Toque em uma das opções abaixo para iniciar</p>
+
+    <div class="kiosk-grid">
+        <a href="{{ url_for('agendamento', kiosk=1) }}" class="kiosk-btn btn-agendar"><span class="kiosk-icon">📝</span>Novo Agendamento</a>
+        <a href="{{ url_for('movements.resgatar', kiosk=1) }}" class="kiosk-btn btn-resgatar"><span class="kiosk-icon">📅</span>Resgatar Reserva</a>
+        <a href="{{ url_for('agendamento', kiosk=1, modo='express') }}" class="kiosk-btn btn-retirar"><span class="kiosk-icon">📤</span>Saída Rápida</a>
+        <a href="{{ url_for('movements.registrar_devolucao', kiosk=1) }}" class="kiosk-btn btn-devolver"><span class="kiosk-icon">📥</span>Devolução Rápida</a>
+        <a href="{{ url_for('maintenance.nova_manutencao', kiosk=1) }}" class="kiosk-btn btn-defeito"><span class="kiosk-icon">⚠️</span>Reportar Defeito</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="flash-data" data-messages="{{ messages | tojson | forceescape }}" style="display: none;"></div>
+        {% endif %}
+    {% endwith %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const overlay = document.getElementById('kiosk-lock-overlay');
+            const btnUnlock = document.getElementById('btn-unlock');
+            const errorMsg = document.getElementById('lock-error');
+            const userInp = document.getElementById('lock-username');
+            const passInp = document.getElementById('lock-password');
+            
+            let idleTime = 0;
+            const IDLE_LIMIT = 20; // 20 segundos
+
+            const checkLockState = () => {
+                if (sessionStorage.getItem('kiosk_locked') === 'true') {
+                    overlay.classList.add('active');
+                    userInp.value = ''; passInp.value = '';
+                } else {
+                    overlay.classList.remove('active');
+                }
+            };
+
+            const resetTimer = () => { if(sessionStorage.getItem('kiosk_locked') !== 'true') idleTime = 0; };
+            document.addEventListener('mousemove', resetTimer);
+            document.addEventListener('keypress', resetTimer);
+            document.addEventListener('touchstart', resetTimer);
+            document.addEventListener('click', resetTimer);
+
+            setInterval(() => {
+                if (sessionStorage.getItem('kiosk_locked') !== 'true') {
+                    idleTime++;
+                    if (idleTime >= IDLE_LIMIT) {
+                        sessionStorage.setItem('kiosk_locked', 'true');
+                        checkLockState();
+                    }
+                }
+            }, 1000);
+
+            checkLockState(); // Verifica ao carregar a página
+
+            const unlockSystem = () => {
+                const user = userInp.value.trim();
+                const pass = passInp.value.trim();
+                if (!user || !pass) { errorMsg.innerText = "Preencha usuário e senha!"; errorMsg.style.display = "block"; return; }
+                
+                btnUnlock.innerText = "Aguarde..."; btnUnlock.disabled = true;
+
+                fetch('/api/kiosk_unlock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+                    body: JSON.stringify({username: user, password: pass})
+                }).then(res => res.json()).then(data => {
+                    if (data.success) { sessionStorage.removeItem('kiosk_locked'); errorMsg.style.display = "none"; overlay.classList.remove('active'); idleTime = 0; } 
+                    else { errorMsg.innerText = "Credenciais inválidas!"; errorMsg.style.display = "block"; }
+                }).catch(err => { errorMsg.innerText = "Erro de conexão!"; errorMsg.style.display = "block"; })
+                .finally(() => { btnUnlock.innerText = "Desbloquear"; btnUnlock.disabled = false; });
+            };
+
+            btnUnlock.addEventListener('click', unlockSystem);
+            passInp.addEventListener('keypress', (e) => { if(e.key === 'Enter') unlockSystem(); });
+            userInp.addEventListener('keypress', (e) => { if(e.key === 'Enter') passInp.focus(); });
+            
+            // --- LOGICA DE SAÍDA DO ADMIN ---
+            const btnAdminExit = document.getElementById('btn-admin-exit');
+            btnAdminExit.addEventListener('click', (e) => {
+                e.preventDefault();
+                const user = userInp.value.trim();
+                const pass = passInp.value.trim();
+                if (!user || !pass) { errorMsg.innerText = "Preencha usuário e senha Admin!"; errorMsg.style.display = "block"; return; }
+                
+                btnAdminExit.innerText = "Aguarde...";
+                
+                fetch('/api/kiosk_exit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+                    body: JSON.stringify({username: user, password: pass})
+                }).then(res => res.json()).then(data => {
+                    if (data.success) { 
+                        localStorage.removeItem('kiosk_mode'); 
+                        sessionStorage.removeItem('kiosk_mode');
+                        sessionStorage.removeItem('kiosk_locked');
+                        window.location.href = '/'; 
+                    } else { 
+                        errorMsg.innerText = data.msg || "Acesso Negado!"; errorMsg.style.display = "block"; 
+                        btnAdminExit.innerText = "Sair do Totem (Acesso Admin)";
+                    }
+                }).catch(err => { 
+                    errorMsg.innerText = "Erro de conexão!"; errorMsg.style.display = "block"; 
+                    btnAdminExit.innerText = "Sair do Totem (Acesso Admin)";
+                });
+            });
+
+            // --- Exibe mensagens de Sucesso após voltar para o Kiosk ---
+            const flashData = document.getElementById('flash-data');
+            if (flashData) {
+                try {
+                    const flashMessages = JSON.parse(flashData.dataset.messages);
+                    flashMessages.forEach(([category, message]) => {
+                        const matchAg = message.match(/AG\d{4,}/i);
+
+                        if (matchAg && category === 'success') {
+                            const agCode = matchAg[0].toUpperCase();
+                            Swal.fire({
+                                title: 'Reserva Confirmada!',
+                                html: `<div style="margin-bottom: 15px;">${message}</div>
+                                       <p style="color: #94a3b8; font-size: 1rem; margin-bottom: 0;">Apresente este QR Code no leitor do carrinho:</p>
+                                       <img src="/api/gerar_qr/${agCode}" style="width: 180px; height: 180px; border-radius: 10px; margin-top: 15px; border: 3px solid #10b981; box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);">`,
+                                icon: 'success',
+                                confirmButtonText: 'Continuar',
+                                confirmButtonColor: '#10b981',
+                                timer: 15000,
+                                timerProgressBar: true,
+                                backdrop: `rgba(15, 23, 42, 0.85)`
+                            }).then(() => {
+                                const printIframe = document.createElement('iframe');
+                                printIframe.style.position = 'fixed';
+                                printIframe.style.right = '-2000px';
+                                printIframe.style.bottom = '-2000px';
+                                printIframe.style.width = '200px';
+                                printIframe.style.height = '200px';
+                                printIframe.style.border = 'none';
+                                printIframe.src = `/imprimir_ticket/${agCode}`;
+                                document.body.appendChild(printIframe);
+                            });
+                        } else if (message.includes('Retirada Liberada com Sucesso!')) { // Mensagem de sucesso da Saída Rápida
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Retirada Liberada! 🔓',
+                                html: message,
+                                confirmButtonText: 'OK',
+                                confirmButtonColor: '#3b82f6',
+                                timer: 8000,
+                                timerProgressBar: true,
+                                backdrop: `rgba(15, 23, 42, 0.85)`
+                            }).then(() => {
+                                // Limpa a barra de endereços após o usuário dar o OK
+                                window.history.replaceState({}, document.title, window.location.pathname);
+                            });
+                        } else if (category === 'success') {
+                            Swal.fire({ icon: 'success', title: 'Sucesso!', html: message, confirmButtonText: 'Continuar', confirmButtonColor: '#10b981', timer: 5000, timerProgressBar: true, backdrop: `rgba(15, 23, 42, 0.85)` });
+                        } else if (category === 'error' || category === 'danger') {
+                            Swal.fire({ icon: 'error', title: 'Atenção', html: message, confirmButtonText: 'Entendi', confirmButtonColor: '#ef4444', backdrop: `rgba(15, 23, 42, 0.85)` });
+                        }
+                    });
+                } catch (e) {}
+            }
+        });
+    </script>
+</body>
+</html>

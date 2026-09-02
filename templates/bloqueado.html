@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Bloqueado - Acervo TI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <style>
+        :root {
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --danger: #ef4444;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --radius: 16px;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+        }
+        .icon {
+            font-size: 5rem;
+            color: var(--danger);
+            margin-bottom: 1rem;
+        }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 0 0 1rem 0;
+        }
+        p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin: 0 0 2.5rem 0;
+        }
+        .contact-info {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .contact-info strong {
+            display: block;
+            font-size: 1rem;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+        }
+        .contact-info span {
+            font-size: 1.5rem;
+            color: var(--primary);
+            font-weight: 700;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+            background-color: var(--primary);
+            color: white;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon material-icons-round">lock</div>
+        <h1>Acesso Bloqueado</h1>
+        <p>Sua licença de uso para o sistema Acervo TI expirou. Para continuar utilizando, por favor, regularize sua situação.</p>
+
+        <div class="contact-info">
+            <strong>Para renovar sua licença, entre em contato:</strong>
+            <span>(XX) XXXX-XXXX</span>
+        </div>
+
+        <a href="{{ url_for('ativacao') }}" class="btn">
+            Já tenho uma nova chave
+        </a>
+    </div>
+</body>
+</html>

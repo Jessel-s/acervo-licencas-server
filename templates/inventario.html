@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Inventário de Ativos{% endblock %}
+
+{% block content %}
+<style>
+    .inventory-shell { padding: 18px; }
+    .inventory-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--border-color); }
+    .inventory-header .card-header { border: 0; padding: 0; margin: 0; }
+    .inventory-filter { background: #eef3f4 !important; border-color: #cbd8db !important; padding: 14px 16px !important; }
+    .inventory-filter label { color: var(--text-main) !important; font-size: .78rem !important; }
+    .inventory-table { border: 1px solid var(--border-color); border-radius: 7px; overflow: hidden; }
+    .inventory-table .table { margin: 0; }
+    .inventory-table .table thead th { background: #dfe8eb !important; color: #30464f !important; }
+    .inventory-table .table tbody tr:nth-child(even) { background: #f7fafb; }
+    .inventory-table .table tbody tr:hover { background: #eaf3f4 !important; }
+    .inventory-id { color: var(--primary) !important; font-family: 'IBM Plex Mono', monospace; }
+    @media (max-width: 700px) { .inventory-shell { padding: 12px; } }
+</style>
+<div class="card inventory-shell">
+    <div class="card-header inventory-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <span>Lista de Equipamentos</span>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;"> 
+            <a href="{{ url_for('inventory.cadastro') }}" class="btn btn-primary">
+                <span class="material-icons-round">add</span> Novo Ativo
+            </a>
+            <a href="{{ url_for('inventory.importar') }}" class="btn btn-outline" style="border-color: var(--primary-color); color: var(--primary-color);" title="Importar Excel">
+                <span class="material-icons-round">upload_file</span> Importar
+            </a>
+            <!-- Botão de Gerar Etiqueta -->
+            <button type="button" class="btn btn-warning" onclick="submeterEtiquetas()"> 
+                <span class="material-icons-round">qr_code</span> Gerar Etiquetas
+            </button>
+        </div>
+    </div>
+
+    <!-- O formulário de etiquetas agora fica fora da tabela para evitar aninhamento -->
+    <form id="formEtiquetas" action="{{ url_for('inventory.gerar_qr') }}" method="POST" target="printEtiquetasFrame">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+    <iframe name="printEtiquetasFrame" title="Impressão de etiquetas" style="display: none;"></iframe>
+
+    <!-- BARRA DE FILTROS DO INVENTÁRIO -->
+    <div class="inventory-filter" style="background: var(--bg-card); padding: 15px 20px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+        <form method="GET" action="{{ url_for('inventory.inventario') }}" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; margin: 0;">
+            
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: var(--text-muted);">Buscar por Patrimônio / ID</label>
+                <input type="text" name="patrimonio" value="{{ filtro_patrimonio }}" placeholder="Ex: EQ-01" class="form-input-std" style="width: 100%;">
+            </div>
+
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: var(--text-muted);">Filtrar por Status</label>
+                <select name="status" class="form-input-std" style="width: 100%;">
+                    <option value="">Todos os Status</option>
+                    <option value="Disponível" {% if filtro_status == 'Disponível' %}selected{% endif %}>Disponível</option>
+                    <option value="Em uso" {% if filtro_status == 'Em uso' %}selected{% endif %}>Em uso</option>
+                    <option value="Em manutenção" {% if filtro_status == 'Em manutenção' %}selected{% endif %}>Em manutenção</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px; height: 40px;">
+                    <span class="material-icons-round" style="font-size: 18px;">search</span> Filtrar
+                </button>
+                <a href="{{ url_for('inventory.inventario') }}" class="btn btn-secondary" style="display: flex; align-items: center; gap: 5px; height: 40px; text-decoration: none;">
+                    <span class="material-icons-round" style="font-size: 18px;">clear</span> Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <div class="table-container inventory-table">
+        <table id="tabelaInventario" class="table" style="width:100%; min-width: 800px;">
+            <thead>
+                <tr>
+                    <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAll"></th>
+                    <th>Patrimônio</th>
+                    <th>Tipo</th>
+                    <th>Modelo</th>
+                    <th>Nº Série</th>
+                    <th>Localização</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for nb in notebooks %}
+                <tr>
+                    <td style="text-align: center;">
+                        <!-- O atributo 'form' associa este checkbox ao formulário de etiquetas -->
+                        <input type="checkbox" name="selected_ids" value="{{ nb.id }}" class="item-check" form="formEtiquetas">
+                    </td>
+                    <td style="font-weight: bold;">
+                        <a href="{{ url_for('inventory.historico', notebook_id=nb.id) }}" class="inventory-id" title="Ver Detalhes do Produto">{{ nb.id }}</a>
+                    </td>
+                    <td>{{ nb.tipo }}</td>
+                    <td>{{ nb.modelo }}</td>
+                    <td>{{ nb.numero_serie or '-' }}</td>
+                    <td>{{ nb.localizacao }}</td>
+                    <td>
+                        {% if nb.status == 'Disponível' %}
+                            <span class="status-badge status-disponivel">{{ nb.status }}</span>
+                        {% elif nb.status == 'Em uso' %}
+                            <span class="status-badge status-em-uso">{{ nb.status }}</span>
+                        {% elif nb.status == 'Em manutenção' %}
+                            <span class="status-badge status-manutencao">{{ nb.status }}</span>
+                        {% else %}
+                            <span class="status-badge status-inativo">{{ nb.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="table-actions">
+                            <a href="{{ url_for('inventory.historico', notebook_id=nb.id) }}" title="Histórico">
+                                <span class="material-icons-round">history</span>
+                            </a>
+                            <a href="{{ url_for('inventory.editar', notebook_id=nb.id) }}" title="Editar">
+                                <span class="material-icons-round">edit</span>
+                            </a>
+                            
+                            {% if session.perm_config %}
+                            <form action="{{ url_for('inventory.remover', notebook_id=nb.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Tem certeza?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> 
+                                <button type="submit" class="action-danger" title="Excluir">
+                                    <span class="material-icons-round">delete</span>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inicializa DataTables
+        var table = $('#tabelaInventario').DataTable({
+            language: { url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json" },
+            columnDefs: [ { orderable: false, targets: [0, 7] } ], // Checkbox e Ações não ordenáveis
+            order: [[1, 'asc']], // Ordena por ID
+            "dom": '<"d-flex justify-between align-center"B>lrtip', // Adiciona os Botões de Exportação
+            "pageLength": 50,
+            scrollY: 'calc(100vh - 350px)', // Trava as ações e rola só a tabela
+            scrollCollapse: true,
+            buttons: [
+                {
+                    extend: 'collection',
+                    text: '<span class="material-icons-round" style="font-size: 1.2rem;">import_export</span> Exportar',
+                    className: 'dt-export-btn',
+                    autoClose: true,
+                    buttons: [
+                        { 
+                            extend: 'excelHtml5', 
+                            text: '<span class="material-icons-round" style="color: #10b981;">table_view</span> Excel (.xlsx)', 
+                            exportOptions: { columns: [1,2,3,4,5,6] } // Ignora as colunas de Checkbox(0) e Ações(7)
+                        },
+                        { 
+                            extend: 'pdfHtml5', 
+                            text: '<span class="material-icons-round" style="color: #ef4444;">picture_as_pdf</span> Documento PDF (.pdf)', 
+                            orientation: 'landscape', 
+                            pageSize: 'A4',
+                            exportOptions: { columns: [1,2,3,4,5,6] }, // Ignora as colunas de Checkbox(0) e Ações(7)
+                            title: 'Inventário Analítico de Equipamentos',
+                            customize: function(doc) {
+                                // Conta quantos equipamentos passaram pelo filtro atual
+                                var records = table.page.info().recordsDisplay;
+                                
+                                doc.defaultStyle.fontSize = 9;
+                                doc.styles.tableHeader.fontSize = 10;
+                                doc.pageMargins = [20, 30, 20, 30];
+                                // Ajusta a coluna "Modelo" para esticar e quebrar linha
+                                doc.content[1].table.widths = ['auto', 'auto', '*', 'auto', 'auto', 'auto'];
+                                
+                                // RESUMO GERENCIAL NO TOPO
+                                doc.content.splice(1, 0, {
+                                    text: 'Resumo Gerencial: Um total de ' + records + ' equipamento(s) atendem aos filtros deste relatório.',
+                                    margin: [0, 0, 0, 10],
+                                    fontSize: 11,
+                                    bold: true,
+                                    color: '#3b82f6'
+                                });
+                            }
+                        }
+                    ]
+                }
+            ]
+        });
+
+        // Selecionar Todos
+        document.getElementById('selectAll').addEventListener('click', function() {
+            var rows = table.rows({ 'search': 'applied' }).nodes();
+            $('input[type="checkbox"]', rows).prop('checked', this.checked);
+        });
+    });
+
+    function submeterEtiquetas() {
+        const form = document.getElementById('formEtiquetas');
+        const checkedItems = document.querySelectorAll('.item-check:checked');
+
+        if (checkedItems.length === 0) {
+            Swal.fire('Atenção', 'Selecione pelo menos um item para gerar etiquetas.', 'warning');
+            return;
+        }
+
+        const modalHtml = `
+            <div class="label-selector-container">
+                <div class="label-option" data-size="d110">
+                    <div class="label-preview vertical"></div>
+                    <div class="label-info">
+                        <strong>Padrão Vertical</strong>
+                        <span>Niimbot D110/D11</span>
+                    </div>
+                </div>
+                <div class="label-option" data-size="50x30">
+                    <div class="label-preview horizontal-medium"></div>
+                    <div class="label-info">
+                        <strong>Retangular Média</strong>
+                        <span>50mm x 30mm</span>
+                    </div>
+                </div>
+                <div class="label-option" data-size="30x20">
+                    <div class="label-preview horizontal-small"></div>
+                    <div class="label-info">
+                        <strong>Retangular Pequena</strong>
+                        <span>30mm x 20mm</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        Swal.fire({
+            title: 'Selecione o Formato da Etiqueta',
+            html: modalHtml,
+            showCancelButton: true,
+            confirmButtonText: 'Gerar Etiquetas',
+            cancelButtonText: 'Cancelar',
+            width: 'auto',
+            didOpen: () => {
+                const options = Swal.getHtmlContainer().querySelectorAll('.label-option');
+                options.forEach(option => {
+                    option.addEventListener('click', () => {
+                        options.forEach(opt => opt.classList.remove('selected'));
+                        option.classList.add('selected');
+                    });
+                });
+            },
+            preConfirm: () => {
+                const selectedOption = Swal.getHtmlContainer().querySelector('.label-option.selected');
+                if (!selectedOption) {
+                    Swal.showValidationMessage('Por favor, selecione um formato de etiqueta.');
+                    return false;
+                }
+                return selectedOption.getAttribute('data-size');
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                // Remove o input antigo se existir, para não duplicar
+                const existingInput = form.querySelector('input[name="label_size"]');
+                if (existingInput) {
+                    existingInput.remove();
+                }
+                
+                // Adiciona o novo input com o valor selecionado
+                const sizeInput = document.createElement('input');
+                sizeInput.type = 'hidden';
+                sizeInput.name = 'label_size';
+                sizeInput.value = result.value;
+                form.appendChild(sizeInput);
+                
+                form.submit();
+            }
+        });
+    }
+</script>
+{% endblock %}

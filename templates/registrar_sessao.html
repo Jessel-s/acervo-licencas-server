@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Registrar Saída de Ativos{% endblock %}
+
+{% block content %}
+<style>
+    .movement-card { max-width: 860px !important; padding: 20px !important; }
+    .movement-card .alert { border-left: 3px solid var(--info); background: #eef5f8; color: var(--text-main); }
+    .movement-scan-area { padding-top: 6px; }
+    .movement-items-panel { background: #eef3f4; border: 1px solid #cbd8db; border-radius: 7px; }
+    .movement-items-panel .item-cart-container { background: #fff; border-color: #cbd8db; }
+    @media (max-width: 700px) { .movement-card { padding: 14px !important; } }
+</style>
+<div class="d-flex" style="justify-content: center;">
+    <div class="form-container card movement-card" style="max-width: 800px; width: 100%;">
+        
+        <div class="alert info" style="margin-bottom: 20px;">
+            <span class="material-icons-round" style="vertical-align: bottom;">info</span>
+            <strong>Modo Saída:</strong> Os itens escaneados ou pré-selecionados serão marcados como <strong>"Em Uso"</strong>.
+        </div>
+
+        <form method="POST" id="form-saida">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Responsável pela Retirada</label>
+                    <input type="text" name="professor" placeholder="NOME DO RESPONSÁVEL" value="{{ preenchimento.professor or session.username | upper }}" required style="text-transform: uppercase; {% if not session.perm_config %}background-color: var(--secondary-bg); cursor: not-allowed; border-color: var(--border-color);{% endif %}" oninput="this.value = this.value.toUpperCase()" {% if not session.perm_config %}readonly{% endif %}>
+                    {% if not session.perm_config %}
+                    <small style="color: var(--text-muted); display: block; margin-top: 5px;">Vinculado automaticamente ao seu usuário.</small>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label>Local / Destino do Uso</label>
+                    <input type="text" name="turma" placeholder="EX: SALA DE REUNIÃO, PROJETO X" value="{{ preenchimento.turma or '' }}" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group" style="flex: 0 0 48%;">
+                    <label>Previsão de Devolução (Opcional)</label>
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <span style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase;">Data Prevista para Devolução</span>
+                            <div class="input-with-icon">
+                                <input type="date" id="previsaoData" name="previsao_data" class="form-input-std" style="cursor: pointer; padding-left: 15px;" title="Data de devolução">
+                            </div>
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <span style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase;">Hora Prevista para Devolução</span>
+                            <div class="input-with-icon">
+                                <input type="time" id="previsaoHora" name="previsao_hora" class="form-input-std" style="cursor: pointer; padding-left: 15px;" title="Hora de devolução">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <hr style="margin: 20px 0;">
+
+            <!-- Área de Escaneamento -->
+            <div class="row">
+                <div class="movement-scan-area" style="flex: 1; min-width: 300px; margin-right: 20px;">
+                    <label style="font-weight: 600; margin-bottom: 10px; display: block;">Adicionar Equipamentos</label>
+                    
+                    <div id="reader" style="width: 100%; border-radius: 8px; overflow: hidden; display: none;"></div>
+                    
+                    <button type="button" class="btn btn-outline" onclick="startScanner()" id="btn-scan" style="width: 100%; margin-bottom: 10px;">
+                        <span class="material-icons-round">qr_code_scanner</span> Ativar Câmera
+                    </button>
+
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="manual_input" placeholder="Digitar ou Bipar USB..." autofocus style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; text-transform: uppercase;" onkeyup="if(event.key === 'Enter') addManual()">
+                        <button type="button" class="btn btn-primary" onclick="addManual()">Add</button>
+                    </div>
+                </div>
+
+                <div class="movement-items-panel" style="flex: 1; min-width: 300px; padding: 15px; max-height: 400px; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="font-weight: 600; margin: 0;">Itens para Saída</label>
+                        <span class="badge bg-primary" id="count-badge" style="background: var(--primary); color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.85rem;">0</span>
+                    </div>
+                    
+                    <div id="lista-itens" class="item-cart-container">
+                        <div style="color: var(--text-muted); text-align: center; padding: 20px; width: 100%;" id="empty-msg">Nenhum item adicionado</div>
+                    </div>
+                </div>
+            </div>
+
+            <input type="hidden" name="lista_ids" id="lista_ids">
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label>Observações (Opcional)</label>
+                <textarea name="observacoes" rows="2" placeholder="Alguma observação sobre a retirada?" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"></textarea>
+            </div>
+
+            <div class="actions" style="margin-top: 30px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;" onclick="return prepararEnvio()">Confirmar Saída</button>
+                <a href="{% if request.args.get('kiosk') %}{{ url_for('movements.registrar_sessao', kiosk=1) }}{% else %}{{ url_for('dashboard') }}{% endif %}" class="btn btn-outline" style="flex: 1;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+    let scannedItems = new Set();
+    let localScanner = null;
+
+    // CORREÇÃO: Define o objeto 'Toast' que estava faltando nesta página.
+    // Isso garante que as mensagens de sucesso/erro apareçam e o código continue.
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
+        }
+    });
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playBeep(type) {
+        if (audioContext.state === 'suspended') audioContext.resume();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        if (type === 'success') {
+            oscillator.type = 'sine'; oscillator.frequency.value = 1000; gainNode.gain.value = 0.1;
+        } else {
+            oscillator.type = 'sawtooth'; oscillator.frequency.value = 150; gainNode.gain.value = 0.2;
+        }
+        oscillator.start();
+        setTimeout(() => oscillator.stop(), (type === 'success' ? 100 : 300));
+    }
+
+    function startScanner() {
+        document.getElementById('reader').style.display = 'block';
+        document.getElementById('btn-scan').style.display = 'none';
+        localScanner = new Html5Qrcode("reader");
+        localScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => { addItem(extractIdFromUrl(decodedText)); },
+            (errorMessage) => {}
+        ).catch(err => console.log(err));
+    }
+
+    function addManual() {
+        const input = document.getElementById('manual_input');
+        let val = input.value.trim();
+        if(val) { 
+            if (/^\d+$/.test(val)) val = val.padStart(5, '0');
+            addItem(val.toUpperCase()); input.value = ''; input.focus(); 
+        }
+    }
+
+    function extractIdFromUrl(text) {
+        try {
+            let clean = text.trim();
+            if (clean.endsWith('/')) clean = clean.slice(0, -1);
+            clean = clean.split('?')[0]; 
+            
+            const parts = clean.split('/');
+            let lastSegment = parts[parts.length - 1];
+
+            // Proteção contra leitura da palavra "SCAN"
+            if (lastSegment.toUpperCase() === 'SCAN' && parts.length > 1) {
+                lastSegment = parts[parts.length - 2];
+            }
+            
+            if (/^\d+$/.test(lastSegment)) lastSegment = lastSegment.padStart(5, '0');
+            return lastSegment.toUpperCase();
+        } catch (e) {
+            let fallback = text.trim();
+            if (/^\d+$/.test(fallback)) fallback = fallback.padStart(5, '0');
+            return fallback.toUpperCase();
+        }
+    }
+
+    async function addItem(id) {
+        id = id.toUpperCase();
+        if (scannedItems.has(id)) return;
+
+        // 1. VERIFICA SE O ITEM ESTÁ RESERVADO PARA OUTRA PESSOA
+        try {
+            const checkResponse = await fetch(`/api/verificar_agendamento_item/${id}`);
+            const checkData = await checkResponse.json();
+
+            if (checkData.reservado) {
+                const responsavelAgendado = checkData.responsavel;
+                const responsavelAtual = document.querySelector('[name="professor"]').value.toUpperCase();
+
+                // Se o responsável que está retirando NÃO é o mesmo do agendamento, mostra o alerta.
+                if (responsavelAgendado !== responsavelAtual) {
+                    const isAdmin = {{ 1 if session.perm_config else 0 }};
+                    
+                    const result = await Swal.fire({
+                        icon: 'warning',
+                        title: 'Conflito de Agendamento',
+                        html: `O item <strong>${id}</strong> está reservado para <strong>${responsavelAgendado}</strong> neste horário.`,
+                        showCancelButton: true,
+                        confirmButtonText: 'Forçar Saída (Admin)',
+                        cancelButtonText: 'Cancelar Item',
+                        confirmButtonColor: '#dc3545',
+                        // Desabilita o botão de forçar se não for admin
+                        preConfirm: () => {
+                            if (!isAdmin) {
+                                Swal.showValidationMessage('Apenas administradores podem forçar a saída.');
+                                return false; // Impede o fechamento do modal
+                            }
+                        }
+                    });
+
+                    if (!result.isConfirmed) return; // Se cancelou ou não é admin, para aqui.
+                }
+            }
+        } catch (e) { /* Ignora erros de verificação para não bloquear a operação offline */ }
+
+        try {
+            const response = await fetch(`/api/verificar_ativo/${id}`);
+            const data = await response.json();
+
+            if (!data.exists) {
+                playBeep('error');
+                Toast.fire({ icon: 'error', title: `ERRO: Ativo "${id}" não existe!` });
+                return;
+            }
+
+            // BLOQUEIA itens em manutenção, inativos E os que já estão em uso
+            if (data.status === 'Em manutenção' || data.status === 'Inativo' || data.status === 'Em uso') {
+                playBeep('error');
+                Swal.fire('Atenção', `O equipamento ${id} encontra-se ${data.status.toUpperCase()} e não pode ser retirado.`, 'warning');
+                return;
+            }
+
+            scannedItems.add(id);
+            playBeep('success');
+            
+            Toast.fire({ icon: 'success', title: `Adicionado: "${id}"` });
+            renderList();
+        } catch (error) {
+            console.error(error);
+            Toast.fire({ icon: 'error', title: "Erro de conexão" });
+        }
+    }
+
+    function removeItem(id) {
+        scannedItems.delete(id);
+        renderList();
+    }
+
+    function renderList() {
+        const list = document.getElementById('lista-itens');
+        const badge = document.getElementById('count-badge');
+        list.innerHTML = '';
+        
+        if (scannedItems.size === 0) { 
+            list.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px; width: 100%;" id="empty-msg">Nenhum item adicionado</div>';
+        }
+        
+        scannedItems.forEach(id => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'cart-item';
+            itemDiv.innerHTML = `<span class="item-id">${id}</span><button type="button" class="remove-item-btn" onclick="removeItem('${id}')">&times;</button>`;
+            list.appendChild(itemDiv);
+        });
+        badge.innerText = scannedItems.size;
+    }
+
+    function prepararEnvio() {
+        if (scannedItems.size === 0) { Swal.fire('Atenção', 'Adicione pelo menos um equipamento.', 'warning'); return false; } 
+        document.getElementById('lista_ids').value = Array.from(scannedItems).join(','); return true; 
+    }
+
+    // Função para carregar itens pré-selecionados do agendamento
+    function carregarItensAgendados() {
+        const idsString = "{{ preenchimento.lista_ids or '' }}";
+        if (idsString) {
+            const ids = idsString.split(',');
+            ids.forEach(id => {
+                if (id.trim()) {
+                    scannedItems.add(id.trim().toUpperCase());
+                }
+            });
+            renderList();
+        }
+    }
+
+    // Inicializa a página
+    document.addEventListener('DOMContentLoaded', function() {
+        carregarItensAgendados();
+        
+        // Inicializa a data com o dia de hoje, caso não venha preenchida do agendamento
+        const inputData = document.getElementById('previsaoData');
+        if (inputData && !inputData.value) {
+            var hoje = new Date();
+            var dataLocal = new Date(hoje.getTime() - (hoje.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            inputData.value = dataLocal;
+        }
+    });
+</script>
+{% endblock %}

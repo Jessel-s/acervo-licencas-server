@@ -1,0 +1,442 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Configurações do Sistema{% endblock %}
+
+{% block content %}
+<style>
+    .config-section { border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(23,37,45,.06); }
+    .config-section h3 { font-size: 1.08rem; letter-spacing: 0; margin-bottom: 16px; }
+    .config-section hr { border: 0; border-top: 1px solid var(--border-color); }
+    .config-section .settings-card { border-radius: 7px; box-shadow: none; }
+    .config-section .settings-card h4 { font-size: .98rem !important; }
+    .config-section .settings-card p { color: var(--text-muted) !important; }
+    .config-section input[type="text"], .config-section input[type="file"], .config-section textarea {
+        color: var(--text-main) !important; border-color: #b9c6ca !important; background: #fff !important;
+    }
+    .machine-id-box { min-width: 0; width: 100%; gap: 12px; background: #eef2f3 !important; border-color: #c8d4d8 !important; }
+    .machine-id-value { display: block; min-width: 0; max-width: 100%; overflow-wrap: anywhere; word-break: break-all; font-size: clamp(.72rem, 1.8vw, 1rem) !important; color: var(--text-main) !important; }
+    .machine-id-box button, .license-key-box button { flex: 0 0 auto; color: var(--primary) !important; background: #dcebed !important; }
+    .license-key-box { min-width: 0; gap: 12px; background: #eef2f3 !important; border-color: #c8d4d8 !important; }
+    .support-box { background: #f4f7f8 !important; border-color: var(--primary) !important; }
+    .license-summary { width: 100%; min-width: 0; gap: 20px !important; }
+    .license-summary > div { min-width: 0; }
+    .status-machine-id { display: block; max-width: 100%; overflow-wrap: anywhere; word-break: break-all; font-family: 'IBM Plex Mono', monospace; font-size: clamp(.68rem, 1.5vw, 1rem) !important; line-height: 1.35; }
+    @media (max-width: 480px) {
+        .machine-id-box { align-items: stretch !important; flex-direction: column; }
+        .machine-id-box button { align-self: flex-start; }
+    }
+    .config-section .module-upgrade-card {
+        background: #f7fafb !important; color: var(--text-main) !important;
+        border: 1px solid var(--border-color) !important; box-shadow: 0 2px 8px rgba(23,37,45,.05) !important;
+    }
+    .config-section .module-upgrade-card p { color: var(--text-muted) !important; }
+    .config-section .module-upgrade-card::before { display: none; }
+    .config-section .module-features li { color: var(--text-muted) !important; }
+    .config-section .module-upgrade-card .btn-upgrade { background: var(--primary) !important; box-shadow: none !important; text-transform: none; }
+    .config-section .module-upgrade-card .btn-upgrade:hover { background: var(--primary-hover) !important; transform: none; }
+    @media (max-width: 700px) { .config-grid { grid-template-columns: 1fr; } }
+</style>
+<div class="config-grid">
+    <!-- Seção de Usuários -->
+    <div class="config-section">
+        <h3>Gerenciamento de Usuários</h3>
+        <div style="margin-bottom: 15px; text-align: right;">
+            <a href="{{ url_for('settings.add_user') }}" class="btn btn-primary">
+                <span class="material-icons-round">add</span> Novo Usuário
+            </a>
+        </div>
+        <div style="overflow-x: auto;">
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th class="perm-header" title="Movimentação">Mov.</th>
+                        <th class="perm-header" title="Cadastro">Cad.</th>
+                        <th class="perm-header" title="Configurações">Conf.</th>
+                        <th class="perm-header" title="Modo Totem (Kiosk)">Kiosk</th>
+                        <th class="perm-header" title="Help Desk">Help Desk</th>
+                        <th class="perm-header" title="Manual de Ajuda">Ajuda</th>
+                        <th class="perm-header" title="Almoxarifado">Almox.</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td><strong>{{ user.username }}</strong></td>
+                        <td class="perm-cell">
+                            <span class="material-icons-round perm-icon {{ 'active' if user.perm_movimentacao else 'inactive' }}">swap_horiz</span>
+                        </td>
+                        <td class="perm-cell">
+                            <span class="material-icons-round perm-icon {{ 'active' if user.perm_cadastro else 'inactive' }}">edit</span>
+                        </td>
+                        <td class="perm-cell">
+                            <span class="material-icons-round perm-icon {{ 'active' if user.perm_config else 'inactive' }}">settings</span>
+                        </td>
+                        <td class="perm-cell">
+                            <span class="material-icons-round perm-icon {{ 'active' if user.perm_kiosk else 'inactive' }}" style="color: var(--warning);">tablet_mac</span>
+                        </td>
+                        <td class="perm-cell">
+                            <span class="material-icons-round perm-icon {{ 'active' if user.perm_chamados else 'inactive' }}">support_agent</span>
+                        </td>
+                        <td class="perm-cell">
+                            <span class="material-icons-round perm-icon {{ 'active' if user.perm_ajuda else 'inactive' }}">help_outline</span>
+                        </td>
+                        <td class="perm-cell">
+                            <span class="material-icons-round perm-icon {{ 'active' if user.perm_almoxarifado else 'inactive' }}" style="color: #f43f5e;">inventory</span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('settings.edit_user', user_id=user.id) }}" class="btn btn-sm btn-secondary">Editar</a>
+                            {% if user.id != 1 %}
+                            <form action="{{ url_for('settings.remove_user', user_id=user.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja remover este usuário?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger">Remover</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Seção de Licença e Sistema -->
+    <div class="config-section">
+        <h3>Licença e Sistema</h3>
+        
+        <!-- Painel de Status Elegante -->
+        <div class="license-summary" style="display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 20px; background: var(--bg-body); padding: 15px 25px; border-radius: 8px; border: 1px solid var(--border-color);">
+            
+            <div>
+                <p style="margin: 0 0 5px 0; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">Status Atual</p>
+                {% if status == 'VALID' %}
+                    <span style="color: #10b981; font-weight: 900; font-size: 1.3rem;">ATIVADO </span>
+                {% elif status == 'TRIAL' %}
+                    <span style="color: #f59e0b; font-weight: 900; font-size: 1.3rem;">TESTE GRÁTIS</span>
+                {% else %}
+                    <span style="color: #ef4444; font-weight: 900; font-size: 1.3rem;">BLOQUEADO</span>
+                {% endif %}
+            </div>
+            
+            <!-- Linha Divisória Vertical -->
+            <div style="width: 2px; height: 40px; background: var(--border-soft);"></div>
+            
+            <div>
+                <p style="margin: 0 0 5px 0; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">Validade do Contrato</p>
+                {% if days > 30000 %}
+                    <span style="background: rgba(139, 92, 246, 0.15); color: #a78bfa; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 1rem; border: 1px solid rgba(139, 92, 246, 0.3);">VITALÍCIO</span>
+                {% else %}
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34d399; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 1rem; border: 1px solid rgba(16, 185, 129, 0.3);">{{ days }} DIAS RESTANTES</span>
+                {% endif %}
+            </div>
+            
+            <div style="width: 2px; height: 40px; background: var(--border-soft);"></div>
+            
+            <div>
+                <p style="margin: 0 0 5px 0; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">ID da Máquina</p>
+                <span class="status-machine-id" style="color: var(--text-main); font-weight: bold;">{{ machine_id }}</span>
+            </div>
+            
+        </div>
+
+        <!-- NOVO: Seção de Ativação com Abas -->
+        <div class="tabs">
+            <div class="tab-link active" onclick="showTab('online', this)">Ativação Online</div>
+            <div class="tab-link" onclick="showTab('offline', this)">Ativação Manual</div>
+        </div>
+
+        <!-- ABA DE ATIVAÇÃO ONLINE -->
+        <div id="online" class="tab-content active">
+            <form id="form-online" onsubmit="ativarOnline(event)">
+                <div class="form-group">
+                    <label for="chave_compra">Chave de Compra</label>
+                    <input type="text" id="chave_compra" name="chave_compra" placeholder="Ex: COMPRA-123-XYZ" required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-icons-round">cloud_sync</span> Ativar Online
+                </button>
+            </form>
+        </div>
+
+        <!-- ABA DE ATIVAÇÃO OFFLINE/MANUAL -->
+        <div id="offline" class="tab-content">
+            <form id="form-offline" action="{{ url_for('settings.configuracoes') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="license_key">Chave de Licença</label>
+                    <textarea id="license_key" name="license_key" rows="4" placeholder="Cole a chave de licença fornecida aqui..." required>{{ current_key }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Ativar Manualmente</button>
+            </form>
+        </div>
+
+        <hr style="margin: 25px 0;">
+
+        <!-- NOVO: Estilos para as abas -->
+        <style>
+            .tabs { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 1.5rem; }
+            .tab-link { padding: 0.75rem 1rem; cursor: pointer; color: var(--text-muted); font-weight: 600; border-bottom: 2px solid transparent; transition: all 0.2s ease; }
+            .tab-link:hover { color: var(--text-main); }
+            .tab-link.active { color: var(--primary); border-bottom-color: var(--primary); }
+            .tab-content { display: none; animation: fadeIn 0.5s; }
+            .tab-content.active { display: block; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        </style>
+
+        <div class="settings-card" style="margin-bottom: 20px;">
+            <h4 style="margin-top: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons-round" style="color: var(--primary);">image</span> 
+                Personalizar Logotipo
+            </h4>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">
+                Faça o upload de uma nova imagem para substituir o logotipo principal do sistema. Dê preferência para imagens quadradas com fundo transparente (.PNG).
+            </p>
+            <form action="{{ url_for('settings.upload_logo') }}" method="POST" enctype="multipart/form-data" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="file" name="logo" accept=".png, .jpg, .jpeg" required style="flex: 1; min-width: 200px; padding: 8px; border: 1px dashed var(--border-color); border-radius: 6px; background: var(--bg-body); color: var(--text-main);">
+                <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+                    <span class="material-icons-round" style="font-size: 18px;">upload</span> Atualizar Logo
+                </button>
+            </form>
+        </div>
+
+        <hr style="margin: 25px 0;">
+
+        <div class="settings-card" style="margin-bottom: 20px; {% if not g.modules.get('iot') %}opacity: 0.6; filter: grayscale(1); pointer-events: none;{% endif %}">
+            <h4 style="margin-top: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons-round" style="color: var(--primary);">router</span> 
+                Configuração do Carrinho Inteligente (IoT)
+                {% if not g.modules.get('iot') %}<span class="module-badge locked" style="margin-left: auto;">Módulo Bloqueado</span>{% endif %}
+            </h4>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">
+                Informe o Endereço IP da placa responsável por abrir a porta do Totem na rede atual.
+            </p>
+            <form action="{{ url_for('settings.salvar_iot') }}" method="POST" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="ip_totem" value="{{ ip_totem }}" placeholder="Ex: 192.168.0.50" required style="flex: 1; min-width: 200px; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-body); color: var(--text-main); font-family: monospace; font-size: 1.1rem;">
+                <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+                    <span class="material-icons-round" style="font-size: 18px;">save</span> Salvar IP
+                </button>
+            </form>
+        </div>
+
+        <hr style="margin: 25px 0;">
+
+        <div class="support-box" style="padding: 20px; border-radius: 8px; border-left: 4px solid; margin-bottom: 25px;">
+            <h4 style="margin-top: 0; color: #00d2ff; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons-round">support_agent</span> Suporte e Licenciamento
+            </h4>
+            <p style="margin: 0 0 5px 0; font-weight: bold; font-size: 1.1rem; color: var(--text-main);">JSL Sistemas</p>
+            <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-muted);">Desenvolvedor: Jessé Silva Leite</p>
+
+            <label style="font-weight: bold; color: var(--text-muted); font-size: 0.85rem;">SEU ID DE MÁQUINA:</label>
+            <div class="machine-id-box" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; border-radius: 6px; border: 1px dashed; margin-bottom: 15px;">
+                <span id="configMachineId" class="machine-id-value" style="font-family: monospace; font-weight: 600;">{{ machine_id }}</span>
+                <button type="button" onclick="copiarIDConfig()" id="btnCopyConfig" style="background: #323248; color: #00d2ff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; transition: 0.3s;">
+                    <span class="material-icons-round" style="font-size: 18px;">content_copy</span> Copiar
+                </button>
+            </div>
+            
+            {% if current_key %}
+            <label style="font-weight: bold; color: var(--text-muted); font-size: 0.85rem;">SUA CHAVE ATUAL (Envie para comprar módulos):</label>
+            <div class="license-key-box" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; border-radius: 6px; border: 1px dashed; margin-bottom: 15px;">
+                <span style="font-family: monospace; font-size: 0.9rem; color: #a78bfa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;">{{ current_key[:20] }}...{{ current_key[-10:] }}</span>
+                <button type="button" onclick="navigator.clipboard.writeText('{{ current_key }}'); Swal.fire('Copiada!', 'Sua chave foi copiada. Cole no WhatsApp do suporte!', 'success');" style="background: #323248; color: #a78bfa; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; transition: 0.3s;">
+                    <span class="material-icons-round" style="font-size: 18px;">content_copy</span> Copiar Chave
+                </button>
+            </div>
+            {% endif %}
+
+            <a href="https://wa.me/5519998082712?text=Olá, Jessé! Preciso de suporte/licença para o Acervo TI. Meu ID é: {{ machine_id }}" target="_blank" style="display: block; text-align: center; background: #25D366; color: white; padding: 10px; border-radius: 6px; text-decoration: none; font-weight: bold; transition: 0.3s;">
+                <span class="material-icons-round" style="vertical-align: middle; font-size: 18px;">chat</span> Contato via WhatsApp: (19) 99808-2712
+            </a>
+        </div>
+
+        <h4>Manutenção de Dados</h4>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{{ url_for('settings.backup_db') }}" class="btn btn-secondary">
+                <span class="material-icons-round">cloud_download</span> Backup do Banco de Dados
+            </a>
+            <form action="{{ url_for('settings.cleanup_history') }}" method="POST" onsubmit="return confirm('Isso removerá permanentemente registros de histórico com mais de 30 dias. Continuar?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-warning">
+                    <span class="material-icons-round">cleaning_services</span> Limpar Histórico Antigo
+                </button>
+            </form>
+            <button type="button" class="btn" style="background-color: #ef4444; color: white; display: flex; align-items: center; gap: 8px;" onclick="confirmarDesligamento()">
+                <span class="material-icons-round">power_settings_new</span> Encerrar Sistema
+            </button>
+        </div>
+    </div>
+
+    <!-- NOVO: CARDS DE VENDA DE MÓDULOS PREMIUM -->
+    <div class="config-section" style="padding: 0; border: none; background: transparent; box-shadow: none;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+            <!-- MÓDULO IOT CARRINHO -->
+            <div class="module-upgrade-card">
+                <div class="module-header">
+                    <div class="module-title">
+                        <span class="material-icons-round" style="color: #0ea5e9; font-size: 28px;">router</span>
+                        Integração IoT
+                    </div>
+                    {% if g.modules.get('iot') %}
+                        {% if g.modules.get('iot_trial_active') %}
+                        {# Cenário: Licença principal ativa, mas IoT ainda no período de teste #}
+                        <span class="module-badge active" title="Liberado durante os 7 dias de teste" style="background: rgba(14, 165, 233, 0.2); color: #0ea5e9; border-color: rgba(14, 165, 233, 0.4);">✓ Liberado (Teste)</span>
+                        {% elif status == 'TRIAL' %}
+                        <span class="module-badge active" title="Liberado durante os 7 dias de teste" style="background: rgba(14, 165, 233, 0.2); color: #0ea5e9; border-color: rgba(14, 165, 233, 0.4);">✓ Liberado (Teste)</span>
+                        {% else %}
+                        <span class="module-badge active" style="background: rgba(14, 165, 233, 0.2); color: #0ea5e9; border-color: rgba(14, 165, 233, 0.4);">✓ Liberado</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="module-badge locked">Bloqueado</span>
+                    {% endif %}
+                </div>
+                
+                <p style="font-size: 0.9rem; margin-bottom: 15px; z-index: 1; color: #cbd5e1;">
+                    Conecte o sistema a trancas eletrônicas (ESP32/Relé). Destrave as portas do carrinho automaticamente para o usuário.
+                </p>
+                
+                <ul class="module-features">
+                    <li class="{% if not g.modules.get('iot') %}locked-feature{% endif %}"><span class="material-icons-round" style="color: {% if g.modules.get('iot') %}#0ea5e9{% endif %}">{% if g.modules.get('iot') %}check_circle{% else %}lock{% endif %}</span> Disparo Automático (Wi-Fi)</li>
+                    <li class="{% if not g.modules.get('iot') %}locked-feature{% endif %}"><span class="material-icons-round" style="color: {% if g.modules.get('iot') %}#0ea5e9{% endif %}">{% if g.modules.get('iot') %}check_circle{% else %}lock{% endif %}</span> API de Autoatendimento</li>
+                </ul>
+
+                {% if not g.modules.get('iot') %}
+                <button type="button" class="btn-upgrade" onclick="document.querySelector('[name=license_key]').focus();" style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">
+                    <span class="material-icons-round">workspace_premium</span> Adquirir Módulo
+                </button>
+                <div style="text-align: center; margin-top: 12px; font-size: 0.8rem; color: #94a3b8; z-index: 1; font-weight: 600;">
+                    Entre em contato no WhatsApp ao lado para liberar.
+                </div>
+                {% else %}
+                <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.3); padding: 12px; border-radius: 8px; text-align: center; color: #0ea5e9; font-weight: 700; font-size: 0.9rem; z-index: 1; margin-top: auto;">
+                    Módulo ativo e pronto para uso!
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NOVO: Seção de Monitoramento e Logs -->
+<div style="margin-top: 30px; background: var(--bg-card); padding: 25px; border-radius: 10px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+    <h2 style="color: var(--primary); display: flex; align-items: center; gap: 10px; margin-top: 0; border-bottom: 2px solid var(--border-color); padding-bottom: 12px;">
+        <span class="material-icons-round">terminal</span> Monitoramento do Servidor
+    </h2>
+    
+    <p style="margin-top: 20px;">Compartilhe o endereço abaixo para que outras pessoas acessem o sistema pela rede da empresa:</p>
+    
+    <div style="background: #1e1e2d; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <span style="color: #4ade80; font-size: 1.2rem; font-weight: bold; font-family: monospace; letter-spacing: 1px;">{{ url_acesso }}</span>
+        <button type="button" onclick="navigator.clipboard.writeText('{{ url_acesso }}'); Swal.fire('Copiado!', 'Link copiado para a área de transferência', 'success');" style="background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 5px; font-weight: bold;">
+            <span class="material-icons-round" style="font-size: 18px;">content_copy</span> Copiar Link
+        </button>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <p style="margin: 0;"><strong>Últimos Logs do Sistema (Erros e Inicialização):</strong></p>
+        <form action="{{ url_for('settings.clear_logs') }}" method="POST" style="margin: 0;" onsubmit="return confirm('Tem certeza que deseja limpar todo o histórico de logs do terminal?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-danger" style="display: flex; align-items: center; gap: 5px;">
+                <span class="material-icons-round" style="font-size: 16px;">delete_sweep</span> Limpar Logs
+            </button>
+        </form>
+    </div>
+    <!-- Caixa de texto com aparência de Terminal Hacker -->
+    <textarea readonly style="width: 100%; height: 300px; background: #0c0c0c; color: #00ff00; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; padding: 15px; border-radius: 5px; border: 2px solid #333; resize: vertical; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); line-height: 1.4;">{{ log_content }}</textarea>
+</div>
+
+<!-- Script de Notificação e Utilidades -->
+<script>
+    // --- LÓGICA DAS ABAS ---
+    function showTab(tabName, element) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabName).classList.add('active');
+        element.classList.add('active');
+    }
+
+    // --- LÓGICA DE ATIVAÇÃO ONLINE (AJAX) ---
+    async function ativarOnline(event) {
+        event.preventDefault();
+        const form = document.getElementById('form-online');
+        const button = form.querySelector('button');
+        const originalButtonText = button.innerHTML;
+
+        button.disabled = true;
+        button.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>';
+
+        const formData = new FormData();
+        formData.append('chave_compra', document.getElementById('chave_compra').value);
+        formData.append('machine_id', '{{ machine_id }}'); // Pega o ID da máquina do template
+        formData.append('csrf_token', '{{ csrf_token() }}');
+
+        try {
+            const response = await fetch("{{ url_for('ativacao_online') }}", {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (result.sucesso) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Ativado com Sucesso!',
+                    text: 'A página será recarregada para aplicar a nova licença.',
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.reload(); // Recarrega a página de configurações
+                });
+            } else {
+                Swal.fire('Erro na Ativação', result.mensagem || 'Ocorreu um erro desconhecido.', 'error');
+            }
+        } catch (error) {
+            Swal.fire('Erro de Conexão', 'Não foi possível se comunicar com o servidor de ativação. Verifique sua conexão com a internet.', 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalButtonText;
+        }
+    }
+    function copiarIDConfig() {
+        var idText = document.getElementById("configMachineId").innerText;
+        navigator.clipboard.writeText(idText).then(function() {
+            var btn = document.getElementById('btnCopyConfig');
+            var originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="material-icons-round" style="font-size: 18px;">check</span> Copiado!';
+            btn.style.color = '#25D366';
+            setTimeout(function() {
+                btn.innerHTML = originalHTML;
+                btn.style.color = '#00d2ff';
+            }, 2000);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    Toast.fire({
+                        icon: '{{ category if category != "message" else "info" }}',
+                        title: '{{ message }}'
+                    });
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    });
+</script>
+{% endblock %}

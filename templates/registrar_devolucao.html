@@ -1,0 +1,317 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Registrar Devolução de Ativos{% endblock %}
+
+{% block content %}
+<style>
+    .movement-card { max-width: 860px !important; padding: 20px !important; }
+    .movement-card .alert { border-left: 3px solid var(--success); background: #edf7f3; color: var(--text-main); }
+    .movement-scan-area { padding-top: 6px; }
+    .movement-items-panel { background: #eef3f4; border: 1px solid #cbd8db; border-radius: 7px; }
+    @media (max-width: 700px) { .movement-card { padding: 14px !important; } }
+</style>
+{% if request.args.get('kiosk') %}
+<style>
+    /* --- MODO KIOSK (FULLSCREEN & NO HEADER) --- */
+    .top-header, .local-page-header { display: none !important; }
+    
+    body {
+        margin: 0;
+        padding-top: 120px !important; /* Compensa o header fixo */
+    }
+
+    .content-wrapper { 
+        padding: 0 !important; 
+        background: transparent !important;
+    }
+
+    /* --- CABEÇALHO DO TOTEM --- */
+    .totem-header {
+        position: fixed;
+        top: 0; left: 0; width: 100%;
+        box-sizing: border-box;
+        background: #0f172a;
+        z-index: 1000;
+        padding: 20px 60px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .totem-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        letter-spacing: -0.5px;
+    }
+
+    .totem-btn-cancelar {
+        background: #ef4444;
+        color: #ffffff;
+        padding: 12px 25px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        transition: 0.3s;
+    }
+    .totem-btn-cancelar:hover {
+        background: #dc2626;
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        transform: translateY(-2px);
+    }
+
+    .kiosk-btn-voltar { display: none !important; }
+</style>
+
+<div class="totem-header">
+    <div class="totem-title">
+        <span class="material-icons-round" style="font-size: 2.8rem; color: #10b981;">move_to_inbox</span>
+        Devolução Rápida
+    </div>
+    <a href="{{ url_for('kiosk_home') }}" class="totem-btn-cancelar">
+        <span class="material-icons-round">cancel</span> Cancelar e Voltar
+    </a>
+</div>
+{% endif %}
+
+<div class="d-flex" style="justify-content: center; {% if request.args.get('kiosk') %}margin-top: 20px;{% endif %}">
+    <div class="form-container card movement-card" style="max-width: 800px; width: 100%;">
+        
+        <div class="alert info" style="margin-bottom: 20px;">
+            <span class="material-icons-round" style="vertical-align: bottom;">info</span>
+            <strong>Modo Devolução:</strong> Os itens escaneados serão marcados como <strong>"Disponível"</strong>.
+        </div>
+
+        <form method="POST" id="form-devolucao" action="{{ url_for('movements.registrar_devolucao', kiosk=request.args.get('kiosk')) }}" onsubmit="return window.btnClicked === true;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- Área de Escaneamento -->
+            <div class="row">
+                <div class="movement-scan-area" style="flex: 1; min-width: 300px; margin-right: 20px;">
+                    <label style="font-weight: 600; margin-bottom: 10px; display: block;">Adicionar Equipamentos para Devolução</label>
+
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="manual_input" placeholder="Digitar ou Bipar USB..." autofocus style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; text-transform: uppercase;" onkeyup="if(event.key === 'Enter') addManual()">
+                        <button type="button" class="btn btn-primary" onclick="addManual()">Add</button>
+                    </div>
+                </div>
+
+                <div class="movement-items-panel" style="flex: 1; min-width: 300px; padding: 15px; max-height: 400px; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="font-weight: 600; margin: 0;">Itens para Devolução</label>
+                        <span class="badge bg-primary" id="count-badge">0</span>
+                    </div>
+                    
+                    <ul id="lista-itens" style="list-style: none; padding: 0; margin: 0;">
+                        <li style="color: var(--text-muted); text-align: center; padding: 20px;" id="empty-msg">Nenhum item adicionado</li>
+                    </ul>
+                </div>
+            </div>
+
+            <input type="hidden" name="lista_ids" id="lista_ids">
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="responsavel_devolucao">Responsável pela Devolução</label>
+                <input type="text" id="responsavel_devolucao" name="responsavel_devolucao"
+                       value="{{ session.username | upper }}" required
+                       style="text-transform: uppercase; {% if not session.perm_config %}background-color: var(--bg-body); cursor: not-allowed;{% endif %}"
+                       oninput="this.value = this.value.toUpperCase()"
+                       {% if not session.perm_config %}readonly{% endif %}>
+                {% if not session.perm_config %}
+                <small style="color: var(--text-muted); display: block; margin-top: 5px;">Preenchido automaticamente com o usuário conectado.</small>
+                {% endif %}
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label>Observações (Opcional)</label>
+                <input type="text" name="observacoes" list="listaObs" class="form-input-std" placeholder="Alguma observação sobre a devolução? Ex: Item com defeito." style="width: 100%; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                
+                <datalist id="listaObs">
+                    {% for obs in obs_historico %}
+                        <option value="{{ obs }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+
+            <div class="actions" style="margin-top: 30px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;" onclick="if(prepararEnvio()){ window.btnClicked = true; return true; } else { return false; }">Confirmar Devolução</button>
+                <a href="{% if request.args.get('kiosk') %}{{ url_for('kiosk_home') }}{% else %}{{ url_for('dashboard') }}{% endif %}" class="btn btn-outline" style="flex: 1;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let scannedItems = new Set();
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playBeep(type) {
+        if (audioContext.state === 'suspended') audioContext.resume();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        if (type === 'success') {
+            oscillator.type = 'sine'; oscillator.frequency.value = 1000; gainNode.gain.value = 0.1;
+        } else {
+            oscillator.type = 'sawtooth'; oscillator.frequency.value = 150; gainNode.gain.value = 0.2;
+        }
+        oscillator.start();
+        setTimeout(() => oscillator.stop(), (type === 'success' ? 100 : 300));
+    }
+
+    // CORREÇÃO: Define o objeto 'Toast' que estava faltando.
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
+        }
+    });
+
+
+    // --- AUTO LOAD (Mágica Anti-Cache vinda do servidor) ---
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoLoadCode = urlParams.get('auto_load');
+        if (autoLoadCode) {
+            let newUrl = window.location.pathname;
+            if (urlParams.get('kiosk')) newUrl += '?kiosk=' + urlParams.get('kiosk');
+            window.history.replaceState({}, document.title, newUrl);
+            setTimeout(() => { document.dispatchEvent(new CustomEvent('scanSuccess', { detail: autoLoadCode })); }, 500);
+        }
+    });
+
+    function addManual() {
+        const input = document.getElementById('manual_input');
+        let val = input.value.trim().toUpperCase();
+        if(val) { 
+            input.value = ''; input.focus(); 
+            if (val.startsWith('AG') && val.length >= 6) {
+                document.dispatchEvent(new CustomEvent('scanSuccess', { detail: val }));
+                return;
+            }
+            if (/^\d+$/.test(val)) val = val.padStart(5, '0');
+            document.dispatchEvent(new CustomEvent('scanSuccess', { detail: val }));
+        }
+    }
+
+    window.addItem = async function(id) {
+        id = id.toUpperCase();
+        
+        if (scannedItems.has(id)) return;
+
+        try {
+            const response = await fetch(`/api/verificar_ativo/${id}`);
+            const data = await response.json();
+
+            if (!data.exists) {
+                playBeep('error');
+                Toast.fire({ icon: 'error', title: `ERRO: Ativo "${id}" não existe!`, background: '#fee2e2', color: '#b91c1c' });
+                return;
+            }
+
+            if (data.status === 'Disponível') {
+                playBeep('error');
+                // Usando Toast para não interromper o fluxo com um modal grande
+                Toast.fire({ icon: 'info', title: `O item ${id} já está disponível.`, background: '#dbeafe', color: '#1e40af' });
+                return;
+            }
+
+            scannedItems.add(id);
+            playBeep('success');
+            
+            Toast.fire({ icon: 'success', title: `Adicionado: "${id}"` });
+            renderList();
+        } catch (error) {
+            console.error(error);
+            Toast.fire({ icon: 'error', title: "Erro de conexão", background: '#fee2e2', color: '#b91c1c' });
+        }
+    }
+
+    function removeItem(id) {
+        scannedItems.delete(id);
+        renderList();
+    }
+
+    function renderList() {
+        const list = document.getElementById('lista-itens');
+        const badge = document.getElementById('count-badge');
+        list.innerHTML = scannedItems.size === 0 ? '<li style="color: var(--text-muted); text-align: center; padding: 20px;" id="empty-msg">Nenhum item adicionado</li>' : '';
+        
+        scannedItems.forEach(id => {
+            const li = document.createElement('li');
+            li.style.cssText = 'padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); color: var(--text-main);';
+            li.innerHTML = `<strong>${id}</strong><button type="button" onclick="removeItem('${id}')" style="background: none; border: none; color: var(--danger); cursor: pointer;"><span class="material-icons-round">delete</span></button>`;
+            list.appendChild(li);
+        });
+        badge.innerText = scannedItems.size;
+    }
+
+    function prepararEnvio() {
+        if (scannedItems.size === 0) { 
+            Swal.fire('Atenção', 'Adicione pelo menos um equipamento para devolver.', 'warning'); 
+            return false; 
+        } 
+        document.getElementById('lista_ids').value = Array.from(scannedItems).join(','); 
+        
+        {% if request.args.get('kiosk') %}
+        // MODO KIOSK: Evita o recarregamento da tela e faz comunicação direta com o Totem IoT
+        enviarDevolucaoKiosk();
+        return false;
+        {% else %}
+        return true; 
+        {% endif %}
+    }
+
+    {% if request.args.get('kiosk') %}
+    function enviarDevolucaoKiosk() {
+        if (typeof window.showLoader === 'function') window.showLoader('Destravando porta...');
+        
+        fetch('/api/iot/devolucao_lote', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ids: Array.from(scannedItems) })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (typeof window.hideLoader === 'function') window.hideLoader();
+            if (data.sucesso) {
+                Swal.fire({
+                    icon: 'success', title: 'Porta Liberada!',
+                    html: `<div style="font-size: 1.2rem; color: #cbd5e1; margin-bottom: 15px;">Devolução confirmada! <b>${data.qtd} itens</b>.</div>
+                           <div style="background: rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3); border-radius: 20px; padding: 20px; margin-bottom: 20px;">
+                               <span style="color: #94a3b8; font-size: 1rem; font-weight: 800; text-transform: uppercase; letter-spacing: 2px;">Endereços para Guardar</span><br>
+                               <div style="color: #3b82f6; font-size: 2.8rem; font-weight: 900; letter-spacing: 2px; margin-top: 5px; word-break: break-word; line-height: 1.1;">${data.slots}</div>
+                           </div>
+                           <div style="background: #ef4444; color: white; border-radius: 16px; padding: 18px; font-weight: 900; font-size: 1.4rem; letter-spacing: 1px; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4); animation: piscarVermelho 1.5s infinite; text-align: center;">
+                               POR FAVOR, FECHE A PORTA
+                           </div>
+                           <style>@keyframes piscarVermelho { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }</style>`,
+                    showConfirmButton: true, confirmButtonText: 'JÁ FECHEI A PORTA', confirmButtonColor: '#3b82f6', allowOutsideClick: false, backdrop: `rgba(15, 23, 42, 0.95)`
+                }).then((result) => { if(result.isConfirmed) { window.location.href = '/kiosk'; } });
+            } else { Swal.fire('Erro', data.mensagem, 'error'); }
+        }).catch(() => { 
+            if (typeof window.hideLoader === 'function') window.hideLoader();
+            Swal.fire('Erro', 'Falha na comunicação IoT.', 'error'); 
+        });
+    }
+    {% endif %}
+</script>
+{% endblock %}

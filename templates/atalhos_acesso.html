@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Folha de Acesso Rápido - QR Codes</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            text-align: center; 
+            padding: 20px; 
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        h1 { 
+            margin-bottom: 10px; 
+            font-weight: 600;
+        }
+        .subtitle { 
+            color: #666; 
+            margin-bottom: 40px; 
+            font-size: 1.1rem;
+        }
+        
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px; 
+            max-width: 900px; 
+            margin: 0 auto; 
+        }
+        
+        .card { 
+            background-color: #fff;
+            border: 1px solid #ddd; 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .card h2 { 
+            margin-top: 0; 
+            font-size: 1.3rem; 
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card .qr-code-container {
+            margin: 15px 0;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+        .card .instruction {
+            font-size: 0.9rem;
+            color: #555;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .card .url-display {
+            font-size: 0.7rem;
+            color: #999;
+            word-break: break-all;
+            background-color: #f0f0f0;
+            padding: 5px;
+            border-radius: 4px;
+            margin-top: auto; /* Pushes to the bottom */
+        }
+        
+        .print-btn {
+            background: #007bff; color: white; border: none; padding: 12px 24px; 
+            font-size: 1.1rem; cursor: pointer; border-radius: 8px; margin-bottom: 30px;
+            display: inline-flex; align-items: center; gap: 8px;
+            box-shadow: 0 2px 5px rgba(0,123,255,0.3);
+            transition: background-color 0.2s;
+        }
+        .print-btn:hover {
+            background-color: #0056b3;
+        }
+        
+        @media print {
+            body { background-color: #fff; padding: 10px; }
+            .print-btn, .subtitle { display: none; }
+            h1 { font-size: 1.5rem; }
+            .grid { grid-template-columns: 1fr 1fr; gap: 20px; }
+            .card { 
+                box-shadow: none; 
+                border: 2px solid #000; 
+                page-break-inside: avoid; 
+            }
+            .card .url-display { display: none; } /* Hide URL when printing */
+        }
+    </style>
+    <!-- Biblioteca para gerar QR Code no navegador (sem pesar o servidor) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
+            <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/>
+        </svg>
+        Imprimir Folha
+    </button>
+    
+    <h1>Acesso Rápido - Gestão de Ativos</h1>
+    <p class="subtitle">Cole esta folha na mesa de apoio ou no carrinho de recarga para agilizar as operações.</p>
+
+    <div class="grid">
+        <div class="card">
+            <h2>📤 REGISTRAR SAÍDA</h2>
+            <p class="instruction">Use para emprestar equipamentos aos responsáveis.</p>
+            <div class="qr-code-container" id="qr-saida"></div>
+            <div class="url-display" id="url-saida-display"></div>
+        </div>
+
+        <div class="card">
+            <h2>📥 REGISTRAR DEVOLUÇÃO</h2>
+            <p class="instruction">Use ao receber os equipamentos de volta.</p>
+            <div class="qr-code-container" id="qr-devolucao"></div>
+            <div class="url-display" id="url-devolucao-display"></div>
+        </div>
+
+        <div class="card">
+            <h2>📅 AGENDAMENTO</h2>
+            <p class="instruction">Use para reservar equipamentos para uma data futura.</p>
+            <div class="qr-code-container" id="qr-agendamento"></div>
+            <div class="url-display" id="url-agendamento-display"></div>
+        </div>
+
+        <div class="card">
+            <h2>⚠️ REPORTAR PROBLEMA</h2>
+            <p class="instruction">Use para abrir um chamado de manutenção para um item.</p>
+            <div class="qr-code-container" id="qr-reportar"></div>
+            <div class="url-display" id="url-reportar-display"></div>
+        </div>
+    </div>
+
+    <script>
+        function createQRCode(elementId, url) {
+            // Gerar o QR Code
+            new QRCode(document.getElementById(elementId), {
+                text: url,
+                width: 180,
+                height: 180,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+
+            // Mostrar a URL para debug
+            const displayElement = document.getElementById(elementId + '-display');
+            if (displayElement) {
+                displayElement.textContent = url;
+            }
+        }
+
+        // Chama a função para cada QR Code, garantindo que não haja erros de cópia
+        createQRCode("qr-saida", "{{ url_saida }}");
+        createQRCode("qr-devolucao", "{{ url_devolucao }}");
+        createQRCode("qr-agendamento", "{{ url_agendamento }}");
+        createQRCode("qr-reportar", "{{ url_reportar }}");
+    </script>
+</body>
+</html>

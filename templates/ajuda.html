@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Central de Ajuda e Suporte{% endblock %}
+
+{% block content %}
+<style>
+    .help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 30px; }
+    .help-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(23,37,45,.05); transition: border-color .2s, box-shadow .2s; position: relative; overflow: hidden; }
+    .help-card:hover { transform: none; box-shadow: 0 6px 16px rgba(23,37,45,.1); border-color: var(--primary); }
+    .help-icon { background: var(--primary-light) !important; color: var(--primary) !important; width: 44px; height: 44px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px; box-shadow: none !important; }
+    .help-title { font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: 10px; }
+    .help-text { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; }
+    .help-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: var(--primary); opacity: 0; transition: 0.2s; }
+    .help-card:hover::before { opacity: 1; }
+    .help-text b { color: var(--text-main); font-weight: 700; }
+    .help-intro { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding: 14px 16px; background: #eef5f6; border: 1px solid #c8dfe2; border-left: 3px solid var(--primary); border-radius: 6px; color: var(--text-main); }
+    .help-intro > .material-icons-round { color: var(--primary); font-size: 26px; }
+    .help-intro div { display: flex; flex-direction: column; gap: 2px; }
+    .help-intro strong { font-size: .95rem; }
+    .help-intro span { color: var(--text-muted); font-size: .84rem; }
+</style>
+
+<div class="help-intro">
+    <span class="material-icons-round">support</span>
+    <div><strong>Central de operação</strong><span>Consulte os fluxos principais do Acervo TI por área.</span></div>
+</div>
+<div class="help-grid">
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">inventory_2</span></div><div class="help-title">Inventário de ativos</div><div class="help-text">Cadastre notebooks, projetores, tablets e outros equipamentos. Use filtros por patrimônio e status para localizar rapidamente um ativo. No histórico, acompanhe movimentações e ocorrências.</div></div>
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">swap_horiz</span></div><div class="help-title">Saídas e devoluções</div><div class="help-text">Registre empréstimos informando responsável, destino e itens. Na devolução, use o leitor USB ou o QR Code para localizar os equipamentos. O status do ativo é atualizado automaticamente.</div></div>
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">event_available</span></div><div class="help-title">Agendamentos</div><div class="help-text">Consulte a disponibilidade, reserve os equipamentos e compartilhe o código da reserva. O histórico permite acompanhar reservas agendadas, realizadas, canceladas e finalizadas.</div></div>
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">build</span></div><div class="help-title">Manutenção e chamados</div><div class="help-text">Abra um chamado vinculado a um ativo ou a um local. Acompanhe a fila, prioridade e responsável. Ao concluir, registre o parecer técnico e libere o equipamento.</div></div>
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">router</span></div><div class="help-title">Carrinho inteligente IoT</div><div class="help-text">Ative o módulo IoT pela licença online, dê permissão Kiosk ao usuário e informe o IP do ESP32 em Configurações. O Kiosk permite retiradas, devoluções e reservas por QR Code.</div></div>
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">qr_code_scanner</span></div><div class="help-title">QR Code e leitores</div><div class="help-text">Use a câmera nos campos que possuem leitor ou conecte um leitor USB. Para os atalhos de acesso, abra Configurações, gere os QRs e disponibilize-os aos usuários da empresa.</div></div>
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">manage_accounts</span></div><div class="help-title">Usuários e permissões</div><div class="help-text">Em Configurações, crie usuários e atribua somente as permissões necessárias: cadastro, movimentação, chamados, Kiosk, ajuda e almoxarifado.</div></div>
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">backup</span></div><div class="help-title">Relatórios e backup</div><div class="help-text">Exporte listas filtradas para Excel ou PDF. Use o backup do banco e o relatório geral para preservar dados, consultar auditorias e apoiar a gestão da empresa.</div></div>
+    <div class="help-card"><div class="help-icon"><span class="material-icons-round">key</span></div><div class="help-title">Licença e ativação</div><div class="help-text">Na ativação online, informe a chave de compra recebida do suporte. A licença fica vinculada à máquina. Para troca autorizada, o administrador pode liberar a ativação no painel de licenças.</div></div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Editar Ativo{% endblock %}
+
+{% block content %}
+<div class="d-flex" style="justify-content: center;">
+    <div class="form-container card" style="max-width: 800px; width: 100%;">
+        
+        <div class="card-header">Editando Ativo: {{ notebook['id'] }}</div>
+
+        <form method="POST">
+            <!-- Token de Segurança CSRF -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Tipo de Ativo</label>
+                    <input type="text" name="tipo" value="{{ notebook['tipo'] }}" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="form-group">
+                    <label>Nº de Controle (Opcional)</label>
+                    <input type="number" name="numero_carrinho" value="{{ notebook['numero_carrinho'] or '' }}" placeholder="Ex: 1, 2, 3...">
+                    <small style="color: var(--text-muted);">Número único para controle interno.</small>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Modelo</label>
+                    <input type="text" name="modelo" value="{{ notebook['modelo'] }}" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="form-group">
+                    <label>Número de Série (Opcional)</label>
+                    <input type="text" name="numero_serie" value="{{ notebook['numero_serie'] or '' }}" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Localização Atual</label>
+                <input type="text" name="localizacao" value="{{ notebook['localizacao'] }}" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+            </div>
+
+            <div class="form-group">
+                <label>Data da Compra / Chegada (Opcional)</label>
+                <input type="date" name="data_compra" value="{{ notebook['data_compra'] or '' }}" style="padding: 10px; border-radius: 5px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); cursor: pointer; max-width: 200px;">
+            </div>
+
+            <div class="form-group">
+                <label>Observações</label>
+                <textarea name="observacoes" rows="3" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">{{ notebook['observacoes'] or '' }}</textarea>
+            </div>
+
+            <div class="actions" style="margin-top: 30px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    <span class="material-icons-round">save</span> Salvar Alterações
+                </button>
+                <a href="{{ url_for('historico', notebook_id=notebook['id']) }}" class="btn btn-outline" style="flex: 1;">Cancelar</a> 
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Notificações Padronizadas
+    document.addEventListener('DOMContentLoaded', function() {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
+
+        const flashMessages = {{ get_flashed_messages(with_categories=true) | tojson }};
+        if (flashMessages) {
+            flashMessages.forEach(([category, message]) => {
+                Toast.fire({ icon: category === 'message' ? 'info' : category, title: message });
+            });
+        }
+    });
+</script>
+{% endblock %}

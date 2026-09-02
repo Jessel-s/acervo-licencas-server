@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Importar Equipamentos via Excel{% endblock %}
+
+{% block content %}
+<div class="d-flex" style="justify-content: center;">
+    <div class="form-container card" style="max-width: 800px; width: 100%;">
+        
+        <div class="alert info" style="margin-bottom: 20px;">
+            <span class="material-icons-round" style="vertical-align: bottom;">info</span>
+            <strong>Dica:</strong> Antes de importar, consulte as <a href="{{ url_for('ajuda') }}" style="color: var(--primary-color); font-weight: bold; text-decoration: underline;">Regras de Importação na tela de Ajuda</a> para evitar bloqueios.
+        </div>
+
+        <div style="text-align: center; margin-bottom: 30px;">
+            <a href="{{ url_for('inventory.download_template_excel') }}" class="btn btn-outline" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                <span class="material-icons-round">download</span> Baixar Planilha de Exemplo
+            </a>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="form-group" style="border: 2px dashed var(--border-color); padding: 40px; text-align: center; border-radius: 8px; background: var(--bg-body); transition: background 0.3s ease;" id="drop-zone">
+                <label for="file" style="cursor: pointer; display: block; margin-bottom: 10px;">
+                    <span class="material-icons-round" style="font-size: 48px; color: var(--primary-color);">upload_file</span>
+                    <h3 style="margin: 10px 0;">Clique aqui para anexar seu arquivo Excel</h3>
+                    <p style="color: var(--text-muted); margin: 0;">Formatos aceitos: .xlsx, .xls</p>
+                </label>
+                <input type="file" name="file" id="file" accept=".xlsx, .xls" required style="display: none;" onchange="document.getElementById('file-name').innerHTML = '<span class=\'material-icons-round\' style=\'vertical-align: middle; color: var(--success);\'>check_circle</span> Arquivo selecionado: <strong>' + this.files[0].name + '</strong>'">
+                <p id="file-name" style="margin-top: 15px; font-size: 16px; color: var(--text-main);"></p>
+            </div>
+
+            <div class="actions" style="margin-top: 30px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;" onclick="this.innerHTML='Importando... Aguarde'; this.style.opacity='0.8';">Processar Importação</button>
+                <a href="{{ url_for('inventory.inventario') }}" class="btn btn-outline" style="flex: 1;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

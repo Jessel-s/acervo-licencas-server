@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Painel de Chamados{% endblock %}
+
+{% block content %}
+<style>
+    /* ESTILOS DO KANBAN CORPORATIVO (ESTILO JIRA/ZENDESK) */
+    .kanban-board { display: flex; gap: 25px; align-items: stretch; height: calc(100vh - 220px); overflow-x: auto; padding-bottom: 10px; margin-top: 15px; }
+    .kanban-col { flex: 1; min-width: 350px; max-width: 500px; background: #e9eff1; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; border: 1px solid var(--border-color); }
+    .kanban-header { font-size: 1.05rem; font-weight: 700; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; margin-bottom: 10px; border-bottom: 2px solid #d6e0e3; text-transform: none; letter-spacing: 0; }
+    
+    .kanban-scroll { overflow-y: auto; flex: 1; padding-right: 8px; display: flex; flex-direction: column; gap: 15px; }
+    .kanban-scroll::-webkit-scrollbar { width: 6px; }
+    .kanban-scroll::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 4px; }
+    
+    .k-card { background: #ffffff; border: 1px solid var(--border-color); border-radius: 7px; padding: 15px; box-shadow: 0 2px 6px rgba(23,37,45,0.06); transition: 0.2s; position: relative; border-left: 4px solid var(--border-soft); display: flex; flex-direction: column; }
+    .k-card:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(23,37,45,0.1); border-color: #b9c6ca; }
+    
+    /* Cores de Prioridade (SLA) */
+    .prio-Crítica { border-left-color: #ef4444; }
+    .prio-Alta { border-left-color: #f59e0b; }
+    .prio-Normal { border-left-color: #3b82f6; }
+    .prio-Baixa { border-left-color: #10b981; }
+    
+    .k-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .k-id { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); background: #eef2f3; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-soft); letter-spacing: 0; }
+    .k-date { font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 600; }
+    
+    .k-title { font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px; line-height: 1.3; }
+    .k-desc { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 15px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
+    
+    .k-location { display: flex; gap: 8px; align-items: center; margin-bottom: 15px; background: #f4f7f8; padding: 8px 10px; border-radius: 5px; border: 1px dashed #cbd7da; }
+    
+    .k-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+    .k-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .k-tag { font-size: 0.7rem; font-weight: 800; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .k-user { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+    .k-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; box-shadow: 0 2px 5px rgba(59, 130, 246, 0.3); }
+</style>
+
+<div class="table-toolbar" style="justify-content: flex-end;">
+    <!-- Filtro Rápido (Opcional, mas mantém o padrão visual da barra) -->
+    <div class="filter-body" style="flex: 1;">
+        <div class="input-with-icon" style="max-width: 300px;">
+            <span class="material-icons-round">search</span>
+            <input type="text" id="buscaRapida" placeholder="Buscar na tabela...">
+        </div>
+    </div>
+
+    {% if session['perm_movimentacao'] %}
+    <a href="{{ url_for('maintenance.nova_manutencao') }}" class="btn btn-primary">
+        <span class="material-icons-round">add</span> Novo Chamado
+    </a>
+    {% endif %}
+</div>
+
+<div class="kanban-board">
+    <!-- COLUNA 1: ABERTOS (FILA) -->
+    <div class="kanban-col">
+        <div class="kanban-header">
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons-round" style="color: var(--warning);">pending_actions</span> Na Fila (Backlog)
+            </span>
+            <span class="badge" style="background: var(--warning); color: #000; font-size: 1rem; padding: 4px 10px;">{{ abertos|length }}</span>
+        </div>
+        <div class="kanban-scroll">
+            {% for prob in abertos %}
+            <div class="k-card prio-{{ prob.get('prioridade') or 'Normal' }}" data-search="{{ prob.get('local_incidente', '')|lower }} {{ prob.get('notebook_id', '')|lower }} {{ prob.get('tipo_problema', '')|lower }} {{ prob.get('descricao', '')|lower }} {{ prob.get('responsavel', '')|lower }}">
+                <div class="k-top">
+                    <span class="k-id">#TKT-{{ prob['id'] }}</span>
+                    <span class="k-date"><span class="material-icons-round" style="font-size: 14px;">schedule</span> {{ prob.get('data_formatada', '')[:10] }}</span>
+                </div>
+                
+                <div class="k-title">{{ prob['tipo_problema'] }}</div>
+                <div class="k-desc">{{ prob['descricao'] }}</div>
+                
+                <div class="k-location">
+                    <span class="material-icons-round" style="font-size: 16px; color: var(--text-muted);">place</span>
+                    <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">{{ prob.get('local_incidente') or 'NÃO INFORMADO' }}</span>
+                    
+                    {% if prob['notebook_id'] %}
+                        <span style="color: var(--border-soft); margin: 0 4px;">|</span>
+                        <span class="material-icons-round" style="font-size: 16px; color: var(--primary);">devices</span>
+                        <a href="{{ url_for('inventory.historico', notebook_id=prob.get('notebook_id')) }}" style="font-size: 0.8rem; color: var(--primary); font-weight: 800; text-decoration: none;">{{ prob.get('notebook_id') }}</a>
+                    {% endif %}
+                </div>
+
+                <div class="k-footer">
+                    <div class="k-tags">
+                        <span class="k-tag" style="background: #eef2f3; color: var(--text-muted); border: 1px solid var(--border-soft);">{{ prob.get('categoria') or 'HARDWARE' }}</span>
+                        {% if prob['prioridade'] == 'Crítica' %}
+                            <span class="k-tag" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">🔥 CRÍTICA</span>
+                        {% elif prob['prioridade'] == 'Alta' %}
+                            <span class="k-tag" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">⚠️ ALTA</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="k-user" title="Aberto por: {{ prob.get('responsavel') }}">
+                            <div class="k-avatar">{{ prob.get('responsavel', '?')[0]|upper }}</div>
+                        </div>
+                        
+                        {% if session['perm_cadastro'] %}
+                        <button type="button" class="btn btn-success btn-sm" title="Resolver Chamado" onclick="resolverChamado('{{ prob.get('id') }}', '{{ prob.get('notebook_id') or prob.get('local_incidente') or 'Geral' }}')" style="padding: 6px; border-radius: 6px;">
+                            <span class="material-icons-round" style="font-size: 18px;">check</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if session['perm_cadastro'] %}
+                <form id="form_resolver_{{ prob.get('id') }}" action="{{ url_for('maintenance.resolver_problema', problema_id=prob.get('id')) }}" method="POST" style="display:none;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="parecer_tecnico" id="parecer_{{ prob.get('id') }}">
+                </form>
+                {% endif %}
+            </div>
+            {% else %}
+            <div style="text-align: center; color: var(--text-muted); padding: 30px 10px; border: 2px dashed var(--border-soft); border-radius: 12px; margin-top: 10px;">
+                <span class="material-icons-round" style="font-size: 3rem; opacity: 0.5; margin-bottom: 10px;">celebration</span>
+                <p style="margin: 0; font-weight: 600;">Fila limpa!</p>
+                <p style="margin: 5px 0 0 0; font-size: 0.85rem; opacity: 0.8;">Nenhum chamado pendente.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- COLUNA 2: RESOLVIDOS (REPAROS CONCLUÍDOS) -->
+    <div class="kanban-col">
+        <div class="kanban-header">
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons-round" style="color: var(--success);">task_alt</span> Concluídos
+            </span>
+            <span class="badge" style="background: var(--success); color: #fff; font-size: 1rem; padding: 4px 10px;">{{ resolvidos|length }}</span>
+        </div>
+        <div class="kanban-scroll">
+            {% for prob in resolvidos %}
+            <div class="k-card prio-{{ prob['prioridade'] or 'Normal' }}" style="opacity: 0.85;" data-search="{{ prob.get('local_incidente', '')|lower }} {{ prob.get('notebook_id', '')|lower }} {{ prob.get('tipo_problema', '')|lower }} {{ prob.get('descricao', '')|lower }} {{ prob.get('responsavel', '')|lower }} {{ prob.get('parecer_tecnico', '')|lower }}">
+                <div class="k-top">
+                    <span class="k-id" style="text-decoration: line-through;">#TKT-{{ prob['id'] }}</span>
+                    <span class="k-date"><span class="material-icons-round" style="font-size: 14px; color: var(--success);">check_circle</span> {{ prob.get('data_formatada', '')[:10] }}</span>
+                </div>
+                
+                <div class="k-title" style="color: var(--text-muted);">{{ prob['tipo_problema'] }}</div>
+                
+                <div style="background: rgba(16, 185, 129, 0.1); border-left: 3px solid var(--success); padding: 8px 12px; border-radius: 4px; margin-bottom: 15px;">
+                    <span style="display: block; font-size: 0.75rem; color: var(--success); font-weight: 800; text-transform: uppercase; margin-bottom: 4px;">Parecer Técnico</span>
+                    <span style="font-size: 0.85rem; color: var(--text-main); line-height: 1.4;">{{ prob.get('parecer_tecnico') or 'Resolvido sem parecer detalhado.' }}</span>
+                </div>
+
+                <div class="k-footer">
+                    <div class="k-tags">
+                        <span class="k-tag" style="background: #eef2f3; color: var(--text-muted); border: 1px solid var(--border-soft);">{{ prob.get('categoria') or 'HARDWARE' }}</span>
+                    </div>
+                    <div class="k-user" title="Fechado por: {{ prob.get('responsavel') }}">
+                        <div class="k-avatar" style="background: rgba(16, 185, 129, 0.2); color: var(--success);">{{ prob.get('responsavel', '?')[0]|upper }}</div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div style="text-align: center; color: var(--text-muted); padding: 30px 10px;">
+                <p style="margin: 0; font-size: 0.9rem;">Nenhum chamado concluído.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // Filtro Rápido Inteligente para o Kanban (Sem refresh de tela)
+        $('#buscaRapida').on('keyup', function() {
+            var value = $(this).val().toLowerCase();
+            $('.k-card').filter(function() {
+                $(this).toggle($(this).attr('data-search').indexOf(value) > -1)
+            });
+        });
+    });
+
+    // NOVO: Função para solicitar Parecer Técnico ao Resolver o Chamado
+    function resolverChamado(id, patrimonio) {
+        Swal.fire({
+            title: 'Finalizar Chamado',
+            html: `O que foi feito para consertar o ativo <b>${patrimonio}</b>?`,
+            input: 'textarea',
+            inputPlaceholder: 'Ex: Substituição da bateria, formatação, troca de cabo...',
+            showCancelButton: true,
+            confirmButtonText: '<span class="material-icons-round" style="vertical-align: middle;">check_circle</span> Concluir Reparo',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: 'var(--success)',
+            preConfirm: (texto) => {
+                if (!texto || texto.trim().length === 0) {
+                    Swal.showValidationMessage('Por favor, informe o parecer técnico.');
+                }
+                return texto;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.showLoader('Registrando resolução...');
+                document.getElementById('parecer_' + id).value = result.value;
+                document.getElementById('form_resolver_' + id).submit();
+            }
+        });
+    }
+</script>
+{% endblock %}

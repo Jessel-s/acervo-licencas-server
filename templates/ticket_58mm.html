@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Imprimir Ticket de Reserva{% endblock %}
+
+{% block content %}
+<style>
+    /* Otimizado para Impressora Térmica 58mm ESC/POS */
+    .ticket-preview {
+        width: 320px;
+        margin: 0 auto;
+        background: white;
+        color: black;
+        padding: 20px;
+        border-radius: 8px;
+        font-family: 'Courier New', Courier, monospace;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    .ticket-content { text-align: center; font-size: 12px; line-height: 1.3; }
+    .ticket-content h1 { font-size: 16px; margin: 5px 0; text-transform: uppercase; font-weight: bold; }
+    .ticket-content .divider { border-top: 1px dashed #000; margin: 8px 0; }
+    .ticket-content .info-row { text-align: left; margin: 4px 0; word-wrap: break-word; }
+    .ticket-content .bold { font-weight: bold; }
+    .ticket-content .qr-container img { width: 180px; height: 180px; display: block; margin: 10px auto; }
+    .ticket-content .codigo-texto { font-size: 22px; font-weight: bold; margin: 5px 0 15px 0; letter-spacing: 3px; }
+    .ticket-content .footer { font-size: 10px; margin-top: 10px; }
+
+    @media print {
+        body { background: white !important; }
+        .top-header, .local-page-header, .no-print { display: none !important; }
+        .content-wrapper { padding: 0 !important; }
+        .ticket-preview { width: 48mm; margin: 0; padding: 5mm 0; box-shadow: none; border-radius: 0; }
+        .ticket-content .qr-container img { width: 40mm; height: 40mm; }
+    }
+</style>
+
+<div class="no-print" style="text-align: center; margin-bottom: 2rem;">
+    <button class="btn btn-primary" onclick="window.print()">
+        <span class="material-icons-round">print</span> Imprimir Ticket
+    </button>
+</div>
+
+<div class="ticket-preview">
+    <div class="ticket-content">
+        <h1>ACERVO TI</h1>
+        <div style="font-size: 14px;">TICKET DE RESERVA</div>
+        <div class="divider"></div>
+        <div class="info-row"><span class="bold">Solicitante:</span><br>{{ ag.solicitante }}</div>
+        <div class="info-row"><span class="bold">Destino/Setor:</span><br>{{ ag.finalidade }}</div>
+        <div class="divider"></div>
+        <div class="info-row bold">Equipamentos:</div>
+        <div class="info-row">{% if itens %}{{ itens | join(', ') }}{% else %}{{ ag.quantidade }} Item(s){% endif %}</div>
+        <div class="divider"></div>
+        <div style="margin-top: 10px; font-weight: bold;">Apresente no Carrinho:</div>
+        <div class="qr-container"><img src="{{ url_for('gerar_qr', texto=codigo) }}" alt="QR Code"></div>
+        <div class="codigo-texto">{{ codigo }}</div>
+        <div class="divider"></div>
+        <div class="footer">Gerado em: {{ data_criacao }}</div>
+    </div>
+</div>
+
+<script>
+    // Dispara a impressão automaticamente ao carregar a página
+    window.onload = function() {
+        setTimeout(() => {
+            window.print();
+        }, 500);
+    };
+</script>
+{% endblock %}

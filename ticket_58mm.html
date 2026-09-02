@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Reserva - {{ codigo }}</title>
+    <style>
+        @page { margin: 0; }
+        body { font-family: 'Courier New', Courier, monospace; width: 42mm; margin: 0; padding: 2mm 2mm 2mm 0; color: #000; background: #fff; text-align: left; font-size: 11px; line-height: 1.2; }
+        h1 { font-size: 15px; margin: 5px 0; text-transform: uppercase; font-weight: bold; text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 6px 0; }
+        .info-row { text-align: left; margin: 4px 0; word-wrap: break-word; }
+        .bold { font-weight: bold; }
+        .qr-container { margin: 5px 0; }
+        .qr-container img { width: 28mm; height: 28mm; display: block; margin: 0 auto; }
+        .codigo-texto { font-size: 18px; font-weight: bold; margin: 5px 0 10px 0; letter-spacing: 2px; text-align: center; }
+        .footer { font-size: 9px; margin-top: 10px; text-align: center; }
+    </style>
+</head>
+<body onload="setTimeout(() => { window.focus(); window.print(); }, 500);">
+    <div class="print-area">
+        <h1>ACERVO TI</h1>
+        <div style="font-size: 14px;">TICKET DE RESERVA</div>
+        <div class="divider"></div>
+        <div class="info-row"><span class="bold">Solicitante:</span><br>{{ ag.solicitante }}</div>
+        <div class="divider"></div>
+        <div class="info-row"><span class="bold">Uso Previsto:</span><br>{{ data_uso }} às {{ hora_uso }}</div>
+        <div class="divider"></div>
+        <div class="info-row bold">Equipamentos:</div>
+        <div class="info-row">{% if itens %}{{ itens | join(', ') }}{% else %}{{ ag.quantidade }} Item(s){% endif %}</div>
+        <div class="divider"></div>
+        <div style="margin-top: 10px; font-weight: bold;">Apresente no Carrinho:</div>
+        <div class="qr-container"><img src="{{ url_for('gerar_qr', texto=codigo) }}" alt="QR Code"></div>
+        <div class="codigo-texto">{{ codigo }}</div>
+        <div class="divider"></div>
+        <div class="footer">Gerado em: {{ data_criacao }}</div>
+        <div style="margin-top: 20px; color: transparent;">.</div>
+    </div>
+</body>
+</html>

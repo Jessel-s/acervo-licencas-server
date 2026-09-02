@@ -1,0 +1,45 @@
+name: Publicar Central Acervo TI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - central_acervo.html
+      - .github/workflows/publicar-central.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar pagina
+        run: |
+          mkdir site
+          cp central_acervo.html site/index.html
+
+      - name: Preparar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Enviar pagina
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Publicar pagina
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block page_title %}Gestão de Ativos{% endblock %} - Acervo TI</title> 
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <!-- Meta tag de segurança CSRF para requisições via JS -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <!-- DataTables CSS (Estilo Profissional de Tabela) -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+
+    <!-- jQuery e DataTables JS (Movido para o head para garantir carregamento correto) -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
+    
+    <!-- PADRONIZAÇÃO GLOBAL DE EXPORTAÇÃO (DATATABLES) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- TRADUTOR CORPORATIVO DE INTERFACE E RELATÓRIOS ---
+            // Executado no topo para garantir que o DataTables já pegue os nomes corretos para o PDF/Excel
+            const replaceText = (node) => {
+                if (node.nodeType === 3) { // Node.TEXT_NODE
+                    let text = node.nodeValue;
+                    if (/(Turma|Professor|turma|professor)/i.test(text)) {
+                        node.nodeValue = text.replace(/\bTurma\b/g, 'Setor / Destino')
+                                             .replace(/\bturma\b/g, 'setor')
+                                             .replace(/\bProfessor(a)?\b/g, 'Responsável')
+                                             .replace(/\bprofessor(a)?\b/g, 'responsável');
+                    }
+                } else if (node.nodeType === 1 && node.nodeName !== 'SCRIPT' && node.nodeName !== 'STYLE') { // Node.ELEMENT_NODE
+                    if (node.placeholder) {
+                        node.placeholder = node.placeholder.replace(/\bTurma\b/g, 'Setor / Destino').replace(/\bProfessor\b/g, 'Responsável');
+                    }
+                    Array.from(node.childNodes).forEach(replaceText);
+                }
+            };
+            replaceText(document.body);
+        });
+    </script>
+    <style>
+        .dataTables_wrapper .dt-top-container {
+            display: flex; justify-content: flex-end; align-items: center;
+            margin-bottom: 10px; width: 100%;
+        }
+        .dt-export-btn {
+            background-color: var(--primary) !important; color: white !important; border: none !important;
+            border-radius: 8px !important; padding: 8px 16px !important; font-weight: 600 !important;
+            display: inline-flex !important; align-items: center !important; gap: 8px !important; transition: 0.3s !important;
+        }
+        .dt-export-btn:hover { background-color: var(--primary-dark) !important; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        
+        .dt-button-collection {
+            background: #1e293b !important; border: 1px solid #3b82f6 !important; border-radius: 12px !important;
+            padding: 10px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important; z-index: 9999 !important;
+        }
+        .dt-button-collection .dt-button {
+            background: transparent !important; color: #ffffff !important; border: none !important; text-align: left;
+            padding: 10px 15px !important; border-radius: 6px !important; display: flex !important; align-items: center; gap: 8px; transition: 0.2s; margin-bottom: 5px; width: 100%;
+        }
+        .dt-button-collection .dt-button:last-child { margin-bottom: 0; }
+        .dt-button-collection .dt-button:hover { background: rgba(59, 130, 246, 0.2) !important; color: #60a5fa !important; }
+    </style>
+    <script>
+            if ($.fn.dataTable) {
+                $.fn.dataTable.ext.errMode = 'none'; // Desativa alertas chatos
+                $.extend(true, $.fn.dataTable.defaults, {
+                    dom: '<"dt-top-container"B>rt<"bottom-controls"ip><"clear">',
+                    buttons: [
+                        {
+                            extend: 'collection',
+                            text: '<span class="material-icons-round" style="font-size: 1.2rem;">import_export</span> Exportar',
+                            className: 'dt-export-btn',
+                            autoClose: true,
+                            buttons: [
+                                { extend: 'excelHtml5', text: '<span class="material-icons-round" style="color: #10b981;">table_view</span> Excel (.xlsx)', exportOptions: { columns: ':visible' } },
+                                { 
+                                    extend: 'pdfHtml5', 
+                                    text: '<span class="material-icons-round" style="color: #ef4444;">picture_as_pdf</span> Documento PDF (.pdf)', 
+                                    exportOptions: { columns: ':visible' }, 
+                                    orientation: 'landscape', 
+                                    pageSize: 'A4',
+                                    customize: function(doc) {
+                                        // Reduz a fonte e expande as margens para caber tudo sem cortar
+                                        doc.defaultStyle.fontSize = 8;
+                                        doc.styles.tableHeader.fontSize = 9;
+                                        doc.pageMargins = [20, 30, 20, 30];
+                                        doc.defaultStyle.alignment = 'left';
+                                        doc.styles.tableHeader.alignment = 'left';
+                                        
+                                        // Inteligência de Quebra de Linha: 
+                                        // Deixa as colunas curtas exatas ('auto') e flexibiliza as duas últimas ('*') para quebrarem o texto
+                                        var colCount = doc.content[1].table.body[0].length;
+                                        var widths = Array(colCount).fill('auto');
+                                        widths[colCount - 1] = '*'; // Última coluna (Geralmente Observações)
+                                        if (colCount > 4) {
+                                            widths[colCount - 2] = '*'; // Penúltima coluna (Geralmente Itens)
+                                        }
+                                        doc.content[1].table.widths = widths;
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json" }
+                });
+            }
+        });
+    </script>
+
+    <!-- SweetAlert2 (Alertas Bonitos) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Leitor de Câmera Nativo (HTML5-QRCode) -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <style>
+    /* Estilos Locais Adicionais (Se necessário) */
+    .item-cart-container {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius-lg);
+        padding: 10px;
+        margin-top: 15px;
+        min-height: 80px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-content: flex-start;
+    }
+    .cart-item {
+        background-color: var(--primary-light);
+        color: var(--primary);
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        animation: fadeIn 0.3s ease;
+    }
+    .cart-item .remove-item-btn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 20px;
+        text-align: center;
+    }
+
+    /* --- HEADER CORPORATIVO (FULL-WIDTH) --- */
+    .top-header {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        background: var(--bg-sidebar) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; /* Bordinha divisória na base */
+        box-shadow: 0 2px 10px rgba(23, 37, 45, 0.12) !important;
+        padding: 8px 24px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        z-index: 1000 !important;
+    }
+
+    /* --- BOTÃO DE USUÁRIO PREMIUM NO HEADER --- */
+    .user-btn {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 6px !important;
+        padding: 5px 6px 5px 16px !important;
+        display: flex !important; align-items: center !important; gap: 12px !important;
+        transition: all 0.3s ease !important; cursor: pointer;
+    }
+    .user-btn:hover {
+        background: rgba(255, 255, 255, 0.12) !important;
+        transform: none !important;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.3) !important;
+    }
+    .user-btn .avatar {
+        background: var(--primary) !important; color: white !important;
+        width: 30px !important; height: 30px !important; border-radius: 50% !important;
+        display: flex !important; align-items: center !important; justify-content: center !important;
+        font-weight: 700 !important; font-size: 0.9rem !important;
+        box-shadow: none !important;
+    }
+    .user-btn .username { color: #ffffff !important; font-weight: 600 !important; font-size: 0.84rem !important; }
+
+    /* --- BOTÃO DE AJUDA COM TEXTO --- */
+    .help-nav-btn {
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #dce7e9 !important;
+        border: 1px solid rgba(255, 255, 255, 0.16) !important;
+        border-radius: 6px !important;
+        padding: 5px 10px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        text-decoration: none !important;
+        font-weight: 700 !important;
+        transition: all 0.3s ease !important;
+    }
+    .help-nav-btn:hover {
+        background: rgba(255, 255, 255, 0.15) !important;
+        transform: none !important;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+    
+    /* --- CORREÇÃO SWEETALERT MODO ESCURO --- */
+    .swal-dark-input {
+        background: #0f172a !important; color: #ffffff !important; border: 1px solid #3b82f6 !important;
+        text-align: center !important; font-size: 1.5rem !important; text-transform: uppercase !important;
+        width: 100% !important; max-width: 80% !important; margin: 1em auto !important; box-sizing: border-box !important;
+    }
+    </style>
+</head>
+<body data-flash-messages="{{ get_flashed_messages(with_categories=true) | tojson | forceescape }}">
+
+    <!-- Overlay de Loading Global -->
+    <div class="global-loader" id="globalLoader">
+        <div class="spinner"></div>
+        <div class="loader-text">Processando...</div>
+    </div>
+
+    <div class="main-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+        <header class="top-header">
+            <div class="header-left">
+                <!-- Logo Marca -->
+                <a href="{{ url_for('dashboard') }}" class="brand-block" aria-label="Acervo TI - Gestão de ativos">
+                    <span class="brand-emblem">
+                        <img src="{{ url_for('static', filename='favicon.png') }}" alt="Logo do Colégio de Vinhedo">
+                    </span>
+                    <span class="brand-copy">
+                        <strong>Acervo TI</strong>
+                        <small>Gestão de ativos</small>
+                    </span>
+                </a>
+                
+                {% if not request.args.get('kiosk') %}
+                <!-- Botão Menu Mobile -->
+                <button class="mobile-menu-btn" aria-label="Abrir Menu" onclick="document.getElementById('mainNav').classList.toggle('show')" style="color: #ffffff;">
+                    <span class="material-icons-round">menu</span>
+                </button>
+
+                <!-- Navegação Principal -->
+                <nav class="main-nav" id="mainNav">
+                    <div class="sidebar-section-label">Navegação principal</div>
+                    <button type="button" class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Recolher menu lateral" title="Recolher menu lateral">
+                        <span class="material-icons-round">chevron_left</span>
+                    </button>
+                    <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' else '' }}">
+                        <span class="material-icons-round c-dash">dashboard</span>
+                        Dashboard
+                    </a>
+                    
+                    <div class="nav-item-dropdown">
+                        <button class="nav-dropdown-btn {{ 'active' if request.endpoint in ['agendamento', 'historico_agendamentos'] else '' }}" onclick="toggleMenu('menuAgendamentos', event)">
+                            <span class="material-icons-round c-agen">calendar_today</span> Agendamentos <span class="material-icons-round arrow-icon">expand_more</span>
+                        </button>
+                        <div class="nav-submenu" id="menuAgendamentos">
+                            <a href="{{ url_for('agendamento') }}" class="{{ 'active' if request.endpoint == 'agendamento' else '' }}"><span class="material-icons-round c-agen">edit_calendar</span> Nova Reserva</a>
+                            <a href="{{ url_for('historico_agendamentos') }}" class="{{ 'active' if request.endpoint == 'historico_agendamentos' else '' }}"><span class="material-icons-round c-agen">history</span> Histórico de Reservas</a>
+                        </div>
+                    </div>
+                    
+                    {% if session.perm_cadastro %}
+                    <div class="nav-item-dropdown">
+                        <button class="nav-dropdown-btn {{ 'active' if request.endpoint in ['inventory.inventario', 'inventory.cadastro', 'inventory.editar', 'historico_geral'] else '' }}" onclick="toggleMenu('menuInventario', event)">
+                            <span class="material-icons-round c-inv">inventory_2</span> Gestão de Ativos <span class="material-icons-round arrow-icon">expand_more</span>
+                        </button>
+                        <div class="nav-submenu" id="menuInventario">
+                            <a href="{{ url_for('inventory.inventario') }}" class="{{ 'active' if request.endpoint in ['inventory.inventario', 'inventory.cadastro', 'inventory.editar'] else '' }}"><span class="material-icons-round c-inv">devices</span> Catálogo Principal</a>
+                            <a href="{{ url_for('inventory.historico_geral') }}" class="{{ 'active' if request.endpoint == 'inventory.historico_geral' else '' }}"><span class="material-icons-round c-hist">history</span> Auditoria de Ativos</a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if session.perm_movimentacao %}
+                    <div class="nav-item-dropdown">
+                        <button class="nav-dropdown-btn {{ 'active' if request.endpoint in ['movements.registrar_sessao', 'movements.sessoes'] else '' }}" onclick="toggleMenu('menuSaidas', event)">
+                            <span class="material-icons-round c-out">output</span> Saídas <span class="material-icons-round arrow-icon">expand_more</span>
+                        </button>
+                        <div class="nav-submenu" id="menuSaidas">
+                            <a href="{{ url_for('movements.registrar_sessao') }}" class="{{ 'active' if request.endpoint == 'movements.registrar_sessao' else '' }}"><span class="material-icons-round c-out">post_add</span> Nova Saída</a>
+                            <a href="#" onclick="abrirResgateAgendamento(event)"><span class="material-icons-round c-out">key</span> Resgatar Reserva</a>
+                            <a href="{{ url_for('movements.sessoes') }}" class="{{ 'active' if request.endpoint == 'movements.sessoes' else '' }}"><span class="material-icons-round c-out">format_list_bulleted</span> Histórico</a>
+                        </div>
+                    </div>
+
+                    <div class="nav-item-dropdown">
+                        <button class="nav-dropdown-btn {{ 'active' if request.endpoint in ['movements.registrar_devolucao', 'movements.historico_devolucoes'] else '' }}" onclick="toggleMenu('menuDevolucoes', event)">
+                            <span class="material-icons-round c-in">input</span> Devoluções <span class="material-icons-round arrow-icon">expand_more</span>
+                        </button>
+                        <div class="nav-submenu" id="menuDevolucoes">
+                            <a href="{{ url_for('movements.registrar_devolucao') }}" class="{{ 'active' if request.endpoint == 'movements.registrar_devolucao' else '' }}"><span class="material-icons-round c-in">assignment_return</span> Nova Devolução</a>
+                            <a href="{{ url_for('movements.historico_devolucoes') }}" class="{{ 'active' if request.endpoint == 'movements.historico_devolucoes' else '' }}"><span class="material-icons-round c-in">rule</span> Histórico</a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="nav-item-dropdown">
+                        <button class="nav-dropdown-btn {{ 'active' if request.endpoint in ['maintenance.nova_manutencao', 'maintenance.reportar_problema', 'maintenance.dashboard', 'maintenance.problemas', 'maintenance.historico_chamados'] else '' }}" onclick="toggleMenu('menuHelpdesk', event)">
+                            <span class="material-icons-round c-help">build</span> Manutenção <span class="material-icons-round arrow-icon">expand_more</span>
+                        </button>
+                        <div class="nav-submenu" id="menuHelpdesk">
+                            {% if session.perm_movimentacao or session.perm_chamados %}
+                            <a href="{{ url_for('maintenance.nova_manutencao') }}" class="{{ 'active' if request.endpoint in ['maintenance.nova_manutencao', 'maintenance.reportar_problema'] else '' }}"><span class="material-icons-round c-help">report_problem</span> Reportar Defeito</a>
+                            {% endif %}
+                            {% if session.perm_chamados %}
+                            <a href="{{ url_for('maintenance.problemas') }}" class="{{ 'active' if request.endpoint == 'maintenance.problemas' else '' }}"><span class="material-icons-round c-help">handyman</span> Em Manutenção</a>
+                            {% endif %}
+                            
+                            <!-- MÓDULO PREMIUM -->
+                            {% if session.modules and session.modules.helpdesk and session.perm_chamados %}
+                            <div style="padding: 15px 15px 5px 15px; font-size: 0.7rem; font-weight: bold; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Módulo Help Desk</div>
+                            <a href="{{ url_for('maintenance.dashboard') }}" class="{{ 'active' if request.endpoint == 'maintenance.dashboard' else '' }}"><span class="material-icons-round c-help">analytics</span> Painel de Indicadores</a>
+                            <a href="{{ url_for('maintenance.historico_chamados') }}" class="{{ 'active' if request.endpoint == 'maintenance.historico_chamados' else '' }}"><span class="material-icons-round c-help">fact_check</span> Histórico de Chamados</a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- MÓDULO ALMOXARIFADO DE TI -->
+                    {% if session.perm_almoxarifado %}
+                    <div class="nav-item-dropdown">
+                        <button class="nav-dropdown-btn {{ 'active' if request.endpoint and request.endpoint.startswith('storeroom.') else '' }}" onclick="toggleMenu('menuAlmox', event)">
+                            <span class="material-icons-round" style="color: #f43f5e; margin-right: 6px;">inventory</span> Almoxarifado <span class="material-icons-round arrow-icon">expand_more</span>
+                        </button>
+                        <div class="nav-submenu" id="menuAlmox">
+                            <div style="padding: 15px 15px 5px 15px; font-size: 0.7rem; font-weight: bold; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Módulo Premium</div>
+                            <a href="{{ url_for('storeroom.dashboard') }}" class="{{ 'active' if request.endpoint == 'storeroom.dashboard' else '' }}"><span class="material-icons-round" style="color: #f43f5e;">analytics</span> Painel de Estoque</a>
+                            <a href="{{ url_for('storeroom.listar_produtos') }}" class="{{ 'active' if request.endpoint == 'storeroom.listar_produtos' else '' }}"><span class="material-icons-round" style="color: #f43f5e;">category</span> Catálogo de Peças</a>
+                            <a href="{{ url_for('storeroom.historico') }}" class="{{ 'active' if request.endpoint == 'storeroom.historico' else '' }}"><span class="material-icons-round" style="color: #f43f5e;">history</span> Histórico de Movimentações</a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                </nav>
+                {% endif %}
+            </div>
+            
+            <div class="header-right">
+
+                {% if request.args.get('kiosk') %}
+                <a href="{{ url_for('auth.logout') }}" class="kiosk-exit" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; padding: 6px 12px; border-radius: 6px; font-weight: bold; display: flex; align-items: center; gap: 5px; text-decoration: none;">
+                    <span class="material-icons-round">logout</span> Sair
+                </a>
+                {% endif %}
+
+                {% if session.perm_ajuda %}
+                <!-- Botão Ajuda Escrito -->
+                <a href="{{ url_for('ajuda') }}" class="help-nav-btn" title="Central de Ajuda">
+                    <span class="material-icons-round" style="font-size: 17px;">help_outline</span>
+                    <span>Ajuda</span>
+                </a>
+                {% endif %}
+
+                {% if not request.args.get('kiosk') %}
+                <!-- Dropdown Usuário -->
+                <div class="user-dropdown">
+                    <button class="user-btn" onclick="toggleUserMenu()">
+                        <span class="username">{{ session['username'] }}</span>
+                        <div class="avatar">{{ session['username'][0]|upper if session['username'] else '?' }}</div>
+                    </button>
+                    <div class="dropdown-menu" id="userMenu">
+                        {% if session.perm_config %}
+                        <a href="{{ url_for('settings.configuracoes') }}"><span class="material-icons-round">settings</span> Configurações</a>
+                        <a href="{{ url_for('atalhos_acesso') }}" target="_blank"><span class="material-icons-round">qr_code_2</span> QRs de Acesso</a>
+                        <a href="{{ url_for('settings.exportar') }}" style="color: #10b981; font-weight: 600;"><span class="material-icons-round">cloud_download</span> Backup Geral (Excel)</a>
+                        {% endif %}
+                        <a href="{{ url_for('auth.logout') }}" style="color: var(--danger);"><span class="material-icons-round">logout</span> Sair</a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </header>
+
+        <div class="content-wrapper" style="padding-top: 72px; flex-grow: 1;">
+            
+            <!-- Cabeçalho da Página Local (Breadcrumb moderno) -->
+            {% set page_icons = {
+                'dashboard': 'dashboard',
+                'agendamento': 'calendar_month',
+                'historico_agendamentos': 'event_note',
+                'inventory.inventario': 'inventory_2',
+                'inventory.cadastro': 'add_box',
+                'inventory.editar': 'edit_square',
+                'inventory.historico': 'history',
+                'inventory.historico_geral': 'manage_search',
+                'movements.registrar_sessao': 'output',
+                'movements.sessoes': 'format_list_bulleted',
+                'movements.registrar_devolucao': 'assignment_return',
+                'movements.historico_devolucoes': 'rule',
+                'maintenance.dashboard': 'analytics',
+                'maintenance.nova_manutencao': 'report_problem',
+                'maintenance.problemas': 'handyman',
+                'maintenance.historico_chamados': 'fact_check',
+                'settings.configuracoes': 'settings',
+                'storeroom.dashboard': 'warehouse',
+                'storeroom.listar_produtos': 'category',
+                'storeroom.historico': 'swap_vert'
+            } %}
+            {% set page_subtitles = {
+                'dashboard': 'Acompanhe a operação em um só lugar',
+                'agendamento': 'Organize reservas por data e horário',
+                'inventory.inventario': 'Consulte e gerencie os ativos cadastrados',
+                'movements.registrar_sessao': 'Registre a retirada de equipamentos',
+                'movements.sessoes': 'Consulte o histórico de saídas',
+                'movements.registrar_devolucao': 'Atualize o estoque após o retorno',
+                'movements.historico_devolucoes': 'Acompanhe os equipamentos devolvidos',
+                'maintenance.dashboard': 'Acompanhe chamados e indicadores técnicos',
+                'maintenance.nova_manutencao': 'Registre um problema em um ativo',
+                'maintenance.problemas': 'Gerencie os ativos em manutenção',
+                'maintenance.historico_chamados': 'Consulte o histórico de chamados',
+                'settings.configuracoes': 'Usuários, licença, integrações e dados',
+                'storeroom.dashboard': 'Acompanhe o estoque de peças e insumos',
+                'storeroom.listar_produtos': 'Consulte produtos e quantidades atuais',
+                'storeroom.historico': 'Acompanhe entradas e saídas do estoque'
+            } %}
+            <div class="local-page-header">
+                <span class="material-icons-round page-icon">{{ page_icons.get(request.endpoint, 'grid_view') }}</span>
+                <div class="page-heading-copy">
+                    <h1 class="page-title">{{ self.page_title() }}</h1>
+                    <p class="page-subtitle">{{ page_subtitles.get(request.endpoint, 'Gestão e controle operacional') }}</p>
+                </div>
+                <div class="page-actions">
+                    {% block page_actions %}{% endblock %}
+                </div>
+            </div>
+
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

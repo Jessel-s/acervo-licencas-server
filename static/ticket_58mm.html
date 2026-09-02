@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Reserva - {{ codigo }}</title>
+    <style>
+        /* Otimizado para Impressora Térmica 58mm ESC/POS */
+        @page { margin: 0; }
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            width: 48mm; /* Área imprimível segura da 58mm */
+            margin: 0 auto;
+            padding: 5mm 0;
+            color: #000;
+            background: #fff;
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+        h1 { font-size: 16px; margin: 5px 0; text-transform: uppercase; font-weight: bold; }
+        .divider { border-top: 1px dashed #000; margin: 8px 0; }
+        .info-row { text-align: left; margin: 4px 0; word-wrap: break-word; }
+        .bold { font-weight: bold; }
+        .qr-container { margin: 10px 0; }
+        .qr-container img { width: 40mm; height: 40mm; display: block; margin: 0 auto; }
+        .codigo-texto { font-size: 20px; font-weight: bold; margin: 5px 0 15px 0; letter-spacing: 2px; }
+        .footer { font-size: 10px; margin-top: 10px; }
+        
+        @media print {
+            .no-print { display: none !important; }
+        }
+        .no-print {
+            background: #f1f5f9; padding: 15px; border-bottom: 2px solid #cbd5e1; margin-bottom: 15px; text-align: center; width: 100vw; box-sizing: border-box; position: absolute; top: 0; left: 0; z-index: 999;
+        }
+        .btn-print {
+            background: #10b981; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body onload="setTimeout(() => { window.focus(); window.print(); }, 500);">
+    <div class="no-print">
+        <p style="margin-top: 0; font-family: sans-serif; font-size: 14px; color: #475569;">
+            <b>Dica de Impressão:</b> Na tela ao lado, selecione a sua impressora 58mm, defina as <b>Margens</b> como "Nenhuma" e desmarque a opção "Cabeçalhos e rodapés".
+        </p>
+        <button class="btn-print" onclick="window.print()">🖨️ Imprimir Ticket Novamente</button>
+    </div>
+
+    <div style="margin-top: 90px;" class="print-area">
+        <h1>ACERVO TI</h1>
+        <div style="font-size: 14px;">TICKET DE RESERVA</div>
+        
+        <div class="divider"></div>
+        
+        <div class="info-row">
+            <span class="bold">Solicitante:</span><br>
+            {{ ag.solicitante }}
+        </div>
+        <div class="info-row">
+            <span class="bold">Destino/Setor:</span><br>
+            {{ ag.finalidade }}
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="info-row bold">Equipamentos:</div>
+        <div class="info-row">
+            {% if itens %}{{ itens | join(', ') }}{% else %}{{ ag.quantidade }} Item(s){% endif %}
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div style="margin-top: 10px; font-weight: bold;">Apresente no Carrinho:</div>
+        <div class="qr-container"><img src="/api/gerar_qr/{{ codigo }}" alt="QR Code"></div>
+        <div class="codigo-texto">{{ codigo }}</div>
+        
+        <div class="divider"></div>
+        <div class="footer">Gerado em: {{ data_criacao }}</div>
+        <div style="margin-top: 20px; color: transparent;">.</div> <!-- Espaço extra pro corte da guilhotina não cortar o texto -->
+    </div>
+</body>
+</html>

@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block page_title %}
+    Detalhes do Ativo
+{% endblock %}
+
+{% block content %}
+<div class="table-toolbar">
+    <div style="font-weight: 500;">
+        Patrimônio: <span style="color: var(--primary); font-family: monospace;">{{ notebook.id }}</span>
+    </div>
+    <div style="display: flex; gap: 10px; margin-left: auto;">
+        {% if notebook.status != 'Em manutenção' and session['perm_movimentacao'] %}
+            <a href="{{ url_for('maintenance.reportar_problema', notebook_id=notebook.id) }}" class="btn btn-danger">
+                <span class="material-icons-round">support_agent</span> Abrir Chamado
+            </a>
+        {% endif %}
+        {% if session['perm_cadastro'] %} 
+            <a href="{{ url_for('inventory.editar', notebook_id=notebook.id) }}" class="btn btn-outline">
+                <span class="material-icons-round">edit</span> Editar
+            </a>
+            <a href="{{ url_for('inventory.download_qr', notebook_id=notebook.id) }}" class="btn btn-outline">
+                <span class="material-icons-round">qr_code</span> Baixar QR
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Card de Informações Principais -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="details-grid">
+        <div>
+            <div class="detail-label">Status</div>
+            {% if notebook.status == 'Disponível' %}
+                <span class="status-badge status-disponivel">Disponível</span>
+            {% elif notebook.status == 'Em manutenção' %}
+                <span class="status-badge status-manutencao">Manutenção</span>
+            {% else %}
+                <span class="status-badge status-em-uso">{{ notebook.status }}</span>
+            {% endif %}
+        </div>
+        <div>
+            <div class="detail-label">Localização Atual</div>
+            <p>{{ notebook.localizacao }}</p>
+        </div>
+        <div>
+            <div class="detail-label">Modelo</div>
+            <p>{{ notebook.modelo }}</p>
+        </div>
+        <div>
+            <div class="detail-label">Número de Série</div>
+            <p>{{ notebook.numero_serie or '-' }}</p>
+        </div>
+        <div>
+            <div class="detail-label">Data da Compra</div>
+            <p>
+                {% if notebook.data_compra %}
+                    {{ notebook.data_compra }}
+                {% else %}
+                    -
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <div class="detail-label">Observações</div>
+            <p>{{ notebook.observacoes or '-' }}</p>
+        </div>
+        <div>
+            <div class="detail-label">Registrado no Sistema em</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">
+                {{ formatted_data_cadastro }}
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="table-container" style="margin-bottom: 2rem;">
+    <h3 class="card-header">Histórico de Chamados (Help Desk)</h3>
+    <table class="table" id="tabelaProblemas" style="width:100%; min-width: 600px;">
+        <thead>
+            <tr>
+                <th style="text-align: left;">Data</th>
+                <th style="text-align: left;">Status</th>
+                <th style="text-align: left;">Defeito Reportado</th>
+                <th style="text-align: left;">Parecer Técnico (Resolução)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for prob in problem_history %} {# prob é agora um dicionário #}
+            <tr>
+                <td>{{ prob.formatted_data_registro }}</td>
+                <td>
+                    {% if prob.status == 'Aberto' %}
+                        <span class="status-badge status-manutencao">Aberto</span>
+                    {% else %}
+                        <span class="status-badge status-disponivel">Resolvido</span>
+                    {% endif %}
+                    {% if prob.prioridade == 'Alta' or prob.prioridade == 'Crítica' %}
+                        <span class="material-icons-round" style="color: var(--danger); font-size: 14px; vertical-align: middle;" title="Prioridade {{ prob.prioridade }}">warning</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <strong>{{ prob.tipo_problema }}</strong> <span class="perm-tag" style="font-size: 0.65rem;">{{ prob.categoria or 'HARDWARE' }}</span><br>
+                    <span style="font-size: 0.85em; color: var(--text-muted);">{{ prob.descricao }}</span>
+                </td>
+                <td>
+                    <span style="font-size: 0.9em; color: var(--success); font-weight: 500;">{{ prob.parecer_tecnico or '-' }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="table-container">
+    <h3 class="card-header">Logs do Sistema</h3>
+    <table class="table" id="tabelaLogs" style="width:100%; min-width: 600px;">
+        <thead>
+            <tr>
+                <th style="text-align: left;">Data</th>
+                <th style="text-align: left;">Ação</th>
+                <th style="text-align: left;">Usuário</th>
+                <th style="text-align: left;">Detalhes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in general_history %}
+            <tr>
+                <td>{{ log.formatted_data }}</td>
+                <td>{{ log.acao }}</td>
+                <td>{{ log.usuario_movimentacao }}</td>
+                <td>{{ log.obs }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+<script>
+    $(document).ready(function() {
+        // Inicializa as tabelas com o padrão DataTables (Responsivo e Full Width)
+        $('#tabelaProblemas, #tabelaLogs').DataTable({
+            "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json" },
+            "order": [[ 0, "desc" ]], // Ordena pela data (coluna 0) decrescente
+            "dom": 'lrtip', // 'l' menu de Length, 'r' processamento, 't' tabela, 'i' info, 'p' paginação
+            "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]], // Opções do menu
+            "pageLength": 10,
+            "responsive": false, // Permite rolagem horizontal lateral
+            scrollY: '400px', // Limita a altura para não esticar a página
+            scrollCollapse: true
+        });
+    });
+</script>
+{% endblock %}

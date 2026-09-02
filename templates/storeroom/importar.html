@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Importar Catálogo{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto; padding: 2rem;">
+    <h2 class="card-header" style="margin-top: 0;"><span class="material-icons-round">upload_file</span> Importar Itens em Lote</h2>
+    
+    <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+        <h4 style="margin: 0 0 10px 0; color: #10b981;">Instruções de Importação</h4>
+        <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-main);">
+            O sistema aceita planilhas no formato Excel (.xlsx ou .xls). A planilha deve conter <strong>obrigatoriamente</strong> as colunas <code>SKU</code> e <code>NOME</code>.
+        </p>
+        <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-main);">
+            As colunas opcionais são: <code>CATEGORIA</code>, <code>QUANTIDADE_INICIAL</code> e <code>ESTOQUE_MINIMO</code>.
+        </p>
+        <a href="{{ url_for('storeroom.download_template_excel') }}" class="btn btn-outline" style="display: inline-block; text-decoration: none; font-size: 0.85rem; color: #10b981; border-color: #10b981;">
+            <span class="material-icons-round" style="font-size: 16px; vertical-align: middle;">download</span> Baixar Planilha de Exemplo
+        </a>
+    </div>
+
+    <form action="{{ url_for('storeroom.importar') }}" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="file">Selecione o arquivo Excel:</label>
+            <input type="file" name="file" id="file" accept=".xlsx, .xls" required style="padding: 10px; border: 1px dashed var(--border-soft); width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.02); border-radius: 4px;">
+        </div>
+        
+        <div class="actions" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+            <a href="{{ url_for('storeroom.listar_produtos') }}" class="btn btn-outline" style="text-decoration: none;">Cancelar</a>
+            <button type="submit" class="btn btn-primary" onclick="this.innerHTML='<span class=\'material-icons-round\'>hourglass_empty</span> Processando...';">
+                <span class="material-icons-round">cloud_upload</span> Iniciar Importação
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

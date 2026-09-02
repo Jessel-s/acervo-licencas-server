@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Central Acervo TI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --ink: #18221f; --muted: #65736d; --line: #d8e0da; --surface: #ffffff; --canvas: #eef2ec; --forest: #176245; --forest-dark: #0f4d35; --lime: #bbda58; --danger: #b93826; }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; color: var(--ink); background: var(--canvas); font-family: Manrope, sans-serif; }
+        .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+        .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; font-weight: 800; font-size: 1.15rem; }
+        .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; background: var(--forest); color: white; border-radius: 7px; font-family: 'DM Mono', monospace; }
+        .gate { width: min(440px, 100%); margin: 11vh auto 0; padding: 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 18px 45px rgba(33, 55, 41, .11); }
+        h1 { margin: 0; font-size: 1.55rem; letter-spacing: 0; }
+        .lead { color: var(--muted); margin: 8px 0 25px; line-height: 1.55; font-size: .92rem; }
+        .workspace { display: none; }
+        .workspace.visible { display: block; }
+        .topbar { display: flex; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 24px; }
+        .eyebrow { color: var(--forest); font: 500 .76rem 'DM Mono', monospace; text-transform: uppercase; }
+        .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 26px; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; }
+        .wide { grid-column: 1 / -1; }
+        label { display: block; margin-bottom: 6px; color: #44524b; font-size: .78rem; font-weight: 800; }
+        input, select { width: 100%; border: 1px solid #bac8bf; border-radius: 5px; padding: 11px 12px; color: var(--ink); background: white; font: 500 .9rem Manrope, sans-serif; }
+        input:focus, select:focus { outline: 3px solid rgba(187, 218, 88, .42); border-color: var(--forest); }
+        .actions { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 25px; }
+        button { border: 0; border-radius: 5px; padding: 11px 16px; background: var(--forest); color: white; cursor: pointer; font: 800 .86rem Manrope, sans-serif; }
+        button:hover { background: var(--forest-dark); }
+        button.secondary { background: transparent; color: var(--forest); border: 1px solid var(--line); }
+        .message { min-height: 20px; margin: 15px 0 0; color: var(--muted); font-size: .86rem; }
+        .message.error { color: var(--danger); }
+        .result { display: none; margin-top: 22px; padding: 20px; border: 1px solid #a4c44b; border-radius: 7px; background: #f5fae6; }
+        .result.visible { display: block; }
+        .result h2 { margin: 0 0 12px; font-size: 1.05rem; }
+        .install-values { display: grid; gap: 8px; font: .78rem 'DM Mono', monospace; }
+        .install-values div { padding: 10px; background: white; border: 1px solid #d7e2b7; border-radius: 4px; overflow-wrap: anywhere; }
+        .install-values strong { color: var(--forest-dark); }
+        @media (max-width: 680px) { .shell { width: min(100% - 24px, 1120px); } .topbar { align-items: start; flex-direction: column; } .form-grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } .panel, .gate { padding: 20px; } }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <div class="brand"><span class="brand-mark">AT</span> Central Acervo TI</div>
+
+        <section id="login-panel" class="gate">
+            <div class="eyebrow">Acesso restrito</div>
+            <h1>Administração da plataforma</h1>
+            <p class="lead">Use o seu e-mail de administrador da plataforma para cadastrar uma nova instalação comercial.</p>
+            <form id="login-form">
+                <label for="login-email">E-mail</label>
+                <input id="login-email" type="email" autocomplete="email" required>
+                <label for="login-password" style="margin-top: 15px;">Senha</label>
+                <input id="login-password" type="password" autocomplete="current-password" required>
+                <div class="actions"><button type="submit">Entrar na Central</button></div>
+            </form>
+            <p id="login-message" class="message"></p>
+        </section>
+
+        <section id="workspace" class="workspace">
+            <div class="topbar">
+                <div><div class="eyebrow">Operação comercial</div><h1>Novo cliente</h1><p class="lead">Um único cadastro cria o tenant, a licença do PDV e o administrador do cliente.</p></div>
+                <button id="logout" class="secondary">Sair</button>
+            </div>
+            <section class="panel">
+                <form id="client-form">
+                    <div class="form-grid">
+                        <div class="wide"><label for="nome-cliente">Nome do cliente</label><input id="nome-cliente" required placeholder="Ex.: Empresa Modelo Ltda."></div>
+                        <div><label for="cnpj">CNPJ</label><input id="cnpj" placeholder="Opcional"></div>
+                        <div><label for="email-cliente">E-mail comercial</label><input id="email-cliente" type="email" required></div>
+                        <div><label for="nome-admin">Nome do administrador</label><input id="nome-admin" required></div>
+                        <div><label for="telefone">Telefone</label><input id="telefone" placeholder="Opcional"></div>
+                        <div><label for="email-admin">E-mail de acesso</label><input id="email-admin" type="email" required></div>
+                        <div><label for="senha-admin">Senha temporária</label><input id="senha-admin" type="password" minlength="8" required></div>
+                        <div><label for="serial-pdv">Serial do PDV</label><input id="serial-pdv" required placeholder="PDV-CLIENTE-001"></div>
+                        <div><label for="dias-validade">Validade</label><select id="dias-validade"><option value="30">30 dias</option><option value="365" selected>12 meses</option><option value="730">24 meses</option></select></div>
+                    </div>
+                    <div class="actions"><button id="create-client" type="submit">Criar cliente e licença</button></div>
+                </form>
+                <p id="client-message" class="message"></p>
+                <section id="result" class="result">
+                    <h2>Cliente criado e pronto para instalação</h2>
+                    <p class="lead">No computador do cliente, abra o ConfigurarCliente e use estes dados.</p>
+                    <div id="install-values" class="install-values"></div>
+                </section>
+            </section>
+        </section>
+    </main>
+    <script>
+        const SUPABASE_URL = 'https://knasgssawkkiwmeyjhhb.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_jEK9yJg3C0rkkAm4kEv_Hg_O7wUThs8';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const byId = (id) => document.getElementById(id);
+        const setMessage = (element, text, error = false) => { element.textContent = text; element.className = `message${error ? ' error' : ''}`; };
+
+        async function showWorkspace() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+            byId('login-panel').style.display = 'none';
+            byId('workspace').classList.add('visible');
+        }
+
+        byId('login-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const message = byId('login-message');
+            setMessage(message, 'Validando acesso...');
+            const { error } = await supabaseClient.auth.signInWithPassword({ email: byId('login-email').value, password: byId('login-password').value });
+            if (error) return setMessage(message, 'Não foi possível autenticar este usuário.', true);
+            await showWorkspace();
+        });
+
+        byId('logout').addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.reload(); });
+
+        byId('client-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const button = byId('create-client');
+            const message = byId('client-message');
+            button.disabled = true;
+            setMessage(message, 'Criando cliente, licença e administrador...');
+            const payload = {
+                nome_cliente: byId('nome-cliente').value,
+                cnpj: byId('cnpj').value,
+                email_cliente: byId('email-cliente').value,
+                nome_admin: byId('nome-admin').value,
+                telefone: byId('telefone').value,
+                email_admin: byId('email-admin').value,
+                senha_admin: byId('senha-admin').value,
+                serial_pdv: byId('serial-pdv').value,
+                dias_validade: Number(byId('dias-validade').value),
+            };
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/criar-cliente`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(payload),
+            });
+            const result = await response.json().catch(() => ({}));
+            button.disabled = false;
+            if (!response.ok || !result.ok) return setMessage(message, result.mensagem || 'Não foi possível criar o cliente.', true);
+            const customer = result.cliente;
+            byId('install-values').innerHTML = [
+                ['COLEGIO_ID', customer.colegio_id], ['PDV_SERIAL', customer.serial_pdv], ['PDV_CHAVE', customer.chave_ativacao], ['ADMINISTRADOR', customer.email_admin], ['VALIDADE', new Date(customer.data_expiracao).toLocaleDateString('pt-BR')]
+            ].map(([label, value]) => `<div><strong>${label}</strong> = ${value}</div>`).join('');
+            byId('result').classList.add('visible');
+            byId('client-form').reset();
+            setMessage(message, 'Cadastro concluído. Guarde os dados de instalação antes de fechar esta página.');
+        });
+
+        showWorkspace();
+    </script>
+</body>
+</html>

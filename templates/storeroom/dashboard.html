@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Painel de Almoxarifado{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid" style="margin-bottom: 2rem;">
+    <div class="card card-colored" style="background: linear-gradient(135deg, #f43f5e, #be123c); color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+        <div class="card-icon"><span class="material-icons-round" style="color: white; opacity: 0.9;">inventory_2</span></div>
+        <div class="card-content">
+            <h3 style="color: rgba(255,255,255,0.9); font-weight: 600;">Total de Itens em Estoque</h3>
+            <div class="card-value" style="color: white;">{{ total_itens }}</div>
+        </div>
+    </div>
+    <div class="card card-colored" style="background: linear-gradient(135deg, #10b981, #059669); color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+        <div class="card-icon"><span class="material-icons-round" style="color: white; opacity: 0.9;">category</span></div>
+        <div class="card-content">
+            <h3 style="color: rgba(255,255,255,0.9); font-weight: 600;">Variedade de Produtos (SKUs)</h3>
+            <div class="card-value" style="color: white;">{{ total_skus }}</div>
+        </div>
+    </div>
+    <div class="card card-colored" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+        <div class="card-icon"><span class="material-icons-round" style="color: white; opacity: 0.9;">warning_amber</span></div>
+        <div class="card-content">
+            <h3 style="color: rgba(255,255,255,0.9); font-weight: 600;">Itens em Baixo Estoque</h3>
+            <div class="card-value" style="color: white;">{{ itens_baixo_estoque }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card" style="grid-column: span 2;">
+        <h2 class="card-header"><span class="material-icons-round" style="color: #f43f5e; vertical-align: bottom;">swap_horiz</span> Movimentação Rápida</h2>
+        <form action="{{ url_for('storeroom.movimentar_estoque') }}" method="POST" class="form-container">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label>Produto (SKU ou Nome)</label>
+                    <div class="input-with-icon">
+                        <span class="material-icons-round">search</span>
+                        <input type="text" id="buscaProduto" list="listaProdutos" placeholder="BIPE O CÓDIGO OU DIGITE O NOME..." autocomplete="off" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase();">
+                        <input type="hidden" name="produto_id" id="produto_id" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Tipo de Operação</label>
+                    <select name="tipo" id="tipoOperacao" required style="font-weight: bold;">
+                        <option value="SAIDA" style="color: #f43f5e;">🔴 DAR SAÍDA (Consumo)</option>
+                        <option value="ENTRADA" style="color: #10b981;">🟢 DAR ENTRADA (Compra)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Quantidade</label>
+                    <input type="number" name="quantidade" value="1" min="1" required style="font-weight: bold; text-align: center; font-size: 1.2rem;">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Destino / Solicitante <span style="font-size: 0.7rem; color: #94a3b8;">(Opcional)</span></label>
+                    <input type="text" name="destino_id" placeholder="Ex: Nome do técnico..." style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="form-group" style="flex: 2;">
+                    <label>Observação <span style="font-size: 0.7rem; color: #94a3b8;">(Opcional)</span></label>
+                    <input type="text" name="observacao" placeholder="Ex: Reposição de mouse..." style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 1rem; font-size: 1.1rem; background-color: #f43f5e;">
+                <span class="material-icons-round">bolt</span> CONFIRMAR MOVIMENTAÇÃO
+            </button>
+        </form>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 class="card-header" style="color: #f59e0b; margin: 0; padding: 0; border: none;"><span class="material-icons-round">notification_important</span> Alertas de Recompra</h2>
+            <a href="{{ url_for('storeroom.relatorio_baixo_estoque') }}" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem; display: flex; align-items: center; gap: 5px; color: #10b981; border-color: #10b981; text-decoration: none;">
+                <span class="material-icons-round" style="font-size: 16px;">download</span> Exportar Excel
+            </a>
+        </div>
+        {% if alertas_estoque %}
+            <ul style="list-style: none; padding: 0;">
+                {% for item in alertas_estoque %}
+                <li style="padding: 12px; border-bottom: 1px solid var(--border-soft); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: var(--text-main); display: block;">{{ item.nome }}</strong>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">SKU: {{ item.sku }}</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="display: block; font-weight: 900; color: #ef4444; font-size: 1.2rem;">{{ item.quantidade_atual }} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">restantes</span></span>
+                        <span style="font-size: 0.7rem; color: #f59e0b;">Min: {{ item.estoque_minimo }}</span>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                <span class="material-icons-round" style="font-size: 3rem; opacity: 0.5;">check_circle</span>
+                <p style="margin-top: 10px;">Estoque saudável! Nenhum alerta no momento.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card" style="margin-top: 2rem;">
+    <h2 class="card-header"><span class="material-icons-round">history</span> Últimas Movimentações</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Data</th>
+                    <th style="text-align: left;">Produto</th>
+                    <th style="text-align: center;">Tipo</th>
+                    <th style="text-align: center;">Qtd</th>
+                    <th style="text-align: left;">Destino/Resp</th>
+                    <th style="text-align: left;">Usuário</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mov in movimentacoes %}
+                <tr>
+                    <td style="white-space: nowrap; font-size: 0.85rem; color: var(--text-muted);">{{ mov.data_movimentacao }}</td>
+                    <td>
+                        <strong style="display: block; color: var(--text-main);">{{ mov.nome }}</strong>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">{{ mov.sku }}</span>
+                    </td>
+                    <td style="text-align: center;">
+                        {% if mov.tipo == 'ENTRADA' %}
+                        <span class="status-badge status-disponivel">ENTRADA</span>
+                        {% else %}
+                        <span class="status-badge status-inativo">SAÍDA</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center; font-weight: bold; font-size: 1.1rem; color: {% if mov.tipo == 'ENTRADA' %}#10b981{% else %}#ef4444{% endif %};">
+                        {% if mov.tipo == 'ENTRADA' %}+{% else %}-{% endif %}{{ mov.quantidade }}
+                    </td>
+                    <td style="font-size: 0.85rem;">{{ mov.destino_id or '-' }}</td>
+                    <td style="font-size: 0.85rem; color: var(--text-muted);">{{ mov.usuario }}</td>
+                </tr>
+                {% endfor %}
+                {% if not movimentacoes %}
+                <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">Nenhuma movimentação recente.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Lógica de Autocomplete do Produto via Datalist -->
+<datalist id="listaProdutos">
+    {% for p in produtos %}
+    <option data-id="{{ p.id }}" value="{{ p.sku }} - {{ p.nome }}"></option>
+    {% endfor %}
+</datalist>
+
+<script>
+    document.getElementById('buscaProduto').addEventListener('input', function(e) {
+        var inputVal = this.value;
+        var options = document.getElementById('listaProdutos').options;
+        var hiddenInput = document.getElementById('produto_id');
+        
+        hiddenInput.value = ''; // Limpa antes de checar
+        
+        for (var i = 0; i < options.length; i++) {
+            // Verifica se bate o nome inteiro ou se o leitor USB bipou só o código SKU no início
+            if (options[i].value === inputVal || options[i].value.startsWith(inputVal + " -")) {
+                hiddenInput.value = options[i].getAttribute('data-id');
+                if (options[i].value !== inputVal) {
+                    this.value = options[i].value; // Autocompleta visualmente o nome da peça!
+                }
+                break;
+            }
+        }
+    });
+</script>
+{% endblock %}

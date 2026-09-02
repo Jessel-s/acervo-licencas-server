@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Impressão de Etiquetas{% endblock %}
+
+{% block content %}
+<style>
+    /* Mágica de Impressão: Esconde o sistema escuro e mostra só as etiquetas na folha branca da impressora */
+    @media print {
+        @page { size: {{ page_size }}; margin: 0; }
+        body { background: white !important; }
+        .top-header, .local-page-header, .no-print { display: none !important; }
+        .content-wrapper { padding: 0 !important; }
+        .print-area { position: static; display: block; width: 100%; }
+        .label-item {
+            width: {{ page_size.split(' ')[0] }};
+            height: {{ page_size.split(' ')[1] }};
+            margin: 0;
+            padding: 0;
+            border: 0;
+            break-after: page;
+            page-break-after: always;
+        }
+        .label-item:last-child { break-after: auto; page-break-after: auto; }
+        .label-item img { width: 100%; height: 100%; border: 0; border-radius: 0; object-fit: contain; }
+    }
+    
+    .label-grid { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px; }
+    .label-item { background: white; padding: 15px; border-radius: 8px; border: 2px dashed var(--border-color); text-align: center; transition: 0.3s; }
+    .label-item:hover { border-color: var(--primary); transform: translateY(-3px); }
+    .label-item img { max-width: 100%; height: auto; border: 1px solid #f1f5f9; border-radius: 4px; }
+</style>
+
+<div class="card no-print">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons-round" style="color: var(--primary);">qr_code_2</span> Lote de Etiquetas Gerado
+            </h3>
+            <p style="color: var(--text-muted); margin: 5px 0 0 0;">
+                Formato selecionado: <strong>{{ label_size }}</strong>. Pronto para impressoras térmicas (Niimbot, Zebra, Elgin).
+            </p>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.print()" class="btn btn-primary" style="font-size: 1.1rem; padding: 10px 25px; font-weight: bold;">
+                <span class="material-icons-round">print</span> Imprimir Etiquetas
+            </button>
+            <a href="{{ url_for('inventory.inventario') }}" class="btn btn-outline">Voltar ao Inventário</a>
+        </div>
+    </div>
+</div>
+
+<!-- Área que será enviada para a impressora -->
+<div class="print-area label-grid">
+    {% for qr in qr_codes %}
+    <div class="label-item">
+        <img src="{{ qr.image }}" alt="QR Code {{ qr.id }}">
+        <div class="no-print" style="margin-top: 15px;">
+            <a href="{{ url_for('inventory.download_qr', notebook_id=qr.id, label_size=label_size) }}" class="btn btn-sm btn-secondary" style="width: 100%; display: flex; justify-content: center;"><span class="material-icons-round" style="font-size: 16px;">download</span> Baixar Imagem</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+<script>
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            window.print();
+        }, 300);
+    });
+</script>
+{% endblock %}

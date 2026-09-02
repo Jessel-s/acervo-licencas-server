@@ -1,0 +1,404 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Visão Geral{% endblock %}
+
+{% block content %}
+<style>
+    .dashboard-grid { width: 100%; align-items: stretch; }
+    .dashboard-grid .card { min-height: 112px; width: 100%; border-top: 3px solid var(--primary); }
+    .dashboard-grid .card:nth-child(2) { border-top-color: var(--success); }
+    .dashboard-grid .card:nth-child(3) { border-top-color: var(--info); }
+    .dashboard-grid .card:nth-child(4) { border-top-color: var(--warning); }
+    .dashboard-section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow-sm); }
+    .dashboard-section .card-header { color: var(--text-main) !important; }
+    .dashboard-section-title { margin: 0 0 12px; font-size: 1.05rem; font-weight: 700; color: var(--text-main); }
+    .dashboard-block { width: 100%; margin-bottom: 28px !important; }
+    .dashboard-actions-panel { background: #e6eef0 !important; border: 1px solid #c8d7da !important; border-radius: 8px !important; }
+    .action-btn-clean { background: #ffffff; border-color: #c4d0d3; border-radius: 5px; padding: .65rem 1rem; }
+    .action-btn-clean:hover { background: #eef5f6; transform: none; box-shadow: 0 3px 8px rgba(23,37,45,.08); }
+    @media (max-width: 700px) { .dashboard-grid { gap: 12px !important; } }
+</style>
+<!-- MÉTRICAS PRINCIPAIS -->
+<div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <div style="background: rgba(14, 165, 233, 0.15); color: var(--info); padding: 1rem; border-radius: 12px; display: flex;">
+            <span class="material-icons-round" style="font-size: 2rem;">dns</span>
+        </div>
+        <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Total de Ativos</h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ total }}</div>
+        </div>
+    </div>
+    
+    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <div style="background: rgba(16, 185, 129, 0.15); color: var(--success); padding: 1rem; border-radius: 12px; display: flex;">
+            <span class="material-icons-round" style="font-size: 2rem;">check_circle</span>
+        </div>
+        <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Disponíveis</h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ disponiveis }}</div>
+        </div>
+    </div>
+    
+    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <div style="background: var(--primary-light); color: var(--primary); padding: 1rem; border-radius: 12px; display: flex;">
+            <span class="material-icons-round" style="font-size: 2rem;">assignment_ind</span>
+        </div>
+        <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Em Uso</h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ em_uso }}</div>
+        </div>
+    </div>
+
+    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <div style="background: rgba(245, 158, 11, 0.15); color: var(--warning); padding: 1rem; border-radius: 12px; display: flex;">
+            <span class="material-icons-round" style="font-size: 2rem;">build</span>
+        </div>
+        <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Em Manutenção</h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ manutencao }}</div>
+        </div>
+    </div>
+</div>
+
+<h3 class="dashboard-section-title">Distribuição por Tipo</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 3rem;">
+    {% for item in por_tipo %}
+    <div class="card" style="display: flex; align-items: center; gap: 1rem; padding: 0.8rem 1rem; border: 1px solid var(--border-soft); background: rgba(255,255,255,0.02);">
+        <div style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted); padding: 0.75rem; border-radius: 10px; display: flex;">
+            {% if item['tipo'] == 'Notebook' %}
+                <span class="material-icons-round">laptop</span>
+            {% elif item['tipo'] == 'Projetor' %}
+                <span class="material-icons-round">videocam</span>
+            {% elif item['tipo'] == 'Tablet' %}
+                <span class="material-icons-round">tablet_mac</span>
+            {% else %}
+                <span class="material-icons-round">devices</span>
+            {% endif %}
+        </div>
+        <div>
+            <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">{{ item['tipo'] }}</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-main);">{{ item['qtd'] }}</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ÁREA DE INTELIGÊNCIA E MONITORAMENTO -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+    
+    <!-- 1. Gráfico de Movimentação -->
+    <div class="card" style="padding: 1.5rem;">
+        <div class="card-header" style="border-bottom: none; padding-bottom: 0;">Movimentação (Últimos 7 Dias)</div>
+        <div style="position: relative; height: 300px; margin-top: 1rem;">
+            <canvas id="chartMovimentacao"></canvas>
+        </div>
+    </div>
+
+    <!-- 2. Lista de Empréstimos Ativos -->
+    <div class="card" style="padding: 1.5rem; display: flex; flex-direction: column;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 1rem; margin-bottom: 0;">
+            <span>Equipamentos em Uso</span>
+            <span style="background: var(--primary-light); color: var(--primary); padding: 2px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 700;">{{ em_uso_agora|length }}</span>
+        </div>
+        
+        <div style="flex: 1; overflow-y: auto; margin-top: 1rem; padding-right: 5px;">
+            {% if em_uso_agora %}
+            <table class="table-std">
+                <thead>
+                    <tr>
+                        <th style="padding: 12px 16px;">Ativo</th>
+                        <th style="padding: 12px 16px;">Destino</th>
+                        <th style="padding: 12px 16px;">Saída</th>
+                        <th style="padding: 12px 16px; text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in em_uso_agora %}
+                    <tr>
+                        <td style="padding: 12px 16px; font-weight: 600;">{{ item['id'] }}</td>
+                        <td style="padding: 12px 16px; color: var(--text-muted);">{{ item['localizacao'] }}</td>
+                        <td style="padding: 12px 16px; color: var(--text-muted);">
+                            {% if item['data_saida'] %}
+                                {{ item['data_saida'][11:16] }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td style="padding: 12px 16px; text-align: center;">
+                            {% if item['alerta_atraso'] %}
+                                <span style="background: rgba(239, 68, 68, 0.15); color: var(--danger); padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;" title="Possível atraso">{{ item['tempo_decorrido'] }}</span>
+                            {% else %}
+                                <span style="background: var(--primary-light); color: var(--primary); padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">{{ item['tempo_decorrido'] }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7;">
+                <span class="material-icons-round" style="font-size: 3rem; margin-bottom: 1rem;">check_circle_outline</span>
+                <p>Nenhum equipamento em uso no momento.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 3. Agendamentos e Calendário Visual -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+    <div class="card" style="padding: 1.5rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 1rem; margin-bottom: 1rem;">
+            <span>Agendamentos de Hoje</span>
+            <span style="background: rgba(14, 165, 233, 0.15); color: var(--info); padding: 2px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 700;">{{ agendamentos_hoje|length }}</span>
+        </div>
+        {% if agendamentos_hoje %}
+        <div style="max-height: 300px; overflow-y: auto;">
+            <table class="table-std">
+                <thead>
+                    <tr>
+                        <th style="padding: 12px;">Solicitante</th>
+                        <th style="padding: 12px;">Horário</th>
+                        <th style="padding: 12px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ag in agendamentos_hoje %}
+                    <tr>
+                            <td style="padding: 12px; font-weight: 500;">
+                                {{ ag.solicitante }}
+                                {% if ag.codigo_reserva %}<br><span style="background: rgba(14, 165, 233, 0.15); color: var(--info); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.5px;">{{ ag.codigo_reserva }}</span>{% endif %}
+                            </td>
+                        <td style="padding: 12px; color: var(--text-muted);">{{ ag.horario_retirada }} - {{ ag.horario_devolucao }}</td>
+                        <td style="padding: 12px; text-align: center;">
+                            <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                                {% if session.perm_config or ag.solicitante == session.username %}
+                                <a href="{{ url_for('movements.registrar_sessao', agendamento_id=ag.id) }}" class="btn btn-primary" style="padding: 0.4rem 0.6rem;" title="Mover para Saída">
+                                    <span class="material-icons-round" style="font-size: 1.1rem; margin: 0;">launch</span>
+                                </a>
+                                    <a href="{{ url_for('cancelar_agendamento', id=ag.id) }}" class="btn btn-danger" style="padding: 0.4rem 0.6rem;" onclick="return confirm('ATENÇÃO: Deseja cancelar TODO o agendamento desta pessoa?')" title="Cancelar Agendamento Completo">
+                                    <span class="material-icons-round" style="font-size: 1.1rem; margin: 0;">close</span>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7;">
+            <span class="material-icons-round" style="font-size: 3rem; margin-bottom: 1rem;">event_available</span>
+            <p>Livre. Nenhum agendamento para hoje.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card" style="padding: 1.5rem;">
+        <div class="card-header" style="border-bottom: 1px solid var(--border-soft); padding-bottom: 1rem; margin-bottom: 1rem;">Cronograma Futuro</div>
+        
+        {% if not previsao_agenda %}
+            <div style="height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7;">
+                <span class="material-icons-round" style="font-size: 3rem; margin-bottom: 1rem;">event_busy</span>
+                <p>Nenhuma reserva futura.</p>
+            </div>
+        {% else %}
+            <div style="max-height: 300px; overflow-y: auto; padding-right: 10px;">
+                {% for dia in previsao_agenda %}
+                <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                    <!-- Data Box -->
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-soft); border-radius: 12px; padding: 0.75rem; text-align: center; min-width: 70px;">
+                        <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary);">{{ dia.data }}</div>
+                        <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">{{ dia.dia_sem }}</div>
+                    </div>
+                    
+                    <!-- Itens -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;">
+                        {% for item in dia.itens %}
+                        <div style="background: var(--bg-body); border: 1px solid var(--border-soft); border-radius: 8px; padding: 0.5rem 0.75rem; padding-right: 28px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 2px; position: relative;">
+                            {% if session.perm_config and item.agendamento_id %}
+                                    <a href="{{ url_for('cancelar_agendamento', id=item.agendamento_id) }}" onclick="return confirm('ATENÇÃO: Ao clicar aqui, você cancelará TODO o agendamento desta pessoa. Deseja continuar?')" style="position: absolute; top: 6px; right: 6px; color: var(--danger); opacity: 0.5; transition: 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'" title="Cancelar Agendamento Completo"><span class="material-icons-round" style="font-size: 16px;">close</span></a>
+                            {% endif %}
+                            <span style="color: var(--primary); font-weight: 700;">{{ item.hora }}</span>
+                            <span style="color: var(--text-main); font-weight: 600;">{{ item.id }}</span>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                        <span style="color: var(--text-muted); font-size: 0.75rem;">{{ item.prof }}</span>
+                                        {% if item.codigo %}<span style="color: var(--info); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; opacity: 0.8;">{{ item.codigo }}</span>{% endif %}
+                                    </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Ações Rápidas -->
+<div style="margin-top: 3rem;">
+    <h3 class="dashboard-section-title">Ações Rápidas</h3>
+    <div class="dashboard-actions-panel" style="display: flex; gap: 1rem; flex-wrap: wrap; padding: 1.5rem;">
+        <a href="{{ url_for('movements.registrar_sessao') }}" class="action-btn-clean c-primary">
+            <span class="material-icons-round" style="color: var(--primary);">add</span> Nova Saída
+        </a>
+        <a href="#" onclick="abrirResgateAgendamento(event)" class="action-btn-clean c-info">
+            <span class="material-icons-round" style="color: var(--info);">key</span> Resgatar Reserva
+        </a>
+        <a href="{{ url_for('movements.registrar_devolucao') }}" class="action-btn-clean c-success">
+            <span class="material-icons-round" style="color: var(--success);">assignment_return</span> Receber Devolução
+        </a>
+        <a href="{{ url_for('inventory.cadastro') }}" class="action-btn-clean c-secondary">
+            <span class="material-icons-round" style="color: #a855f7;">add_circle_outline</span> Novo Ativo
+        </a>
+        <a href="{{ url_for('atalhos_acesso') }}" class="action-btn-clean" style="border-color: var(--border-soft);" target="_blank">
+            <span class="material-icons-round" style="color: var(--text-muted);">print</span> Imprimir QRs
+        </a>
+        {% if session.perm_almoxarifado and almox_kpis %}
+        <a href="{{ url_for('storeroom.dashboard') }}" class="action-btn-clean c-danger" style="margin-left: auto;">
+            <span class="material-icons-round" style="color: #f43f5e;">inventory</span> Almoxarifado
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+/* Corrige o layout em telas menores */
+@media (max-width: 900px) {
+    div[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+}
+    
+    /* Botões limpos do Dashboard */
+    .action-btn-clean {
+        background: var(--bg-card); border: 1px solid var(--border-soft); color: var(--text-main);
+        padding: 0.8rem 1.5rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px;
+        font-weight: 600; text-decoration: none; border-radius: 8px;
+    }
+    .action-btn-clean:hover {
+        background: rgba(255,255,255,0.05); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .action-btn-clean.c-primary:hover { border-color: var(--primary); color: var(--primary); }
+    .action-btn-clean.c-info:hover { border-color: var(--info); color: var(--info); }
+    .action-btn-clean.c-success:hover { border-color: var(--success); color: var(--success); }
+    .action-btn-clean.c-secondary:hover { border-color: #a855f7; color: #a855f7; }
+    .action-btn-clean.c-danger:hover { border-color: #f43f5e; color: #f43f5e; }
+</style>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const rawData = {{ movimentacoes|tojson|safe }};
+    
+    const labels = [];
+    for (let i = 6; i >= 0; i--) {
+        let d = new Date();
+        d.setDate(d.getDate() - i);
+        let ano = d.getFullYear();
+        let mes = String(d.getMonth() + 1).padStart(2, '0');
+        let dia = String(d.getDate()).padStart(2, '0');
+        labels.push(`${ano}-${mes}-${dia}`);
+    }
+    
+    const dataSaidas = labels.map(dia => {
+        const found = rawData.find(r => r.dia === dia && r.acao === 'Saída/Empréstimo');
+        return found ? found.total : 0;
+    });
+
+    const dataDevolucoes = labels.map(dia => {
+        const found = rawData.find(r => r.dia === dia && r.acao === 'Devolução');
+        return found ? found.total : 0;
+    });
+
+    const style = getComputedStyle(document.documentElement);
+    const colorText = style.getPropertyValue('--text-muted').trim() || '#53656e';
+    const colorGrid = style.getPropertyValue('--border-soft').trim() || '#e5eaec';
+
+    const ctx = document.getElementById('chartMovimentacao').getContext('2d');
+    
+    // Gradiente bonito para o preenchimento
+    let gradientSaida = ctx.createLinearGradient(0, 0, 0, 300);
+    gradientSaida.addColorStop(0, 'rgba(22, 128, 93, 0.22)');
+    gradientSaida.addColorStop(1, 'rgba(22, 128, 93, 0.0)');
+    
+    let gradientDev = ctx.createLinearGradient(0, 0, 0, 300);
+    gradientDev.addColorStop(0, 'rgba(38, 117, 168, 0.22)');
+    gradientDev.addColorStop(1, 'rgba(38, 117, 168, 0.0)');
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels.map(d => d.split('-').reverse().slice(0,2).join('/')),
+            datasets: [
+                {
+                    label: 'Saídas',
+                    data: dataSaidas,
+                    borderColor: '#16805d',
+                    backgroundColor: gradientSaida,
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#16805d',
+                    pointBorderColor: '#fbfcfc',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: 'Devoluções',
+                    data: dataDevolucoes,
+                    borderColor: '#2675a8',
+                    backgroundColor: gradientDev,
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#2675a8',
+                    pointBorderColor: '#fbfcfc',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: { 
+                y: { 
+                    beginAtZero: true, 
+                    ticks: { stepSize: 1, color: colorText, font: { family: 'Inter', size: 11 } },
+                    grid: { color: colorGrid, drawBorder: false },
+                    border: { display: false }
+                },
+                x: {
+                    ticks: { color: colorText, font: { family: 'Inter', size: 11 } },
+                    grid: { display: false },
+                    border: { display: false }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: colorText, font: { family: 'IBM Plex Sans', weight: 600, size: 12 }, usePointStyle: true, boxWidth: 8 }
+                },
+                tooltip: {
+                    backgroundColor: '#17252d',
+                    titleColor: '#ffffff',
+                    bodyColor: '#dce7e9',
+                    padding: 12,
+                    cornerRadius: 8,
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

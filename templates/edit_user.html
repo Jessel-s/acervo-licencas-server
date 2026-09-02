@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Editar Usuário{% endblock %}
+
+{% block content %}
+<div class="d-flex" style="justify-content: center;">
+    <div class="form-container card" style="max-width: 600px; width: 100%;">
+        
+        <div class="card-header">Editando: {{ user['username'] }}</div>
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+                <label>Nova Senha (Opcional)</label>
+                <div class="input-with-icon">
+                    <span class="material-icons-round">lock_reset</span>
+                    <input type="password" name="password" id="passwordInput" placeholder="Deixe em branco para manter a atual" autocomplete="new-password" style="padding-right: 40px;">
+                    <span class="material-icons-round" onclick="togglePasswordVisibility('passwordInput', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); left: auto; cursor: pointer; pointer-events: auto; color: var(--text-muted);" title="Mostrar/Ocultar Senha">visibility_off</span>
+                </div>
+                <small style="color: var(--text-muted);">Preencha apenas se desejar alterar a senha deste usuário.</small>
+            </div>
+
+            <hr style="margin: 25px 0; border: 0; border-top: 1px solid var(--border-color);">
+            
+            <h4 style="margin-bottom: 15px; color: var(--text-main);">Permissões de Acesso</h4>
+
+            <div class="perm-container">
+                <!-- Movimentação -->
+                <label class="perm-row">
+                    <div class="perm-info">
+                        <span class="perm-title">Operação / Movimentação</span>
+                        <span class="perm-desc">Pode realizar saídas, devoluções e reportar problemas/defeitos.</span>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" name="perm_movimentacao" {% if user['perm_movimentacao'] %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </div>
+                </label>
+
+                <!-- Cadastro/Gestão -->
+                <label class="perm-row">
+                    <div class="perm-info">
+                        <span class="perm-title">Gestão de Acervo (Inventário)</span>
+                        <span class="perm-desc">Pode cadastrar, editar, excluir ativos e ver histórico completo.</span>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" name="perm_cadastro" {% if user['perm_cadastro'] %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </div>
+                </label>
+
+                <!-- Admin -->
+                <label class="perm-row">
+                    <div class="perm-info">
+                        <span class="perm-title">Administrador do Sistema</span>
+                        <span class="perm-desc">Acesso total às configurações, backups e gestão de usuários.</span>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" name="perm_config" {% if user['perm_config'] %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </div>
+                </label>
+
+                <!-- Modo Totem -->
+                <label class="perm-row">
+                    <div class="perm-info">
+                        <span class="perm-title" style="color: var(--warning);">Modo Totem (Kiosk)</span>
+                        <span class="perm-desc">Tela limpa, sem menus. Ideal para terminais de autoatendimento.</span>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" name="perm_kiosk" {% if user['perm_kiosk'] %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </div>
+                </label>
+
+                <!-- Help Desk -->
+                <label class="perm-row">
+                    <div class="perm-info">
+                        <span class="perm-title">Help Desk / Chamados</span>
+                        <span class="perm-desc">Pode acessar o painel de chamados, registrar e resolver incidentes.</span>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" name="perm_chamados" {% if user['perm_chamados'] %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </div>
+                </label>
+
+                <!-- Ajuda -->
+                <label class="perm-row">
+                    <div class="perm-info">
+                        <span class="perm-title">Manual de Ajuda</span>
+                        <span class="perm-desc">Pode acessar a documentação e regras de uso do sistema.</span>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" name="perm_ajuda" {% if user['perm_ajuda'] %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </div>
+                </label>
+
+                <!-- Almoxarifado -->
+                <label class="perm-row">
+                    <div class="perm-info">
+                        <span class="perm-title" style="color: #f43f5e;">Almoxarifado (Módulo Premium)</span>
+                        <span class="perm-desc">Pode gerenciar estoque de peças e registrar movimentações de consumíveis.</span>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" name="perm_almoxarifado" {% if user['perm_almoxarifado'] %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </div>
+                </label>
+            </div>
+
+            <div class="actions" style="margin-top: 30px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    <span class="material-icons-round">save</span> Salvar Alterações
+                </button>
+                <a href="{{ url_for('settings.configuracoes') }}" class="btn btn-outline" style="flex: 1;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function togglePasswordVisibility(inputId, iconEl) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        iconEl.textContent = 'visibility';
+    } else {
+        input.type = 'password';
+        iconEl.textContent = 'visibility_off';
+    }
+}
+</script>
+{% endblock %}

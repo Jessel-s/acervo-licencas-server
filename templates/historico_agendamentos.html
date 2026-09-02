@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Histórico de Reservas{% endblock %}
+
+{% block content %}
+<form method="GET" action="{{ url_for('historico_agendamentos') }}" class="table-toolbar">
+    <div class="filter-body">
+        <div class="input-with-icon" style="min-width: 140px;">
+            <input type="date" name="data_inicio" value="{{ data_inicio }}" title="Data Inicial" class="form-input-std">
+        </div>
+        <span style="color: var(--text-muted); font-weight: bold;">até</span>
+        <div class="input-with-icon" style="min-width: 140px;">
+            <input type="date" name="data_fim" value="{{ data_fim }}" title="Data Final" class="form-input-std">
+        </div>
+        
+        <div class="input-with-icon" style="min-width: 180px;">
+            <select name="status" class="form-input-std" style="padding-left: 15px;">
+                <option value="">Todos os Status</option>
+                <option value="Agendado" {% if filtro_status == 'Agendado' %}selected{% endif %}>Agendados (Pendentes)</option>
+                <option value="Realizado" {% if filtro_status == 'Realizado' %}selected{% endif %}>Realizados (Entregues)</option>
+                <option value="Cancelado" {% if filtro_status == 'Cancelado' %}selected{% endif %}>Cancelados</option>
+            </select>
+        </div>
+        
+        <div class="input-with-icon" style="flex: 1;">
+            <span class="material-icons-round">search</span>
+            <input type="text" name="busca" value="{{ filtro_busca }}" placeholder="Buscar Solicitante, Setor ou Código...">
+        </div>
+        
+        <div style="display: flex; gap: 8px;">
+            <button type="submit" class="btn btn-primary">
+                <span class="material-icons-round">search</span> Filtrar
+            </button>
+            <a href="{{ url_for('historico_agendamentos') }}" class="btn btn-outline">
+                <span class="material-icons-round">clear</span> Limpar
+            </a>
+        </div>
+    </div>
+</form>
+
+<div class="table-container">
+    <table class="table dataTable nowrap" id="tabelaHistAgendamentos" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Data Uso</th>
+                <th>Horário</th>
+                <th>Código</th>
+                <th>Solicitante</th>
+                <th>Setor / Destino</th>
+                <th>Itens Reservados</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ag in agendamentos %}
+            <tr>
+                <td data-sort="{{ ag['data_uso'] }}">{{ ag['data_fmt'] }}</td>
+                <td style="font-weight: bold;">{{ ag['horario_retirada'] or '--:--' }} às {{ ag['horario_devolucao'] or '--:--' }}</td>
+                <td style="color: var(--primary); font-weight: 900;">{{ ag['codigo_reserva'] }}</td>
+                <td>{{ ag['solicitante'] }}</td>
+                <td>{{ ag['finalidade'] }}</td>
+                <td style="font-size: 0.85rem; max-width: 250px; white-space: normal; color: var(--text-muted);">
+                    {{ ag['itens_reservados'] or ag['quantidade'] ~ ' item(s)' }}
+                </td>
+                <td>
+                    {% if ag['status'] == 'Realizado' %}
+                        <span class="status-badge status-disponivel">Realizado</span>
+                    {% elif ag['status'] == 'Cancelado' %}
+                        <span class="status-badge status-inativo">Cancelado</span>
+                    {% else %}
+                        <span class="status-badge status-em-uso">Agendado</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>$(document).ready(function() { $('#tabelaHistAgendamentos').DataTable({ language: { url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json" }, order: [[0, "desc"], [1, "desc"]], pageLength: 25, scrollX: true, scrollY: 'calc(100vh - 250px)', scrollCollapse: true }); });</script>
+{% endblock %}

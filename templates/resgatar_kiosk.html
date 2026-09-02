@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Autoatendimento - Resgate{% endblock %}
+
+{% block content %}
+<style>
+    /* Força o modo tela cheia e oculta o cabeçalho no modo Kiosk para ficar parecendo um Totem/Caixa Eletrônico */
+    {% if request.args.get('kiosk') %}
+    .top-header { display: none !important; }
+    .content-wrapper { padding: 0 !important; max-width: 100% !important; height: 100vh !important; display: flex; flex-direction: column; padding-top: 100px !important; }
+    body { background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%) !important; overflow: hidden; }
+
+    /* --- CABEÇALHO DO TOTEM --- */
+    .totem-header {
+        position: fixed;
+        top: 0; left: 0; width: 100%;
+        box-sizing: border-box;
+        background: #0f172a;
+        z-index: 1000;
+        padding: 20px 60px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .totem-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        letter-spacing: -0.5px;
+    }
+
+    .totem-btn-cancelar {
+        background: #ef4444;
+        color: #ffffff;
+        padding: 12px 25px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        transition: 0.3s;
+    }
+    .totem-btn-cancelar:hover {
+        background: #dc2626;
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        transform: translateY(-2px);
+    }
+
+    .kiosk-btn-voltar { display: none !important; }
+    {% endif %}
+</style>
+
+{% if request.args.get('kiosk') %}
+<div class="totem-header">
+    <div class="totem-title">
+        <span class="material-icons-round" style="font-size: 2.8rem; color: #10b981;">qr_code_scanner</span>
+        Resgatar Reserva
+    </div>
+    <a href="{{ url_for('kiosk_home') }}" class="totem-btn-cancelar">
+        <span class="material-icons-round">cancel</span> Cancelar e Voltar
+    </a>
+</div>
+{% endif %}
+
+<div class="kiosk-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 75vh; text-align: center; padding: 20px; position: relative;">
+    
+    <div class="kiosk-card" style="background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 60px 50px; border-radius: 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1); max-width: 700px; width: 100%; border: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden;">
+        
+        <!-- Decoração de fundo -->
+        <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: rgba(59, 130, 246, 0.1); border-radius: 50%; filter: blur(30px);"></div>
+        <div style="position: absolute; bottom: -50px; left: -50px; width: 150px; height: 150px; background: rgba(16, 185, 129, 0.1); border-radius: 50%; filter: blur(30px);"></div>
+
+        <span class="material-icons-round" style="font-size: 80px; color: var(--primary); margin-bottom: 15px; position: relative; z-index: 1;">qr_code_scanner</span>
+        
+        <h1 style="font-size: 2.5rem; margin-bottom: 15px; color: #f8fafc; font-weight: 800; position: relative; z-index: 1;">Resgatar Reserva</h1>
+        
+        <p style="color: var(--text-muted); font-size: 1.15rem; margin-bottom: 40px; position: relative; z-index: 1;">
+            Aponte o leitor USB para o QR Code da reserva<br>ou digite o código de acesso abaixo.
+        </p>
+
+        <form id="formResgate" onsubmit="processarCodigo(event)" style="position: relative; width: 100%; max-width: 450px; margin: 0 auto; z-index: 1;">
+            <input type="text" id="codigo_reserva" name="codigo_reserva" placeholder="Ex: AG1234" autocomplete="off" autofocus
+                   style="width: 100%; padding: 22px 60px 22px 25px; font-size: 2.2rem; text-align: center; border-radius: 16px; border: 2px solid var(--primary); background: rgba(15, 23, 42, 0.8); color: #fff; text-transform: uppercase; letter-spacing: 6px; outline: none; box-shadow: 0 0 25px rgba(59, 130, 246, 0.15); transition: 0.3s;">
+        </form>
+
+        <!-- Mensagem de Sucesso Automática -->
+        {% if request.args.get('success_msg') %}
+        <div style="margin-top: 35px; padding: 20px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; color: #10b981; font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; gap: 10px; animation: fadeIn 0.5s ease; position: relative; z-index: 1;">
+            <span class="material-icons-round" style="font-size: 28px;">verified</span>
+            {{ request.args.get('success_msg') }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Força o input a estar sempre focado, perfeito para carrinhos com leitor USB "Metralhadora"
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = document.getElementById('codigo_reserva');
+        if (input) {
+            input.focus();
+            // Tenta manter o foco se o usuário clicar na área em branco da tela
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+                    input.focus();
+                }
+            });
+        }
+    });
+
+    function processarCodigo(e) {
+        e.preventDefault();
+        let codigo = document.getElementById('codigo_reserva').value.trim().toUpperCase();
+        
+        if (codigo.startsWith('AG') && codigo.length >= 6) {
+            document.getElementById('codigo_reserva').value = '';
+            
+            if (document.body.classList.contains('kiosk-mode')) {
+                document.dispatchEvent(new CustomEvent('scanSuccess', { detail: codigo }));
+            } else {
+                if (typeof window.abrirResgateAgendamento === 'function') {
+                    window.abrirResgateAgendamento(null, codigo);
+                } else {
+                    window.location.href = '/sessoes/efetivar_codigo/' + codigo;
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

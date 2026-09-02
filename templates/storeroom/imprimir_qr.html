@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Etiqueta {{ sku }} - Almoxarifado</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        .controls {
+            margin-bottom: 30px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: inline-block;
+        }
+        .btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 5px;
+            transition: 0.2s;
+        }
+        .btn-print { background: #f43f5e; color: white; }
+        .btn-print:hover { background: #e11d48; }
+        .btn-close { background: #6c757d; color: white; }
+        .btn-close:hover { background: #5a6268; }
+        
+        .label-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: inline-block;
+            border: 2px solid #000;
+        }
+        .label-sku {
+            font-size: 24px;
+            font-weight: 900;
+            font-family: monospace;
+            margin-bottom: 5px;
+        }
+        .label-nome {
+            font-size: 14px;
+            font-weight: bold;
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .no-print { display: none !important; }
+            .label-card { box-shadow: none; border: 1px solid #000; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="controls no-print">
+        <button class="btn btn-print" onclick="window.print()">🖨️ Imprimir Etiqueta</button>
+        <button class="btn btn-close" onclick="window.close()">❌ Fechar Aba</button>
+    </div>
+
+    <div>
+        <div class="label-card">
+            <div class="label-sku">{{ sku }}</div>
+            <img src="{{ qr_base64 }}" alt="QR Code {{ sku }}" style="width: 150px; height: 150px;">
+            <div class="label-nome">{{ nome }}</div>
+        </div>
+    </div>
+</body>
+</html>

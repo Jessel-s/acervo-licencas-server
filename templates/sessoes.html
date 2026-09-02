@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Registros de Uso{% endblock %}
+
+{% block content %}
+<style>
+    .history-toolbar { background: #eef3f4 !important; border-color: #cbd8db !important; }
+    .history-shell { border-radius: 8px; }
+    .history-table { border: 1px solid var(--border-color); border-radius: 7px; overflow: hidden; }
+    .history-table .table { margin: 0; }
+    .history-table .table thead th { background: #dfe8eb !important; color: #30464f !important; }
+    .history-table .table tbody tr:nth-child(even) { background: #f7fafb; }
+    .history-table .table tbody tr:hover { background: #eaf3f4 !important; }
+</style>
+<div class="table-toolbar history-toolbar" style="padding: 1.25rem;">
+    
+    <!-- Painel de Filtros Profissional -->
+    <form method="GET" class="filter-body" style="margin: 0; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; flex: 1;">
+            <div class="input-with-icon" style="min-width: 140px;">
+                <input type="date" name="data_inicio" value="{{ data_inicio }}" title="Data Inicial" style="padding-left: 15px;">
+            </div>
+            <span style="color: var(--text-muted); font-weight: bold;">até</span>
+            <div class="input-with-icon" style="min-width: 140px;">
+                <input type="date" name="data_fim" value="{{ data_fim }}" title="Data Final" style="padding-left: 15px;">
+            </div>
+            
+            <div class="input-with-icon" style="flex: 1;">
+                <span class="material-icons-round">search</span>
+                <input type="text" name="busca" value="{{ filtro_busca }}" placeholder="Buscar Responsável ou Setor...">
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-icons-round">filter_alt</span>
+                    Filtrar
+                </button>
+                <a href="{{ url_for('movements.sessoes') }}" class="btn btn-outline">
+                    <span class="material-icons-round">clear</span>
+                    Limpar
+                </a>
+            </div>
+    </form>
+
+    <!-- Botão de Nova Sessão -->
+    {% if session['perm_movimentacao'] %}
+    <div style="display: flex; align-items: flex-start; margin-left: auto;">
+    <a href="{{ url_for('movements.registrar_sessao') }}" class="btn btn-primary">
+        <span class="material-icons-round">add</span> Nova Sessão
+    </a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="table-container history-table">
+    <table class="table" id="tabelaSessoes" style="width:100%">
+        <thead>
+            <tr>
+                <th>Data Início</th>
+                <th>Turma</th>
+                <th>Professor</th>
+                <th>Operador (TI)</th>
+                <th>Programa</th>
+                <th>Previsão de Devolução</th>
+                <th>Qtd</th>
+                <th>Itens (IDs)</th>
+                <th>Observações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sessao in sessoes %}
+            <tr>
+                <!-- Ordenação correta da data para o DataTables -->
+                <td data-sort="{{ sessao['data_inicio'] }}">{{ sessao['data_formatada'] }}</td>
+                <td>{{ sessao['turma'] }}</td>
+                <td>{{ sessao['professor'] }}</td>
+                <td><span class="status-badge" style="background: rgba(14, 165, 233, 0.1); color: #0ea5e9;">{{ sessao['usuario_movimentacao'] }}</span></td>
+                <td><span class="status-badge status-disponivel">{{ sessao['programa'] }}</span></td>
+                <td>{{ sessao['previsao_devolucao'] or 'Não informada' }}</td>
+                <td style="font-weight: bold; text-align: center;">{{ sessao['quantidade_notebooks'] }}</td>
+                <td style="font-size: 0.9em; color: var(--text-muted); max-width: 300px;">
+                    {{ sessao['lista_itens'] or 'Não registrado' }}
+                </td>
+                <td>{{ sessao['observacoes'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    $(document).ready(function() {
+        var table = $('#tabelaSessoes').DataTable({
+            "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json" },
+            "order": [[ 0, "desc" ]], // Ordena pela primeira coluna (Data) decrescente
+            "pageLength": 25,
+            "scrollX": true,
+            scrollY: 'calc(100vh - 280px)', // Trava os filtros no topo
+            scrollCollapse: true,
+            dom: "<'d-flex justify-between align-center'Bf>tr<'d-flex justify-between align-center'lip>",
+            buttons: [
+                {
+                    extend: 'collection',
+                    text: '<span class="material-icons-round" style="font-size: 1.2rem;">import_export</span> Exportar',
+                    className: 'dt-export-btn',
+                    autoClose: true,
+                    buttons: [
+                        { extend: 'excelHtml5', text: '<span class="material-icons-round" style="color: #10b981;">table_view</span> Excel (.xlsx)' },
+                        { extend: 'pdfHtml5', text: '<span class="material-icons-round" style="color: #ef4444;">picture_as_pdf</span> Documento PDF (.pdf)', orientation: 'landscape', pageSize: 'A4', customize: function(doc) {
+                            doc.defaultStyle.fontSize = 8; doc.styles.tableHeader.fontSize = 9; doc.pageMargins = [20, 30, 20, 30];
+                            doc.defaultStyle.alignment = 'left'; doc.styles.tableHeader.alignment = 'left';
+                            doc.content[1].table.widths = ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', '*'];
+                        }}
+                    ]
+                }
+            ]
+        });
+    });
+</script>
+<!-- O estilo agora vem de static/style.css -->
+{% endblock %}

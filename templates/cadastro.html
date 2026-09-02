@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Cadastrar Novo Ativo{% endblock %}
+
+{% block content %}
+<div class="d-flex" style="justify-content: center;">
+    <div class="form-container card" style="max-width: 800px; width: 100%;">
+        
+        <form method="POST" onsubmit="window.showLoader('Cadastrando Equipamento...')">
+            <!-- Token de Segurança CSRF -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Patrimônio / ID (Obrigatório)</label>
+                    <input type="text" name="id" placeholder="Ex: NB001 ou Código de Barras" required autofocus style="font-weight: bold; text-transform: uppercase;">
+                    <small style="color: var(--text-muted);">Este será o código único do equipamento.</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>Tipo de Ativo</label>
+                    <input type="text" name="tipo" placeholder="EX: NOTEBOOK, MONITOR..." required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Modelo</label>
+                    <input type="text" name="modelo" placeholder="DESCRIÇÃO DO MODELO" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                
+                <div class="form-group">
+                    <label>Nº de Controle (Opcional)</label>
+                    <input type="number" name="numero_carrinho" value="{{ sugestao_controle }}" placeholder="Ex: 1, 2, 3...">
+                    <small style="color: var(--text-muted);">Número único para controle interno (Ex: Posição no carrinho).</small>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Localização Inicial</label>
+                    <input type="text" name="localizacao" placeholder="LOCAL ONDE FICA GUARDADO" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="form-group">
+                    <label>Número de Série (Opcional)</label>
+                    <input type="text" name="numero_serie" placeholder="EX: SERVICE TAG, IMEI..." style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Data da Compra / Chegada (Opcional)</label>
+                <input type="date" name="data_compra" style="padding: 10px; border-radius: 5px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); cursor: pointer; max-width: 200px;">
+            </div>
+
+            <div class="form-group">
+                <label>Observações</label>
+                <textarea name="observacoes" rows="3" placeholder="DETALHES ADICIONAIS, NÚMERO DE SÉRIE..." style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"></textarea>
+            </div>
+
+            <div class="actions" style="margin-top: 30px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    <span class="material-icons-round">save</span> Cadastrar Ativo
+                </button>
+                <a href="{{ url_for('inventory.inventario') }}" class="btn btn-outline" style="flex: 1;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

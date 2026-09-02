@@ -1,0 +1,12 @@
+flask
+flask-wtf
+pandas
+openpyxl
+pillow
+qrcode
+pyopenssl
+werkzeug
+pyinstaller
+Flask-SQLAlchemy
+Flask-Migrate
+pyarmor

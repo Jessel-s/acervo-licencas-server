@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Visão Geral do Help Desk{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- KPIs: Indicadores Principais -->
+<div class="dashboard-grid section-gap">
+    <div class="card card-colored c-blue">
+        <div class="card-icon"><span class="material-icons-round">support_agent</span></div>
+        <div class="card-content">
+            <h3>Chamados em Aberto</h3>
+            <div class="card-value">{{ abertos }}</div>
+        </div>
+    </div>
+
+    <div class="card card-colored c-red">
+        <div class="card-icon"><span class="material-icons-round">warning</span></div>
+        <div class="card-content">
+            <h3>Prioridade Alta / Crítica</h3>
+            <div class="card-value">{{ criticos }}</div>
+        </div>
+    </div>
+
+    <div class="card card-colored c-green">
+        <div class="card-content" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+            <div style="display: flex; align-items: center;">
+                <div class="card-icon"><span class="material-icons-round">task_alt</span></div>
+                <div>
+                    <h3>Total Resolvidos</h3>
+                    <div class="card-value">{{ resolvidos }}</div>
+                </div>
+            </div>
+            {% if session['perm_movimentacao'] %}
+            <a href="{{ url_for('maintenance.nova_manutencao') }}" class="btn btn-outline">
+                <span class="material-icons-round">add</span> Novo
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Sessão de Gráficos -->
+<div class="dashboard-grid section-gap" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
+    
+    <!-- Gráfico 1: Por Categoria -->
+    <div class="card" style="display: flex; flex-direction: column; align-items: center;">
+        <h3 class="card-header" style="width: 100%; text-align: center; border-bottom: none;">Tickets por Categoria</h3>
+        <div style="width: 100%; max-width: 300px; margin-top: -10px;">
+            <canvas id="chartCategorias"></canvas>
+        </div>
+        {% if cat_data|length == 0 %}
+            <p style="color: var(--text-muted); margin-top: 20px; font-style: italic;">Nenhum chamado aberto.</p>
+        {% endif %}
+    </div>
+
+    <!-- Gráfico 2: Por Prioridade -->
+    <div class="card" style="display: flex; flex-direction: column; align-items: center;">
+        <h3 class="card-header" style="width: 100%; text-align: center; border-bottom: none;">Tickets por Prioridade</h3>
+        <div style="width: 100%; max-width: 300px; margin-top: -10px;">
+            <canvas id="chartPrioridades"></canvas>
+        </div>
+        {% if prio_data|length == 0 %}
+            <p style="color: var(--text-muted); margin-top: 20px; font-style: italic;">Nenhum chamado aberto.</p>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Fila de Atendimento (Recentes) -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <span><span class="material-icons-round" style="vertical-align: middle; color: var(--primary);">list_alt</span> Últimos Chamados Recebidos</span>
+        <a href="{{ url_for('maintenance.problemas') }}" class="btn btn-primary btn-sm" style="font-size: 0.8rem; border-radius: 50px; padding: 6px 15px;">
+            Ver Fila Completa <span class="material-icons-round" style="font-size: 16px;">arrow_forward</span>
+        </a>
+    </div>
+    
+    <div style="overflow-x: auto;">
+        <table class="table" style="margin-top: 0;">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Local / Incidente</th>
+                    <th>Categoria</th>
+                    <th>Prioridade</th>
+                    <th>Defeito</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in recentes %}
+                <tr>
+                    <td style="white-space: nowrap; color: var(--text-muted); font-size: 0.85rem;">{{ p['data_fmt'] }}</td>
+                    <td>
+                        <div style="font-weight: bold; color: var(--text-main);">{{ p['local_incidente'] or 'NÃO INFORMADO' }}</div>
+                        {% if p['notebook_id'] %}
+                        <div style="font-size: 0.8rem; color: var(--primary); margin-top: 2px;"><span class="material-icons-round" style="font-size: 12px; vertical-align: middle;">devices</span> {{ p['notebook_id'] }}</div>
+                        {% endif %}
+                    </td>
+                    <td><span class="perm-tag">{{ p['categoria'] }}</span></td>
+                    <td>
+                        {% if p['prioridade'] == 'Baixa' %}
+                            <span style="color: var(--success); font-weight: 600;"><span class="material-icons-round" style="font-size: 14px; vertical-align: middle;">arrow_downward</span> Baixa</span>
+                        {% elif p['prioridade'] == 'Normal' %}
+                            <span style="color: var(--info); font-weight: 600;"><span class="material-icons-round" style="font-size: 14px; vertical-align: middle;">remove</span> Normal</span>
+                        {% elif p['prioridade'] == 'Alta' %}
+                            <span style="color: var(--warning); font-weight: 600;"><span class="material-icons-round" style="font-size: 14px; vertical-align: middle;">arrow_upward</span> Alta</span>
+                        {% elif p['prioridade'] == 'Crítica' %}
+                            <span style="color: var(--danger); font-weight: 800;"><span class="material-icons-round" style="font-size: 14px; vertical-align: middle;">warning</span> Crítica</span>
+                        {% endif %}
+                    </td>
+                    <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <strong>{{ p['tipo_problema'] }}</strong>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                        Nenhum chamado aberto na fila no momento.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Variáveis de Cores do Sistema
+    const style = getComputedStyle(document.body);
+    const corAzul = style.getPropertyValue('--primary').trim() || '#4f46e5';
+    const corVerde = style.getPropertyValue('--success').trim() || '#059669';
+    const corVermelho = style.getPropertyValue('--danger').trim() || '#dc2626';
+    const corAmarelo = style.getPropertyValue('--warning').trim() || '#f59e0b';
+    const corAzulClaro = style.getPropertyValue('--info').trim() || '#0ea5e9';
+    const corSecundaria = style.getPropertyValue('--secondary').trim() || '#475569';
+
+    // Configuração Global do Chart.js para combinar com Tema Escuro/Claro
+    Chart.defaults.color = style.getPropertyValue('--text-main').trim() || '#94a3b8';
+    {% if cat_data|length > 0 %}
+    // Gráfico de Categorias
+    const ctxCat = document.getElementById('chartCategorias').getContext('2d');
+    new Chart(ctxCat, {
+        type: 'doughnut',
+        data: {
+            labels: [{% for c in cat_data %}'{{ c['categoria'] }}',{% endfor %}],
+            datasets: [{
+                data: [{% for c in cat_data %}{{ c['qtd'] }},{% endfor %}],
+                backgroundColor: [corAzul, corAzulClaro, corVerde, corAmarelo, corSecundaria],
+                borderWidth: 2,
+                borderColor: style.getPropertyValue('--bg-card').trim() || '#ffffff'
+            }]
+        },
+        options: { cutout: '65%', plugins: { legend: { position: 'bottom' } } }
+    });
+    {% endif %}
+
+    {% if prio_data|length > 0 %}
+    // Gráfico de Prioridades
+    const ctxPrio = document.getElementById('chartPrioridades').getContext('2d');
+    // Função para mapear cores da prioridade
+    const prioLabels = [{% for p in prio_data %}'{{ p['prioridade'] }}',{% endfor %}];
+    const prioCores = prioLabels.map(p => p === 'Crítica' ? corVermelho : (p === 'Alta' ? corAmarelo : (p === 'Baixa' ? corVerde : corAzulClaro)));
+
+    new Chart(ctxPrio, {
+        type: 'doughnut',
+        data: {
+            labels: prioLabels,
+            datasets: [{
+                data: [{% for p in prio_data %}{{ p['qtd'] }},{% endfor %}],
+                backgroundColor: prioCores,
+                borderWidth: 2,
+                borderColor: style.getPropertyValue('--bg-card').trim() || '#ffffff'
+            }]
+        },
+        options: { cutout: '65%', plugins: { legend: { position: 'bottom' } } }
+    });
+    {% endif %}
+</script>
+{% endblock %}

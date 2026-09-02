@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Histórico de Devoluções{% endblock %}
+
+{% block content %}
+<style>
+    .history-toolbar { background: #eef3f4 !important; border-color: #cbd8db !important; }
+    .history-table { border: 1px solid var(--border-color); border-radius: 7px; overflow: hidden; }
+    .history-table .table { margin: 0; }
+    .history-table .table thead th { background: #dfe8eb !important; color: #30464f !important; }
+    .history-table .table tbody tr:nth-child(even) { background: #f7fafb; }
+    .history-table .table tbody tr:hover { background: #eaf3f4 !important; }
+    .history-value { color: var(--text-main) !important; opacity: 1 !important; visibility: visible !important; white-space: nowrap; }
+    .history-id { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--primary) !important; }
+    .history-operator { background: #e3f0f3 !important; color: #145565 !important; border-color: #bdd9df !important; }
+    .history-observation { white-space: normal; min-width: 220px; color: var(--text-main) !important; }
+</style>
+<div class="card history-shell">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>Registro de Devoluções</span>
+        <a href="{{ url_for('movements.registrar_devolucao') }}" class="btn btn-success">
+            <span class="material-icons-round">qr_code_scanner</span> Nova Devolução
+        </a>
+    </div>
+
+    <form method="GET" class="table-toolbar history-toolbar" style="padding: 1.25rem; border-bottom: 1px solid var(--border-soft); margin: 0;">
+        <!-- Painel de Filtros Profissional -->
+        <div class="filter-body">
+            <div class="input-with-icon" style="min-width: 140px;">
+                <input type="date" name="data_inicio" value="{{ data_inicio }}" title="Data Inicial" style="padding-left: 15px;">
+            </div>
+            <span style="color: var(--text-muted); font-weight: bold;">até</span>
+            <div class="input-with-icon" style="min-width: 140px;">
+                <input type="date" name="data_fim" value="{{ data_fim }}" title="Data Final" style="padding-left: 15px;">
+            </div>
+            
+            <div class="input-with-icon" style="flex: 1;">
+                <span class="material-icons-round">search</span>
+                <input type="text" name="busca" value="{{ filtro_busca }}" placeholder="Buscar ID ou Responsável...">
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-icons-round">search</span>
+                    Filtrar
+                </button>
+                <a href="{{ url_for('movements.historico_devolucoes') }}" class="btn btn-outline">
+                    <span class="material-icons-round">clear</span>
+                    Limpar
+                </a>
+            </div>
+        </div>
+    </form>
+
+    <div class="table-container history-table">
+        <table id="tabelaDevolucoes" class="table" style="width:100%; min-width: 700px;">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Movimento</th>
+                    <th>ID (Patrimônio)</th>
+                    <th>Tipo/Modelo</th>
+                    <th>Responsável pela Devolução</th>
+                    <th>Observação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dev in devolucoes %}
+                <tr>
+                    <td data-sort="{{ dev.data }}">{{ dev.data_formatada }}</td>
+                    <td class="history-value"><span class="status-badge status-disponivel">{{ dev['tipo_movimentacao'] }}</span></td>
+                    <td class="history-value history-id">{{ dev['id_etiqueta'] }}</td>
+                    <td class="history-value">{{ dev['tipo'] }} - {{ dev['modelo'] }}</td>
+                    <td class="history-value"><span class="status-badge history-operator">{{ dev['responsavel_devolucao'] }}</span></td>
+                    <td class="history-value history-observation">
+                        {{ dev['obs'] or 'Sem observação' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        var table = $('#tabelaDevolucoes').DataTable({
+            language: { url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json" },
+            order: [[0, 'desc']], // Ordena pela data (coluna 0) decrescente
+            pageLength: 25,
+            scrollX: true,
+            scrollY: 'calc(100vh - 250px)', // Trava o botão no topo
+            scrollCollapse: true,
+            dom: "<'d-flex justify-between align-center'Bf>tr<'d-flex justify-between align-center'lip>",
+            buttons: [
+                {
+                    extend: 'collection',
+                    text: '<span class="material-icons-round" style="font-size: 1.2rem;">import_export</span> Exportar',
+                    className: 'dt-export-btn',
+                    autoClose: true,
+                    buttons: [
+                        { extend: 'excelHtml5', text: '<span class="material-icons-round" style="color: #10b981;">table_view</span> Excel (.xlsx)' },
+                        { extend: 'pdfHtml5', text: '<span class="material-icons-round" style="color: #ef4444;">picture_as_pdf</span> Documento PDF (.pdf)', orientation: 'landscape', pageSize: 'A4', customize: function(doc) {
+                            doc.defaultStyle.fontSize = 8; doc.styles.tableHeader.fontSize = 9; doc.pageMargins = [20, 30, 20, 30];
+                            doc.defaultStyle.alignment = 'left'; doc.styles.tableHeader.alignment = 'left';
+                            doc.content[1].table.widths = ['auto', 'auto', 'auto', 'auto', '*'];
+                        }}
+                    ]
+                }
+            ]
+        });
+    });
+</script>
+{% endblock %}

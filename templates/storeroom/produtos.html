@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Catálogo de Peças (Almoxarifado){% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <h2 class="card-header" style="margin: 0; border: none; padding: 0;"><span class="material-icons-round" style="color: #f43f5e; vertical-align: bottom;">category</span> Gerenciar Produtos</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('storeroom.importar') }}" class="btn btn-outline" style="text-decoration: none;">
+                <span class="material-icons-round">upload_file</span> Importar Planilha
+            </a>
+            <button class="btn btn-primary" style="background-color: #f43f5e;" onclick="document.getElementById('modalNovoProduto').style.display='flex'">
+                <span class="material-icons-round">add</span> NOVO PRODUTO
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="table dataTable" id="tabelaProdutos">
+        <thead>
+            <tr>
+                <th style="text-align: left;">SKU</th>
+                <th style="text-align: left;">Nome do Produto</th>
+                <th style="text-align: left;">Categoria</th>
+                <th style="text-align: left;">Estoque Atual</th>
+                <th style="text-align: left;">Mínimo</th>
+                <th style="text-align: left;">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in produtos %}
+            <tr>
+                <td style="font-family: monospace; font-weight: bold; color: var(--info);">{{ p.sku }}</td>
+                <td><strong style="color: var(--text-main);">{{ p.nome }}</strong></td>
+                <td><span class="status-badge" style="background: rgba(255,255,255,0.1); color: var(--text-muted); border: none;">{{ p.categoria or 'Geral' }}</span></td>
+                <td>
+                    {% if p.quantidade_atual <= p.estoque_minimo %}
+                        <span style="color: #ef4444; font-weight: 900; font-size: 1.1rem;">{{ p.quantidade_atual }}</span> <span class="material-icons-round" style="color: #ef4444; font-size: 16px; vertical-align: middle;">warning</span>
+                    {% else %}
+                        <span style="color: #10b981; font-weight: 900; font-size: 1.1rem;">{{ p.quantidade_atual }}</span>
+                    {% endif %}
+                </td>
+                <td style="color: var(--text-muted);">{{ p.estoque_minimo }}</td>
+                <td>
+                    <div class="table-actions" style="display: flex; gap: 5px;">
+                        <a href="{{ url_for('storeroom.imprimir_qr', id=p.id) }}" target="_blank" class="icon-btn" title="Imprimir QR Code" style="width: 32px; height: 32px; color: #818cf8; border-color: rgba(129, 140, 248, 0.2); display: flex; align-items: center; justify-content: center; text-decoration: none;">
+                            <span class="material-icons-round" style="font-size: 18px;">qr_code_2</span>
+                        </a>
+                        <button class="icon-btn" title="Editar" style="width: 32px; height: 32px;" onclick="abrirEdicao({{ p.id }}, '{{ p.sku }}', '{{ p.nome|replace("'", "\\'") }}', '{{ p.categoria }}', {{ p.estoque_minimo }})">
+                            <span class="material-icons-round" style="font-size: 18px;">edit</span>
+                        </button>
+                        <form action="{{ url_for('storeroom.remover_produto', id=p.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('Tem certeza que deseja remover este produto? O histórico de movimentações dele também será apagado.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="icon-btn" title="Remover" style="width: 32px; height: 32px; color: #ef4444; border-color: rgba(239, 68, 68, 0.2);">
+                                <span class="material-icons-round" style="font-size: 18px;">delete</span>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal Novo Produto -->
+<div id="modalNovoProduto" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 500px; padding: 2rem;">
+        <h2 style="margin-top: 0; color: white;">Cadastrar Novo Produto</h2>
+        <form action="{{ url_for('storeroom.novo_produto') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>SKU (Código Único)</label>
+                <input type="text" name="sku" placeholder="Ex: CABO-HDMI-2M" required style="text-transform: uppercase; width: 100%; box-sizing: border-box;" oninput="this.value = this.value.toUpperCase();">
+            </div>
+            <div class="form-group">
+                <label>Nome do Produto</label>
+                <input type="text" name="nome" placeholder="Ex: Cabo HDMI 2 Metros" required style="text-transform: uppercase; width: 100%; box-sizing: border-box;" oninput="this.value = this.value.toUpperCase();">
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label>Categoria</label>
+                    <select name="categoria" style="width: 100%; box-sizing: border-box;">
+                        <option value="Periféricos">Periféricos (Mouse, Teclado)</option>
+                        <option value="Cabos">Cabos e Adaptadores</option>
+                        <option value="Peças">Peças (RAM, SSD, Fontes)</option>
+                        <option value="Suprimentos">Suprimentos (Toner, Papel)</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Qtd Inicial</label>
+                    <input type="number" name="quantidade_inicial" value="0" min="0" required style="width: 100%; box-sizing: border-box;">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Estoque Mínimo</label>
+                    <input type="number" name="estoque_minimo" value="5" min="0" required style="width: 100%; box-sizing: border-box;">
+                </div>
+            </div>
+            <div class="actions" style="margin-top: 1rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-outline" onclick="document.getElementById('modalNovoProduto').style.display='none'">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Produto</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Editar Produto -->
+<div id="modalEditarProduto" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 500px; padding: 2rem;">
+        <h2 style="margin-top: 0; color: white;">Editar Produto</h2>
+        <form id="formEditarProduto" action="" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>SKU (Não editável)</label>
+                <input type="text" id="editSku" disabled style="background: rgba(255,255,255,0.05); color: var(--text-muted);">
+            </div>
+            <div class="form-group">
+                <label>Nome do Produto</label>
+                <input type="text" name="nome" id="editNome" required style="text-transform: uppercase; width: 100%; box-sizing: border-box;" oninput="this.value = this.value.toUpperCase();">
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label>Categoria</label>
+                    <select name="categoria" id="editCategoria" style="width: 100%; box-sizing: border-box;">
+                        <option value="Periféricos">Periféricos (Mouse, Teclado)</option>
+                        <option value="Cabos">Cabos e Adaptadores</option>
+                        <option value="Peças">Peças (RAM, SSD, Fontes)</option>
+                        <option value="Suprimentos">Suprimentos (Toner, Papel)</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Estoque Mínimo</label>
+                    <input type="number" name="estoque_minimo" id="editMinimo" min="0" required style="width: 100%; box-sizing: border-box;">
+                </div>
+            </div>
+            <div class="actions" style="margin-top: 1rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-outline" onclick="document.getElementById('modalEditarProduto').style.display='none'">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function abrirEdicao(id, sku, nome, categoria, minimo) {
+    document.getElementById('editSku').value = sku;
+    document.getElementById('editNome').value = nome;
+    
+    // Se a categoria vier vazia, default para 'Outros' (ou tente selecionar o que veio)
+    let catSelect = document.getElementById('editCategoria');
+    let found = false;
+    for(let i=0; i<catSelect.options.length; i++) {
+        if(catSelect.options[i].value === categoria) {
+            catSelect.selectedIndex = i;
+            found = true;
+            break;
+        }
+    }
+    if(!found) catSelect.value = 'Outros';
+    
+    document.getElementById('editMinimo').value = minimo;
+    document.getElementById('formEditarProduto').action = "{{ url_for('storeroom.editar_produto', id=0) }}".replace('/0', '/' + id);
+    document.getElementById('modalEditarProduto').style.display = 'flex';
+}
+</script>
+
+<script>
+$(document).ready(function() {
+    $('#tabelaProdutos').DataTable({
+        language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json' },
+        pageLength: 25
+    });
+});
+</script>
+{% endblock %}

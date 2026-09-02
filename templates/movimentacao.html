@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Movimentação{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <!-- Leitor QR -->
+    <div id="reader" style="width: 100%; display: none;"></div>
+    <button type="button" class="btn-qr" onclick="startScanner()">
+        <span class="material-icons-round">qr_code_scanner</span> Ler QR Code
+    </button>
+
+    <form method="POST">
+        <div class="form-group">
+            <label>ID do Notebook</label>
+            <input type="text" name="id" id="id_input" placeholder="Escaneie ou digite..." required>
+        </div>
+        
+        <div class="form-group">
+            <label>Usuário / Responsável</label>
+            <input type="text" name="usuario" placeholder="Nome de quem vai retirar">
+        </div>
+
+        <div class="form-group">
+            <label>Local de Uso</label>
+            <input type="text" name="local" placeholder="Ex: Sala 10, Laboratório 3, Home Office" required>
+        </div>
+        <div class="actions">
+            <button type="submit" name="acao" value="emprestar" class="btn btn-primary">Emprestar</button>
+            <button type="submit" name="acao" value="devolver" class="btn btn-danger">Devolver</button>
+        </div>
+    </form>
+</div>
+
+<!-- Biblioteca JS para QR Code -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+    function startScanner() {
+        document.getElementById('reader').style.display = 'block';
+        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText, decodedResult) => {
+                // Sucesso
+                document.getElementById('id_input').value = decodedText;
+                html5QrCode.stop();
+                document.getElementById('reader').style.display = 'none';
+            },
+            (errorMessage) => {
+                // Erro de leitura (ignorar)
+            }
+        ).catch(err => {
+            console.log(err);
+        });
+    }
+</script>
+{% endblock %}

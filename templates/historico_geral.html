@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Histórico Geral{% endblock %}
+
+{% block content %}
+<div class="table-toolbar" style="padding: 1.25rem;">
+    
+    <!-- Painel de Filtros Profissional -->
+    <form method="GET" class="filter-body" style="margin: 0; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; flex: 1;">
+            <div class="input-with-icon" style="min-width: 140px;">
+                <input type="date" name="data_inicio" value="{{ data_inicio }}" title="Data Inicial" style="padding-left: 15px;">
+            </div>
+            <span style="color: var(--text-muted); font-weight: bold;">até</span>
+            <div class="input-with-icon" style="min-width: 140px;">
+                <input type="date" name="data_fim" value="{{ data_fim }}" title="Data Final" style="padding-left: 15px;">
+            </div>
+            
+            <div class="input-with-icon" style="flex: 1;">
+                <span class="material-icons-round">search</span>
+                <input type="text" name="busca" value="{{ filtro_busca }}" placeholder="Buscar Equipamento, Responsável ou Obs...">
+            </div>
+
+            <div class="input-with-icon">
+                <select name="acao" style="padding-left: 15px;">
+                    <option value="">Ação: Todas</option>
+                    {% for a in acoes %}
+                    <option value="{{ a['acao'] }}" {% if filtro_acao == a['acao'] %}selected{% endif %}>{{ a['acao'] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-icons-round">filter_alt</span>
+                    Filtrar
+                </button>
+                <a href="{{ url_for('inventory.historico_geral') }}" class="btn btn-outline">
+                    <span class="material-icons-round">clear</span>
+                    Limpar
+                </a>
+            </div>
+    </form>
+</div>
+
+<div class="table-container">
+    <table class="table" id="tabelaHistorico" style="width:100%; min-width: 800px;">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Equipamento (ID)</th>
+                <th>Ação</th>
+                <th>Operador (Sistema)</th>
+                <th>Responsável (Destino)</th>
+                <th>Observações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for registro in history %}
+            <tr>
+                <!-- Ordenação correta da data -->
+                <td data-sort="{{ registro['data'] }}">{{ registro['data_formatada'] }}</td>
+                <td style="font-weight: bold;">{{ registro['id_etiqueta'] }}</td>
+                <td>
+                    {% if registro['acao'] == 'Saída/Empréstimo' %}
+                        <span class="status-badge status-em-uso">Saída</span>
+                    {% elif registro['acao'] == 'Devolução' %}
+                        <span class="status-badge status-disponivel">Devolução</span>
+                    {% elif 'Manutenção' in registro['acao'] %}
+                        <span class="status-badge status-manutencao">{{ registro['acao'] }}</span>
+                    {% else %}
+                        <span class="status-badge" style="background-color: var(--bg-body); border: 1px solid var(--border-color);">{{ registro['acao'] }}</span>
+                    {% endif %}
+                </td>
+                <td><span class="status-badge" style="background: rgba(14, 165, 233, 0.1); color: #0ea5e9;">{{ registro['usuario'] }}</span></td>
+                <td>{{ registro['responsavel'] if registro['responsavel'] and registro['responsavel'] != '-' else '<span style="color: var(--text-muted);">-</span>'|safe }}</td>
+                <td style="font-size: 0.9em; color: var(--text-muted);">{{ registro['obs'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    $(document).ready(function() {
+        var table = $('#tabelaHistorico').DataTable({
+            order: [[ 0, "desc" ]], // Ordena pela data (coluna 0) decrescente
+            pageLength: 25,
+            scrollX: true,
+            scrollY: 'calc(100vh - 280px)', // Trava os filtros no topo
+            scrollCollapse: true,
+            dom: "<'d-flex justify-between align-center'Bf>tr<'d-flex justify-between align-center'lip>",
+            buttons: [
+                {
+                    extend: 'collection',
+                    text: '<span class="material-icons-round" style="font-size: 1.2rem;">import_export</span> Exportar',
+                    className: 'dt-export-btn',
+                    autoClose: true,
+                    buttons: [
+                        { extend: 'excelHtml5', text: '<span class="material-icons-round" style="color: #10b981;">table_view</span> Excel (.xlsx)' },
+                        { extend: 'pdfHtml5', text: '<span class="material-icons-round" style="color: #ef4444;">picture_as_pdf</span> Documento PDF (.pdf)', orientation: 'landscape', pageSize: 'A4', customize: function(doc) {
+                            doc.defaultStyle.fontSize = 8; doc.styles.tableHeader.fontSize = 9; doc.pageMargins = [20, 30, 20, 30];
+                            doc.defaultStyle.alignment = 'left'; doc.styles.tableHeader.alignment = 'left';
+                            doc.content[1].table.widths = ['auto', 'auto', 'auto', 'auto', 'auto', '*'];
+                        }}
+                    ]
+                }
+            ]
+        });
+    });
+</script>
+<!-- O estilo agora vem de static/style.css -->
+{% endblock %}
