@@ -1,0 +1,31 @@
+name: Deploy Edge Functions (Supabase)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/deploy-functions.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Publicar Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
+        run: |
+          supabase functions deploy criar-cliente --project-ref "$SUPABASE_PROJECT_ID"
+          supabase functions deploy validar-licenca --project-ref "$SUPABASE_PROJECT_ID"
+          supabase functions deploy sincronizar-operacoes --project-ref "$SUPABASE_PROJECT_ID"
+          supabase functions deploy webhook-pagamento --project-ref "$SUPABASE_PROJECT_ID"

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, flash, g, send_file
+from flask import Blueprint, current_app, render_template, request, jsonify, redirect, url_for, session, flash, g, send_file
 from datetime import datetime
 from functools import wraps
 from sqlalchemy import func
@@ -10,8 +10,23 @@ import pandas as pd
 from PIL import Image, ImageDraw, ImageFont # Importação mantida, mesmo que não usada neste diff
 from models import db, AlmoxProduto, AlmoxMovimentacao
 from auth import login_required, permission_required
+from sync_queue import enqueue_storeroom_movement, enqueue_storeroom_product
 
 storeroom_bp = Blueprint('storeroom', __name__, url_prefix='/almoxarifado')
+
+
+def _queue_product_sync(product, operation='upsert'):
+    try:
+        enqueue_storeroom_product(product, operation)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do produto %s.', product.id)
+
+
+def _queue_movement_sync(movement, operation='upsert'):
+    try:
+        enqueue_storeroom_movement(movement, operation)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente da movimentacao %s.', movement.id)
 
 @storeroom_bp.route('/')
 @login_required
@@ -115,6 +130,9 @@ def novo_produto():
             db.session.add(nova_movimentacao)
             
         db.session.commit()
+        _queue_product_sync(novo_produto)
+        if quantidade_inicial > 0:
+            _queue_movement_sync(nova_movimentacao)
         flash(f'Produto {nome} cadastrado com sucesso!', 'success')
     except Exception as e:
         db.session.rollback()
@@ -141,6 +159,7 @@ def editar_produto(id):
         produto.categoria = categoria
         produto.estoque_minimo = estoque_minimo
         db.session.commit()
+        _queue_product_sync(produto)
     flash(f'Produto atualizado com sucesso!', 'success')
     return redirect(url_for('storeroom.listar_produtos'))
 
@@ -151,10 +170,17 @@ def remover_produto(id):
     """Remove um produto e seu histórico de movimentações."""
     produto = db.session.get(AlmoxProduto, id) # MODERNIZADO
     if produto:
+        produto_id = produto.id
+        movimentacoes = AlmoxMovimentacao.query.filter_by(produto_id=id).all()
         # O SQLAlchemy cuidará da remoção em cascata se configurado, mas é mais seguro fazer manualmente para SQLite
         AlmoxMovimentacao.query.filter_by(produto_id=id).delete()
         db.session.delete(produto)
         db.session.commit()
+        for movimentacao in movimentacoes:
+            _queue_movement_sync(movimentacao, 'delete')
+        class RemovedProduct:
+            id = produto_id
+        _queue_product_sync(RemovedProduct(), 'delete')
         flash('Produto removido com sucesso!', 'success')
     else:
         flash('Produto não encontrado.', 'danger')
@@ -210,6 +236,8 @@ def movimentar_estoque():
     db.session.add(nova_movimentacao)
     
     db.session.commit()
+    _queue_product_sync(produto)
+    _queue_movement_sync(nova_movimentacao)
     flash(f'Tudo certo! A {tipo.capitalize()} de <b>{quantidade}x {produto.nome}</b> foi registrada com sucesso!', 'success')
     
     return redirect(url_for('storeroom.dashboard'))
@@ -329,6 +357,8 @@ def importar():
 
             usuario = session.get('username', 'Sistema')
             cadastrados = 0
+            produtos_importados = []
+            movimentacoes_importadas = []
             
             for index, row in df.iterrows():
                 sku = str(row['SKU']).strip().upper()
@@ -356,15 +386,21 @@ def importar():
                 )
                 db.session.add(novo_produto)
                 db.session.flush()
+                produtos_importados.append(novo_produto)
                 
                 if qtd_inicial > 0:
                     nova_movimentacao = AlmoxMovimentacao(produto_id=novo_produto.id, tipo='ENTRADA', quantidade=qtd_inicial,
                                                         usuario=usuario, destino_id='Estoque Inicial Lote', observacao='Importação em Lote')
                     db.session.add(nova_movimentacao)
+                    movimentacoes_importadas.append(nova_movimentacao)
                 
                 cadastrados += 1
             
             db.session.commit()
+            for produto in produtos_importados:
+                _queue_product_sync(produto)
+            for movimentacao in movimentacoes_importadas:
+                _queue_movement_sync(movimentacao)
             flash(f'Importação concluída com Sucesso! {cadastrados} produtos adicionados ao catálogo.', 'success')
             return redirect(url_for('storeroom.listar_produtos'))
             

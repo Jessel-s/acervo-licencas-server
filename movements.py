@@ -1,10 +1,39 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, g
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, session, g
 from datetime import datetime, timedelta
 from sqlalchemy import func, and_
 
-from models import db, SessaoUso, Historico, Agendamento, Notebook
+from models import db, SessaoUso, Historico, Agendamento, Ativo
 from auth import login_required, permission_required
 from utils import trigger_iot_relay
+from sync_queue import enqueue_asset, enqueue_booking, enqueue_history, enqueue_session
+
+
+def _queue_asset_sync(asset):
+    try:
+        enqueue_asset(asset)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do ativo %s.', asset.id)
+
+
+def _queue_session_sync(session):
+    try:
+        enqueue_session(session)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente da sessao %s.', session.id)
+
+
+def _queue_history_sync(record):
+    try:
+        enqueue_history(record)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do historico %s.', record.id)
+
+
+def _queue_booking_sync(booking):
+    try:
+        enqueue_booking(booking)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do agendamento %s.', booking.id)
 
 movements_bp = Blueprint('movements', __name__)
 
@@ -136,16 +165,16 @@ def registrar_sessao():
         # --- VERIFICAÇÃO DE PENDÊNCIAS COM SQLAlchemy ---
         limit_date = datetime.now() - timedelta(hours=24)
         
-        # Subquery para encontrar a data da última saída de um notebook
+        # Subquery para encontrar a data da última saída de um ativo
         subquery_last_saida = db.session.query(func.max(Historico.data)).filter(
-            Historico.id_etiqueta == Notebook.id,
+            Historico.id_etiqueta == Ativo.id,
             Historico.acao == 'Saída/Empréstimo'
-        ).correlate(Notebook).scalar_subquery()
+        ).correlate(Ativo).scalar_subquery()
 
         pendencia = db.session.query(SessaoUso.turma, func.strftime('%d/%m %H:%M', SessaoUso.data_inicio)).join(
             Historico, SessaoUso.data_inicio == Historico.data
-        ).join(Notebook, Historico.id_etiqueta == Notebook.id).filter(
-            SessaoUso.professor == responsavel, SessaoUso.data_inicio < limit_date, Notebook.status == 'Em uso', Historico.acao == 'Saída/Empréstimo', Historico.data == subquery_last_saida
+        ).join(Ativo, Historico.id_etiqueta == Ativo.id).filter(
+            SessaoUso.professor == responsavel, SessaoUso.data_inicio < limit_date, Ativo.status == 'Em uso', Historico.acao == 'Saída/Empréstimo', Historico.data == subquery_last_saida
         ).first()
 
         if pendencia and pendencia.turma:
@@ -158,7 +187,7 @@ def registrar_sessao():
                 flash(f"BLOQUEIO: O colaborador(a) '{responsavel}' possui pendências.", 'error')
                 return render_template('registrar_sessao.html', preenchimento=preenchimento)
 
-        itens_banco = Notebook.query.filter(Notebook.id.in_(ids_list)).all()
+        itens_banco = Ativo.query.filter(Ativo.id.in_(ids_list)).all()
         itens_encontrados = {item.id: item.status for item in itens_banco}
         nao_cadastrados = [x for x in ids_list if x not in itens_encontrados]
         if nao_cadastrados:
@@ -179,14 +208,18 @@ def registrar_sessao():
         periodo_atual = get_periodo_atual()
         data_movimentacao = datetime.now()
         
+        agendamento_to_sync = None
         agendamento_vinculado = request.form.get('agendamento_vinculado')
         if agendamento_vinculado:
             ag_vinc = db.session.get(Agendamento, agendamento_vinculado) # MODERNIZADO
-            if ag_vinc: ag_vinc.status = 'Realizado'
+            if ag_vinc:
+                ag_vinc.status = 'Realizado'
+                agendamento_to_sync = ag_vinc
         else:
             agendamento_pendente = Agendamento.query.filter_by(solicitante=responsavel, data_uso=hoje, periodo=periodo_atual, status='Agendado').first()
             if agendamento_pendente:
                 agendamento_pendente.status = 'Realizado'
+                agendamento_to_sync = agendamento_pendente
                 flash(f"Agendamento de '{responsavel}' baixado automaticamente.", 'success')
 
         nova_sessao = SessaoUso(
@@ -196,16 +229,27 @@ def registrar_sessao():
         )
         db.session.add(nova_sessao)
         
+        history_records = []
         for notebook_id in ids_list:
-            nb = db.session.get(Notebook, notebook_id)
+            nb = db.session.get(Ativo, notebook_id)
             if nb:
                 nb.status = 'Em uso'
                 nb.localizacao = destino
             obs_hist = f"Destino/Setor: {destino}"
             novo_historico = Historico(id_etiqueta=notebook_id, acao='Saída/Empréstimo', usuario_movimentacao=session.get('username', 'Sistema'), responsavel=responsavel, data=data_movimentacao, obs=obs_hist)
             db.session.add(novo_historico)
+            history_records.append(novo_historico)
 
         db.session.commit()
+        _queue_session_sync(nova_sessao)
+        if agendamento_to_sync:
+            _queue_booking_sync(agendamento_to_sync)
+        for historico in history_records:
+            _queue_history_sync(historico)
+        for notebook_id in ids_list:
+            asset = db.session.get(Ativo, notebook_id)
+            if asset:
+                _queue_asset_sync(asset)
         flash(f'Tudo certo! A saída de <b>{quantidade} equipamento(s)</b> para <b>{responsavel}</b> foi registrada com sucesso!', 'success')
         if request.args.get('kiosk'):
             return redirect(url_for('kiosk_home'))
@@ -287,7 +331,7 @@ def registrar_devolucao():
         ids_list = extrair_ids_limpos(lista_ids_str)
         quantidade = len(ids_list)
         
-        itens_banco = Notebook.query.filter(Notebook.id.in_(ids_list)).all()
+        itens_banco = Ativo.query.filter(Ativo.id.in_(ids_list)).all()
         itens_encontrados = {item.id: item.status for item in itens_banco}
         nao_cadastrados = [x for x in ids_list if x not in itens_encontrados]
         if nao_cadastrados:
@@ -299,8 +343,9 @@ def registrar_devolucao():
             flash(f'ATENÇÃO: Os equipamentos a seguir já estão disponíveis no estoque: {", ".join(ja_disponivel)}', 'warning')
             return redirect(url_for('movements.registrar_devolucao'))
             
+        history_records = []
         for notebook_id in ids_list:
-            nb = db.session.get(Notebook, notebook_id)
+            nb = db.session.get(Ativo, notebook_id)
             if nb:
                 agora = datetime.now()
                 reserva_futura = Agendamento.query.filter(
@@ -319,8 +364,15 @@ def registrar_devolucao():
             obs_hist = f"Devolução registrada. {observacoes}"
             novo_historico = Historico(id_etiqueta=notebook_id, acao='Devolução', usuario_movimentacao=session.get('username', 'Sistema'), responsavel=responsavel_devolucao, data=datetime.now(), obs=obs_hist)
             db.session.add(novo_historico)
+            history_records.append(novo_historico)
 
         db.session.commit()
+        for historico in history_records:
+            _queue_history_sync(historico)
+        for notebook_id in ids_list:
+            asset = db.session.get(Ativo, notebook_id)
+            if asset:
+                _queue_asset_sync(asset)
         if request.args.get('kiosk'):
             iot_enabled = getattr(g, 'modules', {}).get('iot', False)
             trigger_iot_relay(force_open=iot_enabled)
@@ -358,9 +410,9 @@ def historico_devolucoes():
     query = db.session.query(
         Historico, 
         Historico.data.label('data_formatada'),
-        Notebook.modelo,
-        Notebook.tipo
-    ).outerjoin(Notebook, Historico.id_etiqueta == Notebook.id).filter(Historico.acao == 'Devolução')
+        Ativo.modelo,
+        Ativo.tipo
+    ).outerjoin(Ativo, Historico.id_etiqueta == Ativo.id).filter(Historico.acao == 'Devolução')
     
     if data_inicio:
         dt_inicio_obj = datetime.strptime(f"{data_inicio} 00:00:00", '%Y-%m-%d %H:%M:%S')
@@ -372,8 +424,8 @@ def historico_devolucoes():
     if busca:
         busca_like = f"%{busca}%"
         query = query.filter(
-            (Historico.id_etiqueta.like(busca_like)) | (Notebook.modelo.like(busca_like)) |
-            (Notebook.tipo.like(busca_like)) | (Historico.usuario_movimentacao.like(busca_like)) |
+            (Historico.id_etiqueta.like(busca_like)) | (Ativo.modelo.like(busca_like)) |
+            (Ativo.tipo.like(busca_like)) | (Historico.usuario_movimentacao.like(busca_like)) |
             (Historico.obs.like(busca_like))
         )
         

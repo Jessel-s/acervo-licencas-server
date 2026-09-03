@@ -76,6 +76,28 @@ class AppSmokeTests(unittest.TestCase):
             self.assertIn('id', payload['items'][0])
             self.assertIn('status_visual', payload['items'][0])
 
+    def test_sync_status_api_returns_queue_state(self):
+        with self.client.session_transaction() as session:
+            session.update({'user_id': 1, 'username': 'admin'})
+
+        response = self.client.get('/api/sincronizacao/status')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('pending_count', response.get_json())
+        self.assertIn('is_synced', response.get_json())
+
+    def test_asset_edit_page_builds_cancel_link(self):
+        with self.client.session_transaction() as session:
+            session.update({
+                'user_id': 1,
+                'username': 'admin',
+                'perm_cadastro': 1,
+            })
+
+        response = self.client.get('/editar/99999')
+
+        self.assertNotEqual(response.status_code, 500)
+
 
 if __name__ == '__main__':
     unittest.main()

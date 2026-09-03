@@ -10,3 +10,6 @@ pyinstaller
 Flask-SQLAlchemy
 Flask-Migrate
 pyarmor
+supabase
+requests
+python-dotenv

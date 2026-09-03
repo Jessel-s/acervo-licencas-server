@@ -1,12 +1,34 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, session
 from datetime import datetime
 from sqlalchemy import func
 import logging
 
-from models import db, Problema, Notebook, Historico
+from models import db, Problema, Ativo, Historico
 from auth import login_required, permission_required
+from sync_queue import enqueue_asset, enqueue_history, enqueue_issue
 
 maintenance_bp = Blueprint('maintenance', __name__)
+
+
+def _queue_asset_sync(asset):
+    try:
+        enqueue_asset(asset)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do ativo %s.', asset.id)
+
+
+def _queue_issue_sync(issue):
+    try:
+        enqueue_issue(issue)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do chamado %s.', issue.id)
+
+
+def _queue_history_sync(record):
+    try:
+        enqueue_history(record)
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do historico %s.', record.id)
 
 @maintenance_bp.route('/manutencao/dashboard')
 @permission_required('perm_chamados')
@@ -95,7 +117,7 @@ def nova_manutencao():
                 patrimonio = patrimonio.zfill(5)
             
             # CORREÇÃO: Atualiza diretamente sem carregar o objeto, evitando o erro de conversão de data.
-            rows_updated = Notebook.query.filter_by(id=patrimonio).update({'status': 'Em manutenção'})
+            rows_updated = Ativo.query.filter_by(id=patrimonio).update({'status': 'Em manutenção'})
             
             if rows_updated > 0:
                 notebook_id = patrimonio
@@ -109,6 +131,11 @@ def nova_manutencao():
         )
         db.session.add(novo_problema)
         db.session.commit() # CORREÇÃO: Salva o novo chamado no banco de dados.
+        _queue_issue_sync(novo_problema)
+        if notebook_id:
+            asset = db.session.get(Ativo, notebook_id)
+            if asset:
+                _queue_asset_sync(asset)
 
         flash('Chamado aberto com sucesso!<br><br>A equipe de TI foi notificada e o status do equipamento foi atualizado.', 'success')
         if request.args.get('kiosk'):
@@ -123,8 +150,8 @@ def reportar_problema(notebook_id):
     if notebook_id.isdigit():
         notebook_id = notebook_id.zfill(5)
         
-    # CORREÇÃO: Apenas verifica se o notebook existe, sem carregar o objeto inteiro.
-    notebook_localizacao = db.session.query(Notebook.localizacao).filter_by(id=notebook_id).scalar()
+    # CORREÇÃO: Apenas verifica se o ativo existe, sem carregar o objeto inteiro.
+    notebook_localizacao = db.session.query(Ativo.localizacao).filter_by(id=notebook_id).scalar()
     if notebook_localizacao is None:
         flash('Ativo não encontrado!', 'error')
         return redirect(url_for('inventory.inventario'))
@@ -145,8 +172,12 @@ def reportar_problema(notebook_id):
         db.session.add(novo_problema)
 
         # Atualiza o status diretamente no banco
-        Notebook.query.filter_by(id=notebook_id).update({'status': 'Em manutenção'})
+        Ativo.query.filter_by(id=notebook_id).update({'status': 'Em manutenção'})
         db.session.commit()
+        _queue_issue_sync(novo_problema)
+        asset = db.session.get(Ativo, notebook_id)
+        if asset:
+            _queue_asset_sync(asset)
 
         flash('Chamado aberto com sucesso!<br><br>A equipe de TI foi notificada e o status do equipamento foi atualizado.', 'success')
         if request.args.get('kiosk'):
@@ -173,12 +204,19 @@ def resolver_problema(problema_id):
         obs = f"Chamado #{problema_id} resolvido. Parecer: {parecer}"
         novo_historico = Historico(id_etiqueta=problema.notebook_id, acao='Manutenção Concluída', usuario_movimentacao=session.get('username', 'Sistema'), responsavel='-', obs=obs)
         db.session.add(novo_historico)
-        Notebook.query.filter_by(id=problema.notebook_id).update({'status': 'Disponível'})
+        Ativo.query.filter_by(id=problema.notebook_id).update({'status': 'Disponível'})
         flash('Chamado resolvido e ativo liberado.', 'success')
     else:
         flash('Chamado resolvido com sucesso.', 'success')
         
     db.session.commit()
+    _queue_issue_sync(problema)
+    if problema.notebook_id:
+        _queue_history_sync(novo_historico)
+    if problema.notebook_id:
+        asset = db.session.get(Ativo, problema.notebook_id)
+        if asset:
+            _queue_asset_sync(asset)
     return redirect(url_for('maintenance.problemas'))
 
 @maintenance_bp.route('/manutencao/historico')
@@ -193,8 +231,8 @@ def historico_chamados():
     
     query = db.session.query(
         Problema, 
-        Notebook.numero_carrinho
-    ).outerjoin(Notebook, Problema.notebook_id == Notebook.id)
+        Ativo.numero_carrinho
+    ).outerjoin(Ativo, Problema.notebook_id == Ativo.id)
     
     if data_inicio:
         query = query.filter(Problema.data_registro >= datetime.strptime(f"{data_inicio} 00:00:00", '%Y-%m-%d %H:%M:%S'))

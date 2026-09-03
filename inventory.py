@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, session, send_file
 from datetime import datetime
 import base64
 import qrcode
@@ -9,8 +9,9 @@ import sys
 import pandas as pd
 from sqlalchemy import exc, func, or_
 
-from models import db, Notebook, Historico, Problema
+from models import db, Ativo, Historico, Problema
 from auth import login_required, permission_required
+from sync_queue import enqueue_asset, enqueue_history
 
 inventory_bp = Blueprint('inventory', __name__)
 
@@ -19,8 +20,22 @@ if getattr(sys, 'frozen', False):
 else:
     basedir = os.path.abspath(os.path.dirname(__file__))
 
+
+def _queue_asset_sync(asset, operation='upsert'):
+    try:
+        enqueue_asset(asset, operation, os.path.join(basedir, 'sync_queue.db'))
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do ativo %s.', asset.id)
+
+
+def _queue_history_sync(record):
+    try:
+        enqueue_history(record, os.path.join(basedir, 'sync_queue.db'))
+    except Exception:
+        current_app.logger.exception('Falha ao registrar sincronizacao pendente do historico %s.', record.id)
+
 def _create_qr_label_image(notebook_id, size='d110'):
-    notebook = db.session.get(Notebook, notebook_id) # MODERNIZADO
+    notebook = db.session.get(Ativo, notebook_id) # MODERNIZADO
     titulo_etiqueta = notebook.tipo.upper() if notebook and notebook.tipo else notebook_id
 
     # Presets para diferentes tamanhos de etiqueta
@@ -121,22 +136,22 @@ def inventario():
     patrimonio_filtro = request.args.get('patrimonio', '').strip().upper()
     status_filtro = request.args.get('status', '').strip()
     
-    # CORREÇÃO DEFINITIVA: Em vez de carregar o objeto Notebook inteiro (o que causa o erro de conversão de data),
+    # CORREÇÃO DEFINITIVA: Em vez de carregar o objeto Ativo inteiro (o que causa o erro de conversão de data),
     # selecionamos explicitamente apenas as colunas necessárias para a tabela do inventário.
     # Isso impede que o SQLAlchemy tente converter colunas de data que possam estar corrompidas no banco.
-    query = db.session.query(Notebook).with_entities(
-        Notebook.id, Notebook.tipo, Notebook.modelo, Notebook.numero_serie,
-        Notebook.localizacao, Notebook.status
+    query = db.session.query(Ativo).with_entities(
+        Ativo.id, Ativo.tipo, Ativo.modelo, Ativo.numero_serie,
+        Ativo.localizacao, Ativo.status
     )
     
     if patrimonio_filtro:
-        query = query.filter(Notebook.id.like(f"%{patrimonio_filtro}%"))
+        query = query.filter(Ativo.id.like(f"%{patrimonio_filtro}%"))
         
     if status_filtro:
-        query = query.filter(Notebook.status == status_filtro)
+        query = query.filter(Ativo.status == status_filtro)
 
     # O resultado da query já é uma lista de objetos que se comportam como dicionários.
-    notebooks = query.order_by(Notebook.id).all()
+    notebooks = query.order_by(Ativo.id).all()
     
     return render_template('inventario.html', notebooks=notebooks, filtro_patrimonio=patrimonio_filtro, filtro_status=status_filtro)
 
@@ -160,7 +175,7 @@ def cadastro():
         observacoes = request.form.get('observacoes', '').strip().upper()
         
         try:
-            novo_notebook = Notebook(
+            novo_notebook = Ativo(
                 id=idn,
                 tipo=tipo, 
                 numero_carrinho=numero_carrinho, 
@@ -178,6 +193,8 @@ def cadastro():
             db.session.add(novo_historico)
             
             db.session.commit()
+            _queue_asset_sync(novo_notebook)
+            _queue_history_sync(novo_historico)
             flash('Ativo cadastrado com sucesso!', 'success')
         except exc.IntegrityError as e:
             db.session.rollback()
@@ -188,7 +205,7 @@ def cadastro():
             else:
                 flash(f'Erro ao cadastrar: Dados duplicados ou inválidos. Detalhe: {e}', 'error')
             
-    atual_max = db.session.query(db.func.max(Notebook.numero_carrinho)).scalar()
+    atual_max = db.session.query(db.func.max(Ativo.numero_carrinho)).scalar()
     sugestao_controle = (atual_max + 1) if atual_max else 1
 
     return render_template('cadastro.html', sugestao_controle=sugestao_controle)
@@ -198,7 +215,7 @@ def cadastro():
 def editar(notebook_id):
     if notebook_id.isdigit():
         notebook_id = notebook_id.zfill(5) # MODERNIZADO
-    notebook = db.session.get(Notebook, notebook_id)
+    notebook = db.session.get(Ativo, notebook_id)
 
     if not notebook:
         flash('Ativo não encontrado!', 'error')
@@ -223,10 +240,12 @@ def editar(notebook_id):
             notebook.localizacao = nova_localizacao
             notebook.observacoes = novas_observacoes
 
-            obs = f"Informações do notebook ID '{notebook_id}' atualizadas."
+            obs = f"Informações do ativo ID '{notebook_id}' atualizadas."
             novo_historico = Historico(id_etiqueta=notebook_id, acao='Edição', usuario_movimentacao=session.get('username', 'Sistema'), obs=obs)
             db.session.add(novo_historico)
             db.session.commit()
+            _queue_asset_sync(notebook)
+            _queue_history_sync(novo_historico)
             flash('Ativo atualizado com sucesso!', 'success')
         except exc.IntegrityError:
             db.session.rollback()
@@ -246,11 +265,12 @@ def remover(notebook_id):
         
     if notebook_id.isdigit():
         notebook_id = notebook_id.zfill(5) # MODERNIZADO
-    notebook = db.session.get(Notebook, notebook_id)
+    notebook = db.session.get(Ativo, notebook_id)
 
     if notebook:
         db.session.delete(notebook)
         db.session.commit()
+        _queue_asset_sync(notebook, 'delete')
         flash(f'Ativo {notebook_id} e todo o seu histórico foram removidos permanentemente!', 'success')
     else:
         flash('Erro: O ativo não foi encontrado.', 'error')
@@ -330,7 +350,7 @@ def importar():
             df['ID_PATRIMONIO'] = df['ID_PATRIMONIO'].astype(int).astype(str).str.zfill(5)
             ids_planilha = df['ID_PATRIMONIO'].tolist()
             
-            existentes_query = db.session.query(Notebook.id).filter(Notebook.id.in_(ids_planilha)).all()
+            existentes_query = db.session.query(Ativo.id).filter(Ativo.id.in_(ids_planilha)).all()
             existentes = [row.id for row in existentes_query]
             
             if existentes:
@@ -340,8 +360,10 @@ def importar():
             usuario = session.get('username', 'Sistema')
             
             cadastrados = 0
+            ativos_importados = []
+            historicos_importados = []
             
-            atual_max = db.session.query(db.func.max(Notebook.numero_carrinho)).scalar()
+            atual_max = db.session.query(db.func.max(Ativo.numero_carrinho)).scalar()
             prox_carrinho = (atual_max + 1) if atual_max else 1
             
             for index, row in df.iterrows():
@@ -355,12 +377,13 @@ def importar():
                 localizacao = str(row.get('LOCALIZACAO', '')).strip().upper() if pd.notna(row.get('LOCALIZACAO')) else ''
                 observacoes = str(row.get('OBSERVACOES', '')).strip().upper() if pd.notna(row.get('OBSERVACOES')) else ''
                 
-                novo_notebook = Notebook(
+                novo_notebook = Ativo(
                     id=idn, tipo=tipo, numero_carrinho=prox_carrinho, modelo=modelo,
                     numero_serie=numero_serie, data_compra=data_compra, status='Disponível',
                     localizacao=localizacao, observacoes=observacoes
                 )
                 db.session.add(novo_notebook)
+                ativos_importados.append(novo_notebook)
                 
                 obs = f"Importação em lote (Excel). {tipo} adicionado."
                 novo_historico = Historico(
@@ -368,11 +391,16 @@ def importar():
                     responsavel='-', obs=obs
                 )
                 db.session.add(novo_historico)
+                historicos_importados.append(novo_historico)
                 
                 cadastrados += 1
                 prox_carrinho += 1
             
             db.session.commit()
+            for ativo in ativos_importados:
+                _queue_asset_sync(ativo)
+            for historico in historicos_importados:
+                _queue_history_sync(historico)
             flash(f'Importação concluída com Sucesso! {cadastrados} equipamentos adicionados ao sistema.', 'success')
             return redirect(url_for('inventory.inventario'))
             
@@ -400,7 +428,7 @@ def download_template_excel():
 def historico(notebook_id):
     if notebook_id.isdigit():
         notebook_id = notebook_id.zfill(5)
-    notebook = db.session.get(Notebook, notebook_id)
+    notebook = db.session.get(Ativo, notebook_id)
     if not notebook:
         flash('Ativo não encontrado!', 'error')
         return redirect(url_for('inventory.inventario'))

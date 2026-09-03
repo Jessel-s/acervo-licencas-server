@@ -19,6 +19,45 @@
     @media (max-width: 700px) { .dashboard-grid { gap: 12px !important; } }
 </style>
 <!-- MÉTRICAS PRINCIPAIS -->
+<div id="sync-status" style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+    {% if sync_status.is_synced %}
+    <span title="Não há alterações locais aguardando envio" style="display: inline-flex; align-items: center; gap: 6px; color: #047857; font-size: .82rem; font-weight: 700;">
+        <span class="material-icons-round" style="font-size: 17px;">cloud_done</span>
+        Sincronizado
+    </span>
+    {% elif sync_status.pending_count is not none %}
+    <span title="As alterações serão enviadas automaticamente quando houver conexão" style="display: inline-flex; align-items: center; gap: 6px; color: #b45309; font-size: .82rem; font-weight: 700;">
+        <span class="material-icons-round" style="font-size: 17px;">cloud_upload</span>
+        {{ sync_status.pending_count }} registro(s) pendente(s)
+    </span>
+    {% else %}
+    <span title="Não foi possível consultar a fila local" style="display: inline-flex; align-items: center; gap: 6px; color: #b91c1c; font-size: .82rem; font-weight: 700;">
+        <span class="material-icons-round" style="font-size: 17px;">cloud_off</span>
+        Estado da sincronização indisponível
+    </span>
+    {% endif %}
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const status = document.getElementById('sync-status');
+        if (!status) return;
+
+        const updateStatus = (data) => {
+            if (data.is_synced) {
+                status.innerHTML = '<span title="Não há alterações locais aguardando envio" style="display: inline-flex; align-items: center; gap: 6px; color: #047857; font-size: .82rem; font-weight: 700;"><span class="material-icons-round" style="font-size: 17px;">cloud_done</span>Sincronizado</span>';
+            } else if (data.pending_count !== null) {
+                status.innerHTML = `<span title="As alterações serão enviadas automaticamente quando houver conexão" style="display: inline-flex; align-items: center; gap: 6px; color: #b45309; font-size: .82rem; font-weight: 700;"><span class="material-icons-round" style="font-size: 17px;">cloud_upload</span>${data.pending_count} registro(s) pendente(s)</span>`;
+            }
+        };
+
+        setInterval(() => {
+            fetch('/api/sincronizacao/status')
+                .then((response) => response.ok ? response.json() : null)
+                .then((data) => data && updateStatus(data))
+                .catch(() => {});
+        }, 15000);
+    });
+</script>
 <div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
     <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
         <div style="background: rgba(14, 165, 233, 0.15); color: var(--info); padding: 1rem; border-radius: 12px; display: flex;">

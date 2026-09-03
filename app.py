@@ -4,6 +4,12 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import event, func, or_, and_
 import os
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return False
 import uuid
 import hashlib
 import json
@@ -25,10 +31,12 @@ from movements import movements_bp # Importa o novo Blueprint de Movimentações
 from maintenance import maintenance_bp # Importa o novo Blueprint de Manutenção
 from settings import settings_bp # Importa o novo Blueprint de Configurações
 from storeroom import storeroom_bp # Importa o Blueprint de Almoxarifado
-from models import db, Notebook, Historico, SessaoUso, Agendamento, AlmoxProduto, Problema # Importação já existe
+from models import db, Ativo, Historico, SessaoUso, Agendamento, AlmoxProduto, Problema # Importação já existe
 from utils import trigger_iot_relay
 from availability import is_available_after_return, parse_datetime_value, schedule_start
 from backup import create_database_backup
+from sync_supabase import start_periodic_sync
+from sync_queue import SyncQueue, enqueue_asset, enqueue_booking, enqueue_session
 
 # Define o caminho absoluto para a pasta do projeto
 if getattr(sys, 'frozen', False):
@@ -36,8 +44,18 @@ if getattr(sys, 'frozen', False):
 else:
     basedir = os.path.abspath(os.path.dirname(__file__))
 
+load_dotenv(os.path.join(basedir, '.env'))
+
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'), static_folder=os.path.join(basedir, 'static'))
 app.config['TEMPLATES_AUTO_RELOAD'] = False
+
+# --- CONFIGURAÇÃO SUPABASE (OPCIONAL / SAAS) ---
+# Quando as variáveis forem informadas, o sistema passa a validar licenças e tenant também no Supabase.
+app.config['SUPABASE_URL'] = os.environ.get('SUPABASE_URL')
+app.config['SUPABASE_ANON_KEY'] = os.environ.get('SUPABASE_ANON_KEY')
+app.config['SUPABASE_ENABLED'] = bool(
+    app.config.get('SUPABASE_URL') and app.config.get('SUPABASE_ANON_KEY')
+)
 
 # --- CONFIGURAÇÃO DO BANCO DE DADOS (SQLAlchemy) ---
 # --- ADAPTAÇÃO PARA CLOUD: Lê a URL do banco de uma variável de ambiente ---
@@ -64,11 +82,11 @@ if not database_url:
             dbapi_connection.execute('PRAGMA busy_timeout = 30000')
 
 app.register_blueprint(auth_bp)
-app.register_blueprint(inventory_bp) 
-app.register_blueprint(movements_bp) 
-app.register_blueprint(maintenance_bp) 
-app.register_blueprint(settings_bp) 
-app.register_blueprint(storeroom_bp) 
+app.register_blueprint(inventory_bp)
+app.register_blueprint(movements_bp)
+app.register_blueprint(maintenance_bp)
+app.register_blueprint(settings_bp)
+app.register_blueprint(storeroom_bp)
 
 # --- SISTEMA DE LOGS PARA SUPORTE TÉCNICO ---
 log_file = os.path.join(basedir, 'sistema_erros.log')
@@ -79,6 +97,57 @@ file_handler.setLevel(logging.INFO)
 app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
 app.logger.info('--- INICIALIZANDO O SISTEMA ---')
+
+SYNC_INTERVAL_SECONDS = 60
+
+
+def start_background_sync():
+    if not app.config['SUPABASE_ENABLED']:
+        return None
+    return start_periodic_sync(
+        os.path.join(basedir, 'sync_queue.db'),
+        SYNC_INTERVAL_SECONDS,
+        app.logger.info,
+    )
+
+
+def queue_asset_sync(asset):
+    try:
+        enqueue_asset(asset, queue_path=os.path.join(basedir, 'sync_queue.db'))
+    except Exception:
+        app.logger.exception('Falha ao registrar sincronizacao pendente do ativo %s.', asset.id)
+
+
+def queue_session_sync(session):
+    try:
+        enqueue_session(session, queue_path=os.path.join(basedir, 'sync_queue.db'))
+    except Exception:
+        app.logger.exception('Falha ao registrar sincronizacao pendente da sessao %s.', session.id)
+
+
+def queue_booking_sync(booking):
+    try:
+        enqueue_booking(booking, queue_path=os.path.join(basedir, 'sync_queue.db'))
+    except Exception:
+        app.logger.exception('Falha ao registrar sincronizacao pendente do agendamento %s.', booking.id)
+
+
+def get_sync_status():
+    try:
+        queue = SyncQueue(os.path.join(basedir, 'sync_queue.db'))
+        try:
+            pending_count = queue.pending_count()
+        finally:
+            queue.close()
+        return {'pending_count': pending_count, 'is_synced': pending_count == 0}
+    except Exception:
+        return {'pending_count': None, 'is_synced': False}
+
+
+@app.route('/api/sincronizacao/status')
+@login_required
+def api_sync_status():
+    return jsonify(get_sync_status())
 
 # --- SEGURANÇA COMERCIAL: GERENCIAMENTO DE CHAVE SECRETA ---
 secret_file = os.path.join(basedir, 'secret.key')
@@ -92,9 +161,9 @@ else:
     app.secret_key = random_key
 
 # --- CONFIGURAÇÃO DE SEGURANÇA COMERCIAL ---
-csrf = CSRFProtect(app) 
+csrf = CSRFProtect(app)
 
-# Isenta as APIs do Kiosk da verificação CSRF 
+# Isenta as APIs do Kiosk da verificação CSRF
 # (Elas exigem usuário e senha na requisição. Se não isentarmos, o Kiosk_Exit falha com erro 400 pois o unlock troca a sessão e invalida o token da tela)
 csrf.exempt(kiosk_unlock)
 csrf.exempt(kiosk_exit)
@@ -117,6 +186,35 @@ def handle_exception(e):
     return "Ocorreu um erro interno no sistema. Por favor, contate o suporte e envie o arquivo 'sistema_erros.log'.", 500
 
 # --- SISTEMA DE LICENÇA MODULAR E TRIAL ---
+SAAS_MODULES = {'iot': True, 'helpdesk': True, 'storeroom': True}
+
+
+def get_saas_license_info():
+    """Valida a licença do dispositivo pelo Supabase com tolerância offline."""
+    from database_local import LocalDatabase
+    from licenca_manager import LicencaManager
+
+    serial_pdv = os.environ.get('PDV_SERIAL')
+    chave_ativacao = os.environ.get('PDV_CHAVE')
+    colegio_id = os.environ.get('COLEGIO_ID')
+    if not serial_pdv or not chave_ativacao or not colegio_id:
+        return 'INVALID', 0, SAAS_MODULES
+
+    local_db = LocalDatabase(os.path.join(basedir, 'pdv_local.db'))
+    try:
+        manager = LicencaManager(
+            db=local_db,
+            serial_pdv=serial_pdv,
+            chave_ativacao=chave_ativacao,
+            colegio_id=colegio_id,
+            supabase_url=app.config.get('SUPABASE_URL'),
+            supabase_key=app.config.get('SUPABASE_ANON_KEY'),
+        )
+        return ('VALID', 0, SAAS_MODULES) if manager.verificar() else ('EXPIRED', 0, SAAS_MODULES)
+    finally:
+        local_db.close()
+
+
 def get_license_secret():
     """Carrega a chave secreta de um arquivo para não deixá-la no código."""
     secret_file = os.path.join(basedir, 'license_secret.bin')
@@ -126,6 +224,32 @@ def get_license_secret():
     # Se o arquivo não existir, o sistema não pode validar licenças.
     # Retornar None fará com que a validação falhe de forma segura.
     return None
+
+
+def try_supabase_license_validation(machine_id: str, license_key: str):
+    """Validação opcional pelo Supabase para o modelo SaaS híbrido."""
+    if not app.config.get('SUPABASE_ENABLED'):
+        return None
+
+    try:
+        from database_local import LocalDatabase
+        from licenca_manager import LicencaManager
+
+        local_db = LocalDatabase(os.path.join(basedir, 'pdv_local.db'))
+        manager = LicencaManager(
+            db=local_db,
+            serial_pdv=machine_id,
+            chave_ativacao=license_key,
+            colegio_id=os.environ.get('COLEGIO_ID'),
+            supabase_url=app.config.get('SUPABASE_URL'),
+            supabase_key=app.config.get('SUPABASE_ANON_KEY'),
+        )
+        result = manager.validar_licenca_online()
+        local_db.close()
+        return result
+    except Exception as exc:
+        app.logger.warning(f'Validação Supabase falhou: {exc}')
+        return None
 
 _license_cache = {'time': 0, 'data': None}
 LICENSE_ONLINE_GRACE_SECONDS = 7 * 24 * 60 * 60
@@ -157,7 +281,7 @@ def has_recent_online_validation(machine_id, license_key):
 def get_license_info(force_revalidate: bool = False) -> tuple:
     """Valida a licença e retorna o status e os módulos habilitados."""
     global _license_cache
-    
+
     # CORREÇÃO DEFINITIVA: Se forçar a revalidação, o cache antigo é destruído.
     if force_revalidate:
         _license_cache = {'time': 0, 'data': None}
@@ -166,6 +290,13 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
     if not force_revalidate and _license_cache['data'] and time.time() - _license_cache['time'] < 300:
         return _license_cache['data']
 
+    # Em instalações comerciais, o Supabase é a única fonte de verdade da licença.
+    # O fluxo Render/licenca.key abaixo permanece apenas para instalações legadas sem Supabase.
+    if app.config.get('SUPABASE_ENABLED'):
+        result = get_saas_license_info()
+        _license_cache = {'time': time.time(), 'data': result}
+        return result
+
     # O modo cloud pertence ao servidor de licenças, não ao executável do cliente.
     # Nunca ignore a licença no cliente, pois isso impede revogação remota.
     if os.environ.get('CLOUD_DEPLOY') == 'TRUE' and os.environ.get('LICENSE_SERVER_MODE') == 'TRUE':
@@ -173,21 +304,21 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
         result = ('VALID', 36500, all_modules) # Licença "infinita" para o seu próprio servidor
         _license_cache = {'time': time.time(), 'data': result}
         return result
-        
+
     # NOVA LÓGICA: Help Desk e Almoxarifado são padrão. Apenas IoT é opcional.
     # CORREÇÃO: Durante o Trial, TODOS os módulos devem estar liberados para teste.
     default_modules = {'iot': True, 'helpdesk': True, 'storeroom': True}
-    
+
     from utils import gerar_machine_id
     current_machine_id = gerar_machine_id()
     license_file = os.path.join(basedir, "licenca.key")
-    
+
     # 1. Tenta validar a licença completa
     if os.path.exists(license_file):
         try:
             with open(license_file, 'r') as f:
                 stored_key = f.read().strip()
-            
+
             license_secret = get_license_secret()
             if not license_secret:
                 app.logger.error("FALHA CRÍTICA: Arquivo 'license_secret.bin' não encontrado. Não é possível validar a licença.")
@@ -195,14 +326,14 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
 
             fernet_obj = Fernet(license_secret)
             decrypted_data = fernet_obj.decrypt(stored_key.encode()).decode()
-            
+
             parts = decrypted_data.split('|')
             licensed_id = parts[0]
-            
+
             if licensed_id == current_machine_id:
                 # NOVA LÓGICA: Licença Anual (SaaS)
                 days_left = 36500 # Padrão para licenças vitalícias (formato antigo) -> ~100 anos
-                
+
                 # Verifica se a licença tem data de expiração (formato novo)
                 if len(parts) > 1 and '-' in parts[1]:
                     try:
@@ -217,7 +348,7 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
                     except (ValueError, IndexError):
                         # Se a data estiver mal formatada, a chave é inválida. Não prossegue para o Trial.
                         return 'INVALID', 0, default_modules
-                
+
                 # NOVA LÓGICA: Help Desk e Almoxarifado são padrão. Apenas IoT é verificado.
                 modules = {'iot': False, 'helpdesk': True, 'storeroom': True}
                 # Itera sobre as partes da licença para encontrar o módulo IoT
@@ -285,21 +416,21 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
         if os.path.exists(first_run_file):
             # Se já houve, significa que o Trial foi usado e os arquivos foram apagados. Força a expiração.
             return 'EXPIRED', 0, default_modules
-        
+
         # Se nenhum dos dois existe, é a primeira vez que o sistema roda. Inicia o Trial.
         with open(trial_file, 'w') as f:
             f.write(str(datetime.now().timestamp()))
         result = ('TRIAL', 7, default_modules)
         _license_cache = {'time': time.time(), 'data': result}
         return result
-    
+
     try:
         with open(trial_file, 'r') as f:
             start_timestamp = float(f.read().strip())
         start_date = datetime.fromtimestamp(start_timestamp)
         days_passed = (datetime.now() - start_date).days
         days_left = 7 - days_passed
-        
+
         # CORREÇÃO: O período de trial termina quando os dias restantes são 0 ou menos.
         if days_left >= 1:
             result = ('TRIAL', days_left, default_modules)
@@ -308,10 +439,10 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
                 with open(first_run_file, 'w') as f: f.write('activated')
         else:
             result = ('EXPIRED', 0, default_modules)
-            
+
         _license_cache = {'time': time.time(), 'data': result}
         return result
-        
+
     except (IOError, ValueError):
         return 'EXPIRED', 0, default_modules
 
@@ -372,7 +503,7 @@ def check_license_access():
             request.path,
             status
         )
-    
+
     g.license_status = status
     g.days_left = days
     g.modules = modules # Armazena os módulos disponíveis para esta requisição
@@ -384,7 +515,7 @@ def check_license_access():
     }
     if request.endpoint in allowed_endpoints or request.path == '/ativacao':
         return
-    
+
     # CORREÇÃO CRÍTICA: Garante que a sessão do usuário reflita o estado ATUAL da licença.
     # Se a licença mudou (ex: foi removida), a sessão é atualizada para corresponder.
     if 'user_id' in session and session.get('modules') != modules:
@@ -401,18 +532,18 @@ def limpar_reservas_expiradas():
     agora = datetime.now()
     hoje_str = agora.strftime('%Y-%m-%d')
     limite_str = (agora - timedelta(minutes=30)).strftime('%H:%M')
-    
+
     expirados = Agendamento.query.filter(
         Agendamento.status == 'Agendado',
         or_(
             Agendamento.data_uso < hoje_str,
             and_( # Agendamentos de hoje que estão atrasados
-                Agendamento.data_uso == hoje_str, 
+                Agendamento.data_uso == hoje_str,
                 Agendamento.horario_retirada < limite_str # Comparar horario_retirada como string
             )
         )
     ).all()
-    
+
     if not expirados:
         return 0
 
@@ -422,9 +553,11 @@ def limpar_reservas_expiradas():
         if exp.itens_reservados:
             ids = [x.strip() for x in str(exp.itens_reservados).split(',') if x.strip()]
             if ids:
-                Notebook.query.filter(Notebook.status == 'Reservado', Notebook.id.in_(ids)).update({'status': 'Disponível'}, synchronize_session=False)
+                Ativo.query.filter(Ativo.status == 'Reservado', Ativo.id.in_(ids)).update({'status': 'Disponível'}, synchronize_session=False)
     try:
         db.session.commit()
+        for agendamento in expirados:
+            queue_booking_sync(agendamento)
         return len(expirados)
     except Exception:
         db.session.rollback()
@@ -435,17 +568,18 @@ def limpar_reservas_expiradas():
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
-        
+
     limpar_reservas_expiradas() # Executa a limpeza automática
+    sync_status = get_sync_status()
 
     # --- CONSULTAS MODERNIZADAS COM SQLAlchemy ---
-    total = db.session.query(func.count(Notebook.id)).filter(Notebook.status != 'Inativo').scalar()
-    disponiveis = db.session.query(func.count(Notebook.id)).filter(Notebook.status == 'Disponível').scalar()
-    manutencao = db.session.query(func.count(Notebook.id)).filter(Notebook.status == 'Em manutenção').scalar()
-    por_tipo = db.session.query(Notebook.tipo, func.count(Notebook.tipo).label('qtd')).filter(Notebook.status != 'Inativo').group_by(Notebook.tipo).all()
-    
+    total = db.session.query(func.count(Ativo.id)).filter(Ativo.status != 'Inativo').scalar()
+    disponiveis = db.session.query(func.count(Ativo.id)).filter(Ativo.status == 'Disponível').scalar()
+    manutencao = db.session.query(func.count(Ativo.id)).filter(Ativo.status == 'Em manutenção').scalar()
+    por_tipo = db.session.query(Ativo.tipo, func.count(Ativo.tipo).label('qtd')).filter(Ativo.status != 'Inativo').group_by(Ativo.tipo).all()
+
     data_limite = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-    
+
     movimentacoes_query = db.session.query(
         func.strftime('%Y-%m-%d', Historico.data).label('dia'),
         Historico.acao,
@@ -458,12 +592,12 @@ def dashboard():
     movimentacoes = [row._asdict() for row in movimentacoes_query]
 
     # --- OTIMIZAÇÃO DE PERFORMANCE DO DASHBOARD ---
-    # Subquery para encontrar o ID da última sessão de uso para cada notebook 'Em uso'
+    # Subquery para encontrar o ID da última sessão de uso para cada ativo 'Em uso'
     subquery_last_session = db.session.query(
         Historico.id_etiqueta, # CORREÇÃO: Adiciona id_etiqueta à seleção da subquery
         func.max(SessaoUso.id).label('last_sessao_id') # CORREÇÃO: Nome da coluna estava 'last_session_id'
-    ).join(SessaoUso, Historico.data == SessaoUso.data_inicio).join(Notebook, Notebook.id == Historico.id_etiqueta).filter(
-        Notebook.status == 'Em uso',
+    ).join(SessaoUso, Historico.data == SessaoUso.data_inicio).join(Ativo, Ativo.id == Historico.id_etiqueta).filter(
+        Ativo.status == 'Em uso',
         Historico.acao == 'Saída/Empréstimo'
     ).group_by(Historico.id_etiqueta).subquery()
 
@@ -471,17 +605,17 @@ def dashboard():
     # se houver dados corrompidos no banco de dados.
     from sqlalchemy import cast, Text
     em_uso_agora = db.session.query(
-        Notebook.id, Notebook.tipo, Notebook.modelo, Notebook.localizacao,
-        cast(SessaoUso.data_inicio, Text).label('data_inicio_raw'), 
-        cast(SessaoUso.previsao_devolucao, Text).label('previsao_devolucao_raw'), 
+        Ativo.id, Ativo.tipo, Ativo.modelo, Ativo.localizacao,
+        cast(SessaoUso.data_inicio, Text).label('data_inicio_raw'),
+        cast(SessaoUso.previsao_devolucao, Text).label('previsao_devolucao_raw'),
         SessaoUso.professor
     ).join(
         subquery_last_session,
-        Notebook.id == subquery_last_session.c.id_etiqueta
+        Ativo.id == subquery_last_session.c.id_etiqueta
     ).join(
         SessaoUso,
         SessaoUso.id == subquery_last_session.c.last_sessao_id # Usa o nome correto da coluna da subquery
-    ).filter(Notebook.status == 'Em uso').all()
+    ).filter(Ativo.status == 'Em uso').all()
 
     lista_em_uso = []
     agora = datetime.now()
@@ -489,7 +623,7 @@ def dashboard():
         item_dict = item._asdict()
         item_dict['alerta_atraso'] = False
         item_dict['tempo_decorrido'] = "Recente"
-        
+
         data_inicio_obj = None
         if item.data_inicio_raw:
             try:
@@ -504,13 +638,13 @@ def dashboard():
                     except Exception: pass
                 elif horas_totais > 5: # Fallback: Se não botaram previsão, avisa depois de 5 horas
                     item_dict['alerta_atraso'] = True
-                
+
                 if horas_totais < 1:
                     item_dict['tempo_decorrido'] = f"{int(diff.total_seconds() / 60)} min"
                 else:
                     item_dict['tempo_decorrido'] = f"{int(horas_totais)}h"
             except (ValueError, TypeError): pass # Ignora se a data estiver corrompida
-                
+
         lista_em_uso.append(item_dict)
 
     # CORRECAO: Conta baseado na lista real processada para evitar divergência
@@ -525,7 +659,7 @@ def dashboard():
     todos_agendamentos = Agendamento.query.filter_by(status='Agendado').order_by(
         Agendamento.data_uso.asc(), Agendamento.horario_retirada.asc()
     ).all()
-    
+
     raw_agendamentos = []
     for row in todos_agendamentos:
         # CORREÇÃO: Acessa o atributo do objeto, não uma chave de dicionário.
@@ -540,13 +674,13 @@ def dashboard():
     for row in raw_agendamentos:
         d = row.data_uso
         if d not in agenda_map: agenda_map[d] = [] # d é a data_uso (string)
-        
+
         horario = f"{row.horario_retirada or '?'}h" # CORREÇÃO: Acessa atributo
         prof_nome = row.solicitante.split()[0] if row.solicitante else '?' # CORREÇÃO: Acessa atributo
 
         # Verifica se tem itens reservados e se não é uma string vazia ou 'None'
         tem_itens = row.itens_reservados and str(row.itens_reservados).strip() # CORREÇÃO: Acessa atributo
-        
+
         if tem_itens:
             itens = [x.strip() for x in str(row.itens_reservados).split(',') if x.strip()] # CORREÇÃO: Acessa atributo
             itens_str = ", ".join(itens)
@@ -556,10 +690,10 @@ def dashboard():
             qtd = row.quantidade if row.quantidade else 1 # CORREÇÃO: Acessa atributo
             itens_str = f"{qtd} Item(s)"
             agenda_map[d].append({'id': itens_str, 'prof': prof_nome, 'hora': horario, 'agendamento_id': row.id, 'codigo': row.codigo_reserva or ''}) # CORREÇÃO: Acessa atributos
-            
+
     previsao_agenda = []
     dias_semana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-    
+
     for d in sorted(agenda_map.keys())[:14]:
         try:
             dt_obj = datetime.strptime(d, '%Y-%m-%d')
@@ -570,8 +704,8 @@ def dashboard():
             dia_sem = '-'
 
         previsao_agenda.append({
-            'data': data_fmt, 
-            'dia_sem': dia_sem, 
+            'data': data_fmt,
+            'dia_sem': dia_sem,
             'itens': agenda_map[d]
         })
 
@@ -581,29 +715,30 @@ def dashboard():
         try: # Adicionado try-except para robustez
             total_itens = db.session.query(func.sum(AlmoxProduto.quantidade_atual)).scalar() or 0
             baixo_estoque = db.session.query(func.count(AlmoxProduto.id)).filter(AlmoxProduto.quantidade_atual <= AlmoxProduto.estoque_minimo).scalar() or 0
-            
+
             # Busca os detalhes exatos de quais peças estão acabando
             itens_alerta = AlmoxProduto.query.filter(AlmoxProduto.quantidade_atual <= AlmoxProduto.estoque_minimo).order_by(AlmoxProduto.quantidade_atual.asc()).limit(5).all()
-            
+
             almox_kpis = {
-                'total': total_itens, 
+                'total': total_itens,
                 'alertas': baixo_estoque,
                 'itens_alerta': [item.__dict__ for item in itens_alerta]
             }
         except Exception as e:
             app.logger.error(f"Erro ao buscar KPIs do Almoxarifado no Dashboard: {e}")
 
-    return render_template('dashboard.html', 
-                           total=total, 
-                           disponiveis=disponiveis, 
-                           em_uso=em_uso, 
-                           manutencao=manutencao, 
-                           por_tipo=por_tipo, 
-                           movimentacoes=movimentacoes, 
-                           em_uso_agora=lista_em_uso, 
-                           agendamentos_hoje=agendamentos_hoje, 
+    return render_template('dashboard.html',
+                           total=total,
+                           disponiveis=disponiveis,
+                           em_uso=em_uso,
+                           manutencao=manutencao,
+                           por_tipo=por_tipo,
+                           movimentacoes=movimentacoes,
+                           em_uso_agora=lista_em_uso,
+                           agendamentos_hoje=agendamentos_hoje,
                            previsao_agenda=previsao_agenda,
-                           almox_kpis=almox_kpis)
+                           almox_kpis=almox_kpis,
+                           sync_status=sync_status)
 
 @app.route('/kiosk')
 @login_required
@@ -633,7 +768,7 @@ def gerar_qr(texto):
     qr.add_data(texto.upper())
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
-    
+
     # Save to buffer
     buf = io.BytesIO()
     img.save(buf, format='PNG')
@@ -650,7 +785,7 @@ def api_verificar_ativo(asset_id):
 
     if asset_id.isdigit():
         asset_id = asset_id.zfill(5)
-    asset = db.session.get(Notebook, asset_id) # MODERNIZADO
+    asset = db.session.get(Ativo, asset_id) # MODERNIZADO
     if asset:
         return {"exists": True, "status": asset.status, "modelo": asset.modelo, "id_limpo": asset_id}
     return {"exists": False}
@@ -663,30 +798,30 @@ def api_disponibilidade():
     # Recebe horários solicitados (defaults para garantir funcionamento)
     req_inicio = request.args.get('hora_inicio', '07:00')
     req_fim = request.args.get('hora_fim', '12:30')
-    
+
     if not data_uso:
         return {'items': []}
-        
+
     limpar_reservas_expiradas() # Executa a limpeza antes de mostrar os itens na tela
 
     try:
         # OTIMIZAÇÃO E CORREÇÃO: Busca apenas as colunas necessárias, evitando o erro de conversão
         # da coluna 'data_compra' que é uma string e estava quebrando a API.
-        notebooks = db.session.query(Notebook).with_entities(
-            Notebook.id, Notebook.numero_carrinho, Notebook.modelo, Notebook.tipo, Notebook.status
-        ).filter(Notebook.status != 'Inativo').order_by(Notebook.numero_carrinho, Notebook.id).all()
+        notebooks = db.session.query(Ativo).with_entities(
+            Ativo.id, Ativo.numero_carrinho, Ativo.modelo, Ativo.tipo, Ativo.status
+        ).filter(Ativo.status != 'Inativo').order_by(Ativo.numero_carrinho, Ativo.id).all()
 
         # Busca todos agendamentos do dia
         agendamentos = Agendamento.query.filter_by(data_uso=data_uso, status='Agendado').all()
-        
+
         # Inteligência: Busca a previsão de devolução dos equipamentos que estão fisicamente fora (Em uso)
         # A saída e seus itens são gravados em linhas separadas. Como os
         # timestamps podem diferir por microssegundos, não usamos igualdade
         # exata para relacionar a sessão ao histórico.
         historicos_ativos = db.session.query(Historico).join(
-            Notebook, Notebook.id == Historico.id_etiqueta
+            Ativo, Ativo.id == Historico.id_etiqueta
         ).filter(
-            Notebook.status == 'Em uso', Historico.acao == 'Saída/Empréstimo'
+            Ativo.status == 'Em uso', Historico.acao == 'Saída/Empréstimo'
         ).all()
         sessoes_com_previsao = SessaoUso.query.filter(
             SessaoUso.previsao_devolucao != None
@@ -711,25 +846,25 @@ def api_disponibilidade():
                     previsao_em_uso[historico.id_etiqueta] = previsao
 
         blocked_ids = []
-        
+
         def t2m(t_str):
             try:
                 h, m = map(int, t_str.split(':'))
                 return h * 60 + m
             except:
                 return 0
-                
+
         req_in_m = t2m(req_inicio)
         req_fi_m = t2m(req_fim)
-        
+
         for ag in agendamentos:
             if ag.itens_reservados:
                 ag_inicio = ag.horario_retirada or '07:00'
                 ag_fim = ag.horario_devolucao or '18:00' # Se não tiver devolução, assume dia todo
-                
+
                 ag_in_m = t2m(ag_inicio)
                 ag_fi_m = t2m(ag_fim)
-                
+
                 # Inteligência de Tolerância: Permite uma sobreposição de até 10 minutos entre agendamentos
                 # Isso garante que se um termina 12:00, o outro pode começar 11:50 e o equipamento aparecerá livre.
                 if req_in_m < (ag_fi_m - 10) and req_fi_m > (ag_in_m + 10):
@@ -737,7 +872,7 @@ def api_disponibilidade():
 
         resultado = []
         hoje_str = datetime.now().strftime('%Y-%m-%d')
-        
+
         for nb in notebooks:
             status_visual = 'livre'
             if nb.id in blocked_ids:
@@ -752,7 +887,7 @@ def api_disponibilidade():
                     data_uso, req_inicio, prev_devolucao
                 ):
                     status_visual = 'reservado'
-                
+
             resultado.append({
                 'id': nb.id,
                 'carrinho': nb.numero_carrinho if nb.numero_carrinho else '?',
@@ -760,7 +895,7 @@ def api_disponibilidade():
                 'tipo': nb.tipo,
                 'status_visual': status_visual
             })
-            
+
         return {'items': resultado}
     except Exception as e:
         app.logger.error(f"ERRO API AGENDAMENTO: {e}")
@@ -832,27 +967,27 @@ def api_reserva_by_id(id):
 @login_required
 def agendamento():
     modo = request.args.get('modo', 'reserva')
-    
+
     if request.method == 'POST':
         modo_post = request.form.get('modo', 'reserva')
         itens = request.form.get('itens_selecionados', '')
         is_kiosk = request.form.get('kiosk') or request.args.get('kiosk')
-        
+
         from movements import extrair_ids_limpos
         itens_validos = extrair_ids_limpos(itens)
-        
+
         if not itens_validos:
             flash('Erro: Selecione pelo menos um equipamento no mapa antes de confirmar.', 'error')
             return redirect(url_for('agendamento', kiosk=is_kiosk, modo=modo_post))
-            
+
         itens_formatados = ', '.join(itens_validos) # CORREÇÃO: Define itens_formatados aqui para ser sempre acessível
         registrado_por = session.get('username', 'Sistema')
-        
+
         if session.get('perm_config') == 1:
             solicitante = request.form.get('solicitante', '').strip().upper()
         else:
             solicitante = session.get('username', '').upper()
-            
+
         finalidade = request.form.get('finalidade', '').strip()
 
         if modo_post == 'express':
@@ -860,31 +995,31 @@ def agendamento():
             data_dev = request.form.get('data_devolucao', '')
             hora_dev = request.form.get('horario_devolucao', '')
             previsao_devolucao = datetime.strptime(f"{data_dev} {hora_dev}", '%Y-%m-%d %H:%M') if data_dev and hora_dev else None
-            
+
             nova_sessao = SessaoUso( # data_inicio é datetime
                 turma=finalidade, professor=solicitante, programa='Saída Rápida', data_inicio=datetime.now(),
-                quantidade_notebooks=len(itens_validos), observacoes="Saída expressa", 
+                quantidade_notebooks=len(itens_validos), observacoes="Saída expressa",
                 previsao_devolucao=previsao_devolucao,
                 usuario_movimentacao=registrado_por
             )
             db.session.add(nova_sessao)
-            
+
             for notebook_id in itens_validos:
-                Notebook.query.filter_by(id=notebook_id).update({'status': 'Em uso', 'localizacao': finalidade}) # Atualiza diretamente
+                Ativo.query.filter_by(id=notebook_id).update({'status': 'Em uso', 'localizacao': finalidade}) # Atualiza diretamente
                 novo_historico = Historico(id_etiqueta=notebook_id, acao='Saída/Empréstimo', usuario_movimentacao=registrado_por, responsavel=solicitante, data=datetime.now(), obs=f"Destino: {finalidade} - Saída Rápida")
                 db.session.add(novo_historico)
             db.session.commit()
             trigger_iot_relay(force_open=getattr(g, 'modules', {}).get('iot', False))
             if is_kiosk:
                     # Recuperar posições dos itens
-                    nbs = Notebook.query.filter(Notebook.id.in_(itens_validos)).all()
+                    nbs = Ativo.query.filter(Ativo.id.in_(itens_validos)).all()
                     slots = []
                     for nb in nbs:
                         if nb.numero_carrinho is not None:
                             slots.append(str(nb.numero_carrinho))
                     slots = sorted(list(set(slots)), key=lambda x: int(x) if str(x).isdigit() else 999)
                     slots_str = ", ".join(slots) if slots else "Qualquer"
-                    
+
                     return redirect(url_for('kiosk_home', kiosk_success='saida', usuario=solicitante, slots=slots_str))
             else:
                 itens_formatados = ', '.join(itens_validos)
@@ -897,7 +1032,7 @@ def agendamento():
             # --- FLUXO DE RESERVA TRADICIONAL ---
             data_uso_str = request.form.get('data_uso')
             horario_retirada = request.form.get('horario_retirada')
-            
+
             if data_uso_str and horario_retirada:
                 try:
                     agora = datetime.now()
@@ -911,38 +1046,39 @@ def agendamento():
             import random
             codigo_reserva = f"AG{random.randint(1000, 9999)}"
             itens_limpos_str = ','.join(itens_validos)
-                
+
             novo_agendamento = Agendamento(
                 solicitante=solicitante, registrado_por=registrado_por, data_uso=request.form.get('data_uso'),
                 periodo='Matutino', quantidade=len(itens_validos), finalidade=finalidade,
-                itens_reservados=itens_limpos_str, horario_retirada=request.form.get('horario_retirada'), 
-                horario_devolucao=request.form.get('horario_devolucao'), 
+                itens_reservados=itens_limpos_str, horario_retirada=request.form.get('horario_retirada'),
+                horario_devolucao=request.form.get('horario_devolucao'),
                 codigo_reserva=codigo_reserva
             )
             db.session.add(novo_agendamento)
-            
+
             # Um equipamento ainda em uso mantém seu status físico até a devolução.
             # A API de disponibilidade já considera a reserva futura pelo horário.
-            Notebook.query.filter(
-                Notebook.id.in_(itens_validos), Notebook.status == 'Disponível'
+            Ativo.query.filter(
+                Ativo.id.in_(itens_validos), Ativo.status == 'Disponível'
             ).update({'status': 'Reservado'}, synchronize_session=False)
-            
+
             db.session.commit() # CORREÇÃO: Salva o agendamento e a atualização de status no banco de dados.
-            
+            queue_booking_sync(novo_agendamento)
+
             flash(f'Agendamento confirmado para <b>{solicitante}</b>!<br><div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; margin: 15px 0;"><span style="color: #94a3b8; font-size: 0.9em;">Equipamentos reservados:</span><br><b style="color: #10b981; font-size: 1.1em; word-break: break-word;">{itens_formatados}</b></div>Código de Reserva:<br><span style="font-size: 1.8em; color: #10b981; letter-spacing: 2px;"><b>{codigo_reserva}</b></span>', 'success')
-            
+
         if is_kiosk:
             return redirect(url_for('kiosk_home'))
-            
+
         return redirect(url_for('agendamento', modo=modo_post))
-            
+
     hoje = datetime.now().strftime('%Y-%m-%d')
-    
+
     # Busca agendamentos brutos
     raw_agendamentos = Agendamento.query.filter(Agendamento.data_uso >= hoje, Agendamento.status == 'Agendado').order_by(Agendamento.data_uso.asc(), Agendamento.horario_retirada.asc()).all()
-    
+
     # Mapa de Modelos (ID -> Modelo) para consulta rápida
-    all_notebooks = Notebook.query.with_entities(Notebook.id, Notebook.modelo).all()
+    all_notebooks = Ativo.query.with_entities(Ativo.id, Ativo.modelo).all()
     model_map = {nb.id: nb.modelo for nb in all_notebooks}
 
     meus_agendamentos = []
@@ -965,22 +1101,22 @@ def agendamento():
 @login_required
 def imprimir_ticket(codigo):
     ag = Agendamento.query.filter_by(codigo_reserva=codigo.upper()).first()
-    
+
     if not ag:
         flash('Reserva não encontrada.', 'error')
         return redirect(url_for('dashboard'))
-        
+
     itens_str = ag.itens_reservados
     itens_list = [x.strip() for x in str(itens_str).split(',') if x.strip() and x.strip() != 'None'] if itens_str else []
-    
+
     try:
         data_criacao = ag.data_criacao.strftime('%d/%m/%Y %H:%M') if ag.data_criacao else 'N/A'
     except AttributeError:
         data_criacao = 'N/A'
-    
+
     data_uso_fmt = datetime.strptime(ag.data_uso, '%Y-%m-%d').strftime('%d/%m/%Y') if ag.data_uso else 'Imediato'
     hora_ret = ag.horario_retirada if ag.horario_retirada else '--:--'
-    
+
     # Usa um arquivo de template dedicado para facilitar a manutenção
     return render_template('ticket_58mm.html', ag=ag, itens=itens_list, codigo=codigo.upper(), data_criacao=data_criacao, data_uso=data_uso_fmt, hora_uso=hora_ret)
 
@@ -990,20 +1126,21 @@ def imprimir_ticket(codigo):
 def cancelar_agendamento(id):
     # Pega os IDs antes de cancelar
     agendamento = db.session.get(Agendamento, id)
-    
+
     if not agendamento:
         flash('Agendamento não encontrado.', 'error')
         return redirect(url_for('dashboard'))
 
     agendamento.status = 'Cancelado'
-    
+
     # Libera os equipamentos de volta para o Estoque
     if agendamento and agendamento.itens_reservados:
         from movements import extrair_ids_limpos
         ids = extrair_ids_limpos(agendamento.itens_reservados)
-        Notebook.query.filter(Notebook.status == 'Reservado', Notebook.id.in_(ids)).update({'status': 'Disponível'}, synchronize_session=False)
-            
+        Ativo.query.filter(Ativo.status == 'Reservado', Ativo.id.in_(ids)).update({'status': 'Disponível'}, synchronize_session=False)
+
     db.session.commit()
+    queue_booking_sync(agendamento)
     flash('Agendamento cancelado e estoque liberado.', 'success')
     if request.referrer and ('agendamento' in request.referrer or 'sessoes' in request.referrer):
         return redirect(request.referrer)
@@ -1021,29 +1158,29 @@ def historico_agendamentos():
 
     busca = request.args.get('busca', '').strip()
     status_filtro = request.args.get('status', '').strip()
-    
+
     query = Agendamento.query
-    
+
     if data_inicio:
         query = query.filter(Agendamento.data_uso >= data_inicio)
     if data_fim:
         query = query.filter(Agendamento.data_uso <= data_fim)
-        
+
     if status_filtro:
         query = query.filter(Agendamento.status == status_filtro)
-        
+
     if busca:
         busca_like = f'%{busca}%'
         query = query.filter(or_(Agendamento.solicitante.like(busca_like), Agendamento.finalidade.like(busca_like), Agendamento.codigo_reserva.like(busca_like)))
-        
+
     agendamentos_brutos = query.order_by(Agendamento.data_uso.desc(), Agendamento.horario_retirada.desc()).all()
-    
+
     agendamentos = []
     for ag in agendamentos_brutos:
         try: ag.data_fmt = datetime.strptime(ag.data_uso, '%Y-%m-%d').strftime('%d/%m/%Y')
         except: ag.data_fmt = ag.data_uso
         agendamentos.append(ag)
-        
+
     return render_template('historico_agendamentos.html', agendamentos=agendamentos, data_inicio=data_inicio, data_fim=data_fim, filtro_busca=busca, filtro_status=status_filtro)
 
 # --- API IoT (CARRINHO INTELIGENTE) ---
@@ -1053,27 +1190,27 @@ def iot_validar_reserva(codigo):
         Agendamento.codigo_reserva == codigo.upper(),
         Agendamento.status.in_(['Agendado', 'Realizado'])
     ).first()
-    
+
     if not agendamento:
         return {"autorizado": False, "mensagem": "Reserva inválida, cancelada ou já devolvida."}
-        
+
     itens_str = agendamento['itens_reservados']
     if not itens_str:
         return {"autorizado": False, "mensagem": "Reserva sem itens específicos."}
-        
+
     ids_list = [x.strip() for x in itens_str.split(',') if x.strip()]
-    
-    notebooks = Notebook.query.filter(Notebook.id.in_(ids_list)).all()
-    
+
+    notebooks = Ativo.query.filter(Ativo.id.in_(ids_list)).all()
+
     slots = []
     for nb in notebooks:
-        if nb.numero_carrinho is not None: # nb é um objeto Notebook
-            slots.append(str(nb.numero_carrinho)) # nb é um objeto Notebook
+        if nb.numero_carrinho is not None: # nb é um objeto Ativo
+            slots.append(str(nb.numero_carrinho)) # nb é um objeto Ativo
     slots = sorted(list(set(slots)), key=lambda x: int(x) if str(x).isdigit() else 999)
-    
+
     # Define se a ação será uma Retirada ou uma Devolução baseada no status atual
     tipo_acao = "saida" if agendamento.status == 'Agendado' else "devolucao"
-    
+
     return {
         "autorizado": True,
         "tipo": tipo_acao,
@@ -1089,36 +1226,42 @@ def iot_confirmar_saida():
     data = request.get_json()
     if not data or 'agendamento_id' not in data:
         return {"sucesso": False, "mensagem": "Dados inválidos."}, 400
-        
+
     agendamento_id = data['agendamento_id']
     agendamento = Agendamento.query.filter_by(id=agendamento_id, status='Agendado').first()
-    
+
     if not agendamento:
         return {"sucesso": False, "mensagem": "Agendamento não encontrado ou já efetivado."}
-        
+
     turma = agendamento.finalidade
     professor = agendamento.solicitante
     lista_ids_str = agendamento.itens_reservados
-    
+
     from movements import extrair_ids_limpos
     ids_list = extrair_ids_limpos(lista_ids_str)
     # data_inicio é definido por padrão no modelo
     previsao_devolucao = datetime.strptime(f"{agendamento.data_uso} {agendamento.horario_devolucao}", '%Y-%m-%d %H:%M') if agendamento.data_uso and agendamento.horario_devolucao else None
-        
+
     nova_sessao = SessaoUso(
-        turma=turma, professor=professor, programa='IoT Carrinho', quantidade_notebooks=len(ids_list), 
-        observacoes=f"Saída automatizada via IoT (Reserva #{agendamento_id})", 
+        turma=turma, professor=professor, programa='IoT Carrinho', quantidade_notebooks=len(ids_list),
+        observacoes=f"Saída automatizada via IoT (Reserva #{agendamento_id})",
         previsao_devolucao=previsao_devolucao, usuario_movimentacao='Automacao_IoT'
     )
     db.session.add(nova_sessao)
 
     for notebook_id in ids_list:
-        Notebook.query.filter_by(id=notebook_id).update({'status': 'Em uso', 'localizacao': turma})
+        Ativo.query.filter_by(id=notebook_id).update({'status': 'Em uso', 'localizacao': turma})
         novo_historico = Historico(id_etiqueta=notebook_id, acao='Saída/Empréstimo', usuario_movimentacao='Automacao_IoT', responsavel=professor, data=datetime.now(), obs=f"Destino: {turma} - Retirada IoT")
         db.session.add(novo_historico)
 
     agendamento.status = 'Realizado'
     db.session.commit()
+    queue_session_sync(nova_sessao)
+    queue_booking_sync(agendamento)
+    for notebook_id in ids_list:
+        asset = db.session.get(Ativo, notebook_id)
+        if asset:
+            queue_asset_sync(asset)
 
     # --- COMANDO IOT: O SERVIDOR CHAMA O ESP32-S3 ---
     trigger_iot_relay(force_open=getattr(g, 'modules', {}).get('iot', False))
@@ -1131,25 +1274,30 @@ def iot_confirmar_devolucao():
     data = request.get_json()
     if not data or 'agendamento_id' not in data:
         return {"sucesso": False, "mensagem": "Dados inválidos."}, 400
-        
+
     agendamento_id = data['agendamento_id']
     agendamento = Agendamento.query.filter_by(id=agendamento_id, status='Realizado').first()
-    
+
     if not agendamento:
         return {"sucesso": False, "mensagem": "Agendamento não encontrado para devolução."}
-        
+
     from movements import extrair_ids_limpos
     ids_list = extrair_ids_limpos(agendamento.itens_reservados)
-        
+
     # Devolve fisicamente os itens ao estoque
     for notebook_id in ids_list:
-        Notebook.query.filter_by(id=notebook_id).update({'status': 'Disponível', 'localizacao': ''})
+        Ativo.query.filter_by(id=notebook_id).update({'status': 'Disponível', 'localizacao': ''})
         novo_historico = Historico(id_etiqueta=notebook_id, acao='Devolução', usuario_movimentacao='Automacao_IoT', responsavel=agendamento.solicitante, data=datetime.now(), obs="Devolução em lote via Carrinho Inteligente (IoT)")
         db.session.add(novo_historico)
-        
+
     # Finaliza a reserva para não ser usada de novo
     agendamento.status = 'Finalizado'
     db.session.commit()
+    queue_booking_sync(agendamento)
+    for notebook_id in ids_list:
+        asset = db.session.get(Ativo, notebook_id)
+        if asset:
+            queue_asset_sync(asset)
 
     # --- COMANDO IOT: O SERVIDOR CHAMA O ESP32-S3 ---
     trigger_iot_relay(force_open=getattr(g, 'modules', {}).get('iot', False))
@@ -1159,11 +1307,11 @@ def iot_confirmar_devolucao():
 @app.route('/api/iot/devolucao_avulsa/<string:asset_id>', methods=['POST'])
 @csrf.exempt
 def iot_devolucao_avulsa(asset_id):
-    notebook = db.session.get(Notebook, asset_id) # MODERNIZADO
-    
+    notebook = db.session.get(Ativo, asset_id) # MODERNIZADO
+
     if not notebook:
         return {"sucesso": False, "mensagem": "Equipamento não reconhecido no sistema."}
-        
+
     if notebook.status != 'Em uso':
         return {"sucesso": False, "mensagem": f"O equipamento {asset_id} não consta como 'Em uso'. Acesso negado."}
 
@@ -1173,11 +1321,12 @@ def iot_devolucao_avulsa(asset_id):
     novo_historico = Historico(id_etiqueta=asset_id, acao='Devolução', usuario_movimentacao='Automacao_IoT', responsavel='Devolução Expressa', data=datetime.now(), obs="Devolução unitária expressa via Carrinho (IoT)")
     db.session.add(novo_historico)
     db.session.commit()
+    queue_asset_sync(notebook)
 
     # --- COMANDO IOT: O SERVIDOR CHAMA O ESP32-S3 ---
     trigger_iot_relay(force_open=getattr(g, 'modules', {}).get('iot', False))
 
-    return {"sucesso": True, 
+    return {"sucesso": True,
             "mensagem": "Porta destravada para devolução.",
             "slot": notebook.numero_carrinho}
 
@@ -1187,32 +1336,38 @@ def iot_devolucao_lote():
     data = request.get_json(silent=True)
     if not data or 'ids' not in data:
         return {"sucesso": False, "mensagem": "Dados inválidos."}, 400
-        
+
     ids_list = data['ids']
-    
+
     slots = []
     for asset_id in ids_list:
-        notebook = db.session.get(Notebook, asset_id) # MODERNIZADO
+        notebook = db.session.get(Ativo, asset_id) # MODERNIZADO
         if notebook:
             if notebook.numero_carrinho is not None:
                 slots.append(str(notebook.numero_carrinho))
-            
+
             if notebook.status == 'Em uso':
                 notebook.status = 'Disponível'
                 notebook.localizacao = ''
                 novo_historico = Historico(id_etiqueta=asset_id, acao='Devolução', usuario_movimentacao='Automacao_IoT', responsavel='Devolução Expressa', data=datetime.now(), obs="Devolução em lote via Carrinho Inteligente")
                 db.session.add(novo_historico)
-    
+
     # Inteligência: Baixa a reserva se todos os itens que faltavam foram devolvidos agora
     agendamentos = Agendamento.query.filter_by(status='Realizado').all()
     for ag in agendamentos:
         if ag.itens_reservados:
             ag_ids = [x.strip() for x in ag.itens_reservados.split(',') if x.strip()]
-            disp_count = Notebook.query.filter(Notebook.id.in_(ag_ids), Notebook.status == 'Disponível').count()
+            disp_count = Ativo.query.filter(Ativo.id.in_(ag_ids), Ativo.status == 'Disponível').count()
             if disp_count == len(ag_ids):
                 ag.status = 'Finalizado'
-    
+
     db.session.commit()
+    for agendamento in agendamentos:
+        queue_booking_sync(agendamento)
+    for asset_id in ids_list:
+        asset = db.session.get(Ativo, asset_id)
+        if asset:
+            queue_asset_sync(asset)
 
     # --- COMANDO IOT: O SERVIDOR CHAMA O ESP32-S3 ---
     trigger_iot_relay(force_open=getattr(g, 'modules', {}).get('iot', False))
@@ -1220,69 +1375,97 @@ def iot_devolucao_lote():
     # Organiza e formata a lista de slots para mostrar ao usuário
     slots = sorted(list(set(slots)), key=lambda x: int(x) if str(x).isdigit() else 999)
     slots_str = ", ".join(slots) if slots else "Qualquer"
-    
+
     return {"sucesso": True, "slots": slots_str, "qtd": len(ids_list)}
 
-@app.route('/ativacao', methods=['GET', 'POST'])
+@app.route('/ativacao')
 def ativacao():
-    if request.method == 'POST':
-        key_input = request.form.get('license_key', '').strip()
-        license_path = os.path.join(basedir, "licenca.key")
-        
-        # Tenta salvar e validar
-        with open(license_path, 'w') as f:
-            f.write(key_input)
-            
-        new_status, _, _ = get_license_info(force_revalidate=True) # CORREÇÃO: Força a revalidação ignorando o cache
-        if new_status == 'VALID':
-            flash("Sistema ATIVADO com sucesso! Faça login.", "success")
-            return redirect(url_for('auth.login'))
-        else:
-            if os.path.exists(license_path): os.remove(license_path)
-            flash("Chave de licença inválida.", "error")
-
-    from utils import gerar_machine_id
-    current_machine_id = gerar_machine_id()
-    return render_template('ativacao.html', machine_id=current_machine_id)
+    return render_template(
+        'ativacao.html',
+        serial_pdv=os.environ.get('PDV_SERIAL', 'Não configurado'),
+        colegio_id=os.environ.get('COLEGIO_ID', 'Não configurado'),
+    )
 
 @app.route('/ativacao/online', methods=['POST'])
 def ativacao_online():
     """
-    Endpoint que o software cliente chama para se comunicar com o servidor de licenças.
+    Ativação comercial: recebe COLEGIO_ID + PDV_SERIAL + PDV_CHAVE (gerados na
+    Central Acervo TI), valida na Edge Function do Supabase e grava o .env local.
     """
-    chave_compra = request.form.get('chave_compra')
-    machine_id = request.form.get('machine_id')
+    colegio_id = (request.form.get('colegio_id') or '').strip()
+    serial_pdv = (request.form.get('serial_pdv') or '').strip()
+    chave = (request.form.get('chave_ativacao') or '').strip()
 
-    if not chave_compra or not machine_id:
-        return jsonify({'sucesso': False, 'mensagem': 'Dados de ativação ausentes.'})
+    if not all([colegio_id, serial_pdv, chave]):
+        return jsonify({'sucesso': False, 'mensagem': 'Preencha todos os campos (COLEGIO_ID, Serial e Chave).'}), 400
 
-    # --- URL DO SERVIDOR DE LICENÇAS ---
-    # Para desenvolvimento local, use a primeira linha.
-    # Quando hospedar na nuvem, comente a primeira e descomente a segunda, ajustando a URL para a do Render.
-    # LICENSE_SERVER_URL = "http://127.0.0.1:5001/api/ativar" # URL para testes locais (desativada)
-    LICENSE_SERVER_URL = "https://acervo-licencas-server.onrender.com/api/ativar" # URL de produção na nuvem (Render)
+    supabase_url = app.config.get('SUPABASE_URL') or os.environ.get('SUPABASE_URL')
+    supabase_key = app.config.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY')
+    if not supabase_url or not supabase_key:
+        return jsonify({'sucesso': False, 'mensagem': 'Supabase não configurado nesta instalação. Contate o suporte.'}), 500
 
+    # 1. Valida os dados direto na Edge Function, antes de gravar qualquer coisa.
     try:
-        import json
-        data = json.dumps({'chave_compra': chave_compra, 'machine_id': machine_id}).encode('utf-8')
-        req = urllib.request.Request(LICENSE_SERVER_URL, data=data, headers={'Content-Type': 'application/json'})
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
-            resposta_api = json.loads(response.read().decode())
+        payload = json.dumps({'serial_pdv': serial_pdv, 'chave_ativacao': chave, 'colegio_id': colegio_id}).encode('utf-8')
+        requisicao = urllib.request.Request(
+            f"{supabase_url}/functions/v1/validar-licenca",
+            data=payload,
+            headers={'Content-Type': 'application/json', 'apikey': supabase_key,
+                     'Authorization': f'Bearer {supabase_key}'},
+            method='POST',
+        )
+        with urllib.request.urlopen(requisicao, timeout=15) as resposta:
+            data = json.loads(resposta.read().decode('utf-8'))
+        if not data.get('valid'):
+            mensagem = data.get('mensagem') or 'Licença inválida ou expirada. Confira os dados na Central.'
+            app.logger.warning('Ativação recusada: %s', mensagem)
+            return jsonify({'sucesso': False, 'mensagem': mensagem}), 403
+    except Exception as exc:
+        app.logger.error(f'Falha de comunicação na ativação: {exc}')
+        return jsonify({'sucesso': False, 'mensagem': 'Sem comunicação com o servidor de licenças. Tente novamente.'}), 502
 
-        if resposta_api.get('sucesso'):
-            chave_licenca_recebida = resposta_api.get('chave_licenca')
-            license_path = os.path.join(basedir, "licenca.key")
-            with open(license_path, 'w') as f:
-                f.write(chave_licenca_recebida)
-            # CORREÇÃO: Destrói o cache da licença para forçar a revalidação na próxima requisição.
-            global _license_cache
-            _license_cache = {'time': 0, 'data': None}
-            return jsonify({'sucesso': True, 'mensagem': 'Ativação online concluída!'})
-        else:
-            return jsonify({'sucesso': False, 'mensagem': resposta_api.get('mensagem', 'Falha na comunicação com o servidor.')})
-    except Exception as e:
-        return jsonify({'sucesso': False, 'mensagem': f'Não foi possível conectar ao servidor de ativação. Verifique sua internet. ({e})'})
+    # 2. Licença válida: grava/atualiza o .env local com os dados deste cliente.
+    env_path = os.path.join(basedir, '.env')
+    linhas = {}
+    if os.path.exists(env_path):
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for linha in f:
+                linha = linha.strip()
+                if linha and not linha.startswith('#') and '=' in linha:
+                    k, v = linha.split('=', 1)
+                    linhas[k.strip()] = v.strip()
+
+    linhas.update({
+        'SUPABASE_URL': supabase_url,
+        'SUPABASE_ANON_KEY': supabase_key,
+        'PDV_SERIAL': serial_pdv,
+        'PDV_CHAVE': chave,
+        'COLEGIO_ID': colegio_id,
+    })
+    with open(env_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(f'{k}={v}' for k, v in linhas.items()) + '\n')
+
+    # 3. Aplica no processo atual e força revalidação imediata (sem reiniciar).
+    os.environ.update({
+        'PDV_SERIAL': serial_pdv, 'PDV_CHAVE': chave, 'COLEGIO_ID': colegio_id,
+    })
+    try:
+        from database_local import LocalDatabase
+        from licenca_manager import LicencaManager
+        local_db = LocalDatabase(os.path.join(basedir, 'pdv_local.db'))
+        try:
+            LicencaManager(
+                db=local_db, serial_pdv=serial_pdv, chave_ativacao=chave,
+                colegio_id=colegio_id, supabase_url=supabase_url, supabase_key=supabase_key,
+            ).validar_licenca_online()
+        finally:
+            local_db.close()
+    except Exception as exc:
+        app.logger.warning(f'Ativação ok, mas estado offline não pôde ser gravado: {exc}')
+
+    get_license_info(force_revalidate=True)
+    app.logger.info(f'Ativação concluída para o cliente {colegio_id} (serial {serial_pdv}).')
+    return jsonify({'sucesso': True, 'mensagem': 'Licença ativada com sucesso! Redirecionando para o login...'})
 
 # Nova Rota: Redireciona links curtos (sem /scan) para o histórico ou ação correta
 @app.route('/ativo/<string:notebook_id>')
@@ -1308,20 +1491,20 @@ def atalhos_acesso():
     import qrcode
     import io
     from PIL import Image, ImageDraw, ImageFont
-    
+
     # --- CORREÇÃO: VOLTA A USAR O IP LOCAL DA REDE ---
     # Isso garante que celulares e outros dispositivos na mesma rede possam acessar os links.
     from utils import obter_ip_local
     IP = obter_ip_local() # Sempre tenta obter o IP real da rede
-    
+
     base_url = f"https://{IP}:8080"
 
     kiosk_url = f"{base_url}{url_for('kiosk_home')}"
-    
+
     # Cria uma folha A4 branca a 300dpi (2480 x 3508 pixels)
     img = Image.new('RGB', (2480, 3508), 'white')
     draw = ImageDraw.Draw(img)
-    
+
     try:
         font_logo = ImageFont.truetype(os.path.join(basedir, "arialbd.ttf"), 110)
         font_title = ImageFont.truetype(os.path.join(basedir, "arialbd.ttf"), 80)
@@ -1336,35 +1519,35 @@ def atalhos_acesso():
     draw.text((1240, 180), "ACERVO TI", fill="#ffffff", font=font_logo, anchor="mm")
     draw.text((1240, 300), "PORTAL DE AUTOATENDIMENTO", fill="#3b82f6", font=font_title, anchor="mm")
     draw.text((1240, 390), "Aponte a câmera do celular para o QR Code abaixo para acessar o sistema", fill="#94a3b8", font=font_sub, anchor="mm")
-    
+
     # --- DESENHA UM ÚNICO QR CODE GIGANTE CENTRALIZADO ---
     qr_img = qrcode.make(kiosk_url, box_size=35, border=1).convert('RGB')
     w, h = qr_img.size
     x_center, y_center = 1240, 1950
-    
+
     box_w = 1700
     box_h = 1900
     left = x_center - box_w // 2
     top = y_center - box_h // 2
     right = x_center + box_w // 2
     bottom = y_center + box_h // 2
-    
+
     # Sombra Suave e Caixa
     draw.rectangle([left+20, top+20, right+20, bottom+20], fill="#e2e8f0")
     draw.rectangle([left, top, right, bottom], fill="#ffffff", outline="#cbd5e1", width=8)
-    draw.rectangle([left, top, right, top + 220], fill="#3b82f6") 
-    
+    draw.rectangle([left, top, right, top + 220], fill="#3b82f6")
+
     draw.text((x_center, top + 110), "SISTEMA ACERVO TI", fill="white", font=font_card_title, anchor="mm")
-    
+
     qr_y = top + 220 + (box_h - 220 - h) // 2 - 60
     img.paste(qr_img, (x_center - w//2, qr_y))
-    
+
     draw.text((x_center, bottom - 100), "Agendamentos, Saídas, Devoluções e Chamados", fill="#64748b", font=font_card_desc, anchor="mm")
-        
+
     pdf_io = io.BytesIO()
     img.save(pdf_io, "PDF", resolution=300.0)
     pdf_io.seek(0)
-    
+
     # Retorna o arquivo diretamente na tela (as_attachment=False fará abrir no navegador)
     return send_file(pdf_io, as_attachment=False, download_name='qrs_acesso.pdf', mimetype='application/pdf')
 
@@ -1379,13 +1562,13 @@ def desligar_sistema():
     import os
     import threading
     import time
-    
+
     # 1. Limpa a sessão para forçar o pedido de senha quando voltar
     session.clear()
-    
+
     # Aguarda 1 segundo para a página carregar a mensagem e "mata" o processo do servidor
     threading.Thread(target=lambda: (time.sleep(1), os._exit(0)), daemon=True).start()
-    
+
     # 3. Retorna a tela que vai forçar o redirecionamento
     return render_template_string("""
     <html>
@@ -1436,6 +1619,8 @@ if __name__ == '__main__':
         except Exception:
             app.logger.exception('Falha ao criar backup automático na inicialização.')
 
+        start_background_sync()
+
         cert_file = os.path.join(basedir, 'cert_secure.pem')
         key_file = os.path.join(basedir, 'key_secure.pem')
         ip_file = os.path.join(basedir, 'last_ip.txt')
@@ -1459,38 +1644,38 @@ if __name__ == '__main__':
             with open(cert_file, "wb") as f:
                 f.write(cert.public_bytes(serialization.Encoding.PEM))
             with open(ip_file, "wt") as f: f.write(meu_ip)
-            
+
         # NOVIDADE: Abre o navegador automaticamente
         import threading
         import time
         import subprocess
         import platform
-        
+
         def open_browser():
             time.sleep(2)
             url = f"https://127.0.0.1:8080"
-            
+
             # Se for Windows, força o Chrome a abrir num ambiente isolado e com impressão invisível
             if platform.system() == "Windows":
                 chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
                 chrome_path_x86 = r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
                 user_dir = r"C:\ChromeTotem"
                 args = ["--kiosk-printing", f"--user-data-dir={user_dir}", url]
-                
+
                 if os.path.exists(chrome_path): subprocess.Popen([chrome_path] + args)
                 elif os.path.exists(chrome_path_x86): subprocess.Popen([chrome_path_x86] + args)
                 else:
                     import webbrowser; webbrowser.open(url)
             else:
                 import webbrowser; webbrowser.open(url)
-                
+
         threading.Thread(target=open_browser, daemon=True).start()
-        
+
         print("\n" + "="*50)
         print(" SISTEMA INICIADO COM SUCESSO!")
         print(" O navegador abrira automaticamente em instantes.")
         print("="*50 + "\n")
-        
+
         app.run(debug=False, use_reloader=False, threaded=True, host='0.0.0.0', port=8080, ssl_context=(cert_file, key_file))
     except ImportError as e:
         with open("erro_critico.txt", "w") as f: f.write(f"ERRO DE BIBLIOTECA: {e}")

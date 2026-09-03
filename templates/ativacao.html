@@ -124,9 +124,75 @@
     <div class="container">
         <div class="card">
             <div class="card-header">
-                <h1>Ativação Necessária</h1>
-                <p>Sua licença expirou ou não foi encontrada. Ative o sistema para continuar.</p>
+                <h1>Ativação do Acervo TI</h1>
+                <p>Informe os dados de licença fornecidos pela Central Acervo TI para ativar esta instalação.</p>
             </div>
+
+            <div id="alerta" class="alert alert-danger"></div>
+
+            <form id="form-ativacao" autocomplete="off" method="post" action="{{ url_for('ativacao_online') }}">
+                <div class="form-group">
+                    <label for="colegio_id">ID do Cliente (COLEGIO_ID)</label>
+                    <input type="text" id="colegio_id" name="colegio_id" placeholder="Cole aqui o COLEGIO_ID" required>
+                </div>
+                <div class="form-group">
+                    <label for="serial_pdv">Serial do Dispositivo (PDV_SERIAL)</label>
+                    <input type="text" id="serial_pdv" name="serial_pdv" placeholder="Ex.: PDV-CLIENTE-001" required>
+                </div>
+                <div class="form-group">
+                    <label for="chave_ativacao">Chave de Ativação (PDV_CHAVE)</label>
+                    <input type="text" id="chave_ativacao" name="chave_ativacao" placeholder="Cole aqui a chave gerada na Central" required>
+                    <div class="hint">Estes três dados são exibidos pela Central Acervo TI no cadastro do cliente.</div>
+                </div>
+                <button type="submit" id="btn-ativar" class="btn btn-primary">
+                    <span>Ativar Sistema</span>
+                </button>
+            </form>
+
+            <div id="status" style="display:none; margin-top:1.5rem; padding:1rem; border-radius:8px; font-weight:600; text-align:center;"></div>
+
+            <div style="margin-top: 1.75rem; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
+                Problemas para ativar?
+                <a href="https://wa.me/5519998082712?text=Ol%C3%A1!%20Preciso%20de%20suporte%20para%20ativar%20o%20Acervo%20TI." target="_blank" style="color: var(--primary); font-weight: 600; text-decoration: none;">Falar com o Suporte</a>
+            </div>
+
+            <script>
+                (function () {
+                    const form = document.getElementById('form-ativacao');
+                    const botao = document.getElementById('btn-ativar');
+                    const status = document.getElementById('status');
+                    function mostrar(mensagem, cor) {
+                        status.style.display = 'block';
+                        status.style.background = cor === 'ok' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+                        status.style.color = cor === 'ok' ? '#34d399' : '#f87171';
+                        status.textContent = mensagem;
+                    }
+                    form.addEventListener('submit', async function (evento) {
+                        evento.preventDefault();
+                        status.style.display = 'none';
+                        botao.disabled = true;
+                        botao.querySelector('span').textContent = 'Validando licença...';
+                        try {
+                            const resposta = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+                            const resultado = await resposta.json().catch(function () { return {}; });
+                            if (resultado.sucesso) {
+                                mostrar(resultado.mensagem || 'Licença ativada com sucesso!', 'ok');
+                                botao.querySelector('span').textContent = 'Ativado!';
+                                setTimeout(function () { window.location.href = '{{ url_for("auth.login") }}'; }, 1500);
+                                return;
+                            }
+                            mostrar(resultado.mensagem || 'Não foi possível ativar. Confira os dados e tente novamente.');
+                        } catch (erro) {
+                            mostrar('Falha de comunicação com o servidor local. Tente novamente.');
+                        } finally {
+                            botao.disabled = false;
+                            if (botao.querySelector('span').textContent !== 'Ativado!') {
+                                botao.querySelector('span').textContent = 'Ativar Sistema';
+                            }
+                        }
+                    });
+                })();
+            </script>
 
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -135,109 +201,8 @@
                     {% endfor %}
                 {% endif %}
             {% endwith %}
-
-            <div class="form-group">
-                <label for="machine_id">Seu ID de Máquina</label>
-                <input type="text" id="machine_id" name="machine_id" value="{{ machine_id }}" readonly>
-            </div>
-
-            <div class="tabs">
-                <div class="tab-link active" onclick="showTab('online')">Ativação Online</div>
-                <div class="tab-link" onclick="showTab('offline')">Ativação Manual</div>
-            </div>
-
-            <!-- NOVO: Bloco de ajuda com contato inteligente -->
-            <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); padding: 1.25rem; border-radius: 12px; margin-bottom: 1.5rem; text-align: center;">
-                <p style="margin: 0 0 1rem 0; color: var(--text-muted); font-size: 0.9rem;">
-                    Precisa de ajuda ou ainda não tem uma Chave de Compra?
-                </p>
-                <a href="https://wa.me/5519998082712?text=Olá! Preciso de uma licença para o Acervo TI. Meu ID de Máquina é: {{ machine_id }}" target="_blank" style="display: inline-flex; align-items: center; gap: 10px; background-color: #25D366; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413 0 6.557-5.338 11.892-11.894 11.892-1.99 0-3.903-.52-5.586-1.456l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 4.315 1.731 6.086l.001.004 4.274-1.245.005.005zm5.721-7.456c-.225-.112-1.327-.655-1.533-.73-.205-.075-.354-.112-.504.112s-.58.729-.711.879-.262.168-.486.056-.947-.349-1.804-1.113c-.667-.595-1.117-1.329-1.248-1.554s-.014-.346.099-.458c.101-.1.224-.262.336-.393.112-.131.149-.224.224-.373s.038-.281-.019-.393c-.056-.112-.504-1.217-.692-1.666-.181-.435-.366-.377-.504-.383a.965.965 0 0 0-.429-.008.826.826 0 0 0-.599.28c-.206.225-.785.767-.785 1.871s.804 2.171.916 2.321c.112.15 1.582 2.415 3.832 3.387.536.231.954.368 1.279.473.527.171.946.145 1.302.088.41-.066 1.327-.542 1.514-1.066.187-.524.187-.973.131-1.066-.056-.093-.205-.15-.43-.26z"/></svg>
-                    <span>Falar com o Suporte</span>
-                </a>
-            </div>
-
-            <!-- ABA DE ATIVAÇÃO ONLINE -->
-            <div id="online" class="tab-content active">
-                <form id="form-online" onsubmit="ativarOnline(event)">
-                    <div class="form-group">
-                        <label for="chave_compra">Chave de Compra</label>
-                        <input type="text" id="chave_compra" name="chave_compra" placeholder="Ex: COMPRA-123-XYZ" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <span class="material-icons-round">cloud_sync</span> Ativar Online
-                    </button>
-                </form>
-            </div>
-
-            <!-- ABA DE ATIVAÇÃO OFFLINE/MANUAL -->
-            <div id="offline" class="tab-content">
-                <form id="form-offline" action="{{ url_for('ativacao') }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="form-group">
-                        <label for="license_key">Chave de Licença</label>
-                        <textarea id="license_key" name="license_key" rows="4" placeholder="Cole a chave de licença fornecida aqui..." required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <span class="material-icons-round">key</span> Ativar Manualmente
-                    </button>
-                </form>
-            </div>
         </div>
     </div>
 
-    <script>
-        function showTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabName).classList.add('active');
-            document.querySelector(`.tab-link[onclick="showTab('${tabName}')"]`).classList.add('active');
-        }
-
-        // --- LÓGICA DE ATIVAÇÃO ONLINE (AJAX) ---
-        async function ativarOnline(event) {
-            event.preventDefault(); // Impede o recarregamento da página
-            const form = document.getElementById('form-online');
-            const button = form.querySelector('button');
-            const originalButtonText = button.innerHTML;
-
-            // Mostra um feedback de carregamento
-            button.disabled = true;
-            button.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>';
-
-            const formData = new FormData();
-            formData.append('chave_compra', document.getElementById('chave_compra').value);
-            formData.append('machine_id', document.getElementById('machine_id').value);
-            formData.append('csrf_token', '{{ csrf_token() }}'); // Adiciona o token CSRF
-
-            try {
-                const response = await fetch("{{ url_for('ativacao_online') }}", {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-
-                if (result.sucesso) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Ativado com Sucesso!',
-                        text: 'O sistema será reiniciado para aplicar a licença.',
-                        timer: 2000,
-                        showConfirmButton: false
-                    }).then(() => {
-                        window.location.href = "{{ url_for('auth.login') }}";
-                    });
-                } else {
-                    Swal.fire('Erro na Ativação', result.mensagem || 'Ocorreu um erro desconhecido.', 'error');
-                }
-            } catch (error) {
-                Swal.fire('Erro de Conexão', 'Não foi possível se comunicar com o servidor de ativação. Verifique sua conexão com a internet.', 'error');
-            } finally {
-                // Restaura o botão
-                button.disabled = false;
-                button.innerHTML = originalButtonText;
-            }
-        }
-    </script>
 </body>
 </html>

@@ -5,7 +5,7 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
-class Notebook(db.Model):
+class Ativo(db.Model):
     __tablename__ = 'notebooks'
     id: Mapped[str] = mapped_column(String, primary_key=True)
     numero_carrinho: Mapped[int] = mapped_column(Integer, unique=True, nullable=True)
@@ -17,6 +17,10 @@ class Notebook(db.Model):
     localizacao: Mapped[str] = mapped_column(String, nullable=True)
     observacoes: Mapped[str] = mapped_column(Text, nullable=True)
     data_cadastro: Mapped[str] = mapped_column(Text, default=lambda: datetime.now().isoformat())
+
+
+# Compatibilidade temporaria para as rotas e o banco SQLite legado.
+Notebook = Ativo
 
 class ConfiguracaoSistema(db.Model):
     __tablename__ = 'configuracoes_sistema'

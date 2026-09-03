@@ -1,7 +1,7 @@
 [Setup]
 ; Configurações Gerais do Instalador
 ; AppId garante que futuras atualizações substituam a versão antiga corretamente
-AppId={{ACERVO-TI-APP-ID-1000}
+AppId={{A949E7B3-7330-4DDA-B27D-6ABF66B4991E}
 AppName=Acervo TI
 AppVersion=1.0
 AppPublisher=Seu Nome ou Sua Empresa
@@ -29,6 +29,8 @@ Name: "desktopicon"; Description: "Criar um atalho na Área de Trabalho"; GroupD
 ; Copia TODO o conteúdo da pasta de build (gerada pelo build_seguro.py) para a pasta de instalação do cliente.
 ; A flag 'recursesubdirs' garante que as pastas 'templates' e 'static' sejam incluídas.
 Source: "blindado\dist\AcervoTI\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "blindado\dist\ConfigurarCliente.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "blindado\.env.example"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; Cria os atalhos no Menu Iniciar e na Área de Trabalho
@@ -37,5 +39,5 @@ Name: "{group}\Desinstalar Acervo TI"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Acervo TI"; Filename: "{app}\AcervoTI.exe"; Tasks: desktopicon
 
 [Run]
-; Inicia o sistema automaticamente após a instalação
-Filename: "{app}\AcervoTI.exe"; Description: "Iniciar o Acervo TI agora"; Flags: nowait postinstall skipifsilent
+; A instalação precisa ser vinculada a um cliente antes de iniciar o sistema.
+Filename: "{app}\ConfigurarCliente.exe"; Description: "Configurar o cliente agora"; Flags: postinstall skipifsilent

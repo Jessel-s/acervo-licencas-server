@@ -14,7 +14,12 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"
 
 # 2. Obfuscar o código fonte
 print("\n2. Blindando o codigo fonte com PyArmor...")
-arquivos_py = "app.py auth.py database.py inventory.py maintenance.py movements.py settings.py utils.py"
+arquivos_py = (
+    "app.py auth.py database.py inventory.py maintenance.py movements.py settings.py "
+    "storeroom.py utils.py models.py availability.py backup.py database_local.py "
+    "licenca_manager.py supabase_login.py supabase_session.py sync_queue.py "
+    "sync_supabase.py restaurar_supabase.py configurar_cliente.py"
+)
 subprocess.run(f"pyarmor gen -O blindado {arquivos_py}", shell=True)
 
 # 3. Copiar interface e pastas necessárias
@@ -22,6 +27,8 @@ print("\n3. Copiando arquivos de interface para a area segura...")
 for pasta in ['templates', 'static']:
     if os.path.exists(pasta):
         shutil.copytree(pasta, f"blindado/{pasta}", dirs_exist_ok=True)
+
+    shutil.copy2('.env.example', 'blindado/.env.example')
 
 # 4. Encontrar a biblioteca criptografada que o PyArmor gera
 try:
@@ -69,16 +76,26 @@ pyinstaller_args = [
     '--hidden-import', 'pandas._libs.tslibs.base',
     '--hidden-import', 'werkzeug.security',
     '--hidden-import', 'logging.handlers',
+    '--hidden-import', 'requests',
+    '--hidden-import', 'dotenv',
+    '--hidden-import', 'supabase',
     # Módulos do próprio projeto
     '--hidden-import', 'auth', '--hidden-import', 'database', '--hidden-import', 'inventory',
     '--hidden-import', 'utils', '--hidden-import', 'maintenance', '--hidden-import', 'movements', '--hidden-import', 'storeroom',
-    '--hidden-import', 'settings', 
+    '--hidden-import', 'settings', '--hidden-import', 'models', '--hidden-import', 'availability', '--hidden-import', 'backup',
+    '--hidden-import', 'database_local', '--hidden-import', 'licenca_manager', '--hidden-import', 'supabase_login',
+    '--hidden-import', 'supabase_session', '--hidden-import', 'sync_queue', '--hidden-import', 'sync_supabase',
     # Arquivo de entrada
     'app.py'
 ]
 
 try:
     subprocess.run(pyinstaller_args, check=True)
+    subprocess.run([
+        'pyinstaller', '--name', 'ConfigurarCliente', '--console', '--onefile', '--noconfirm',
+        '--hidden-import', 'cryptography.fernet', '--hidden-import', 'dotenv',
+        'configurar_cliente.py',
+    ], check=True)
 except subprocess.CalledProcessError:
     print("\n[ERRO CRITICO] A compilacao falhou! Verifique os erros no texto acima.")
     exit(1)

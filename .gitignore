@@ -1,0 +1,31 @@
+# Segredos e configurações locais
+.env
+.supabase_session.enc
+.supabase_session.key
+
+# Bancos SQLite e arquivos auxiliares locais
+*.db
+*.db-shm
+*.db-wal
+sync_queue.db
+
+# Chaves locais
+secret.key
+license_secret.bin
+licenca.key
+key_secure.pem
+cert_secure.pem
+.license_online_cache.json
+.sys_first_run
+.sys_init
+last_ip.txt
+
+# Arquivos de log e backups gerados localmente
+*.log
+backups/
+
+# Ambientes e caches Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
