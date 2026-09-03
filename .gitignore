@@ -24,6 +24,9 @@ last_ip.txt
 *.log
 backups/
 
+# Ferramentas de IA locais (não usar)
+.continue/
+
 # Ambientes e caches Python
 .venv/
 __pycache__/
