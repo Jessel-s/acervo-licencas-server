@@ -41,6 +41,72 @@
         .install-values { display: grid; gap: 8px; font: .78rem 'DM Mono', monospace; }
         .install-values div { padding: 10px; background: white; border: 1px solid #d7e2b7; border-radius: 4px; overflow-wrap: anywhere; }
         .install-values strong { color: var(--forest-dark); }
+        .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+        .tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+        .tabs button.active { background: var(--forest); color: white; border-color: var(--forest); }
+        table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+        th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+        th { color: var(--muted); font-size: .74rem; text-transform: uppercase; }
+        .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: .72rem; font-weight: 800; }
+        .badge.ok { background: #e2f3d8; color: #2d5a17; }
+        .badge.warn { background: #fdeecd; color: #8a5a00; }
+        .badge.off { background: #f7d9d4; color: #8c2a1a; }
+        td.actions-cell { display: flex; gap: 6px; }
+        td.actions-cell button { padding: 6px 10px; font-size: .74rem; }
+        .serials { font: .72rem 'DM Mono', monospace; color: var(--muted); overflow-wrap: anywhere; }
+        .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+        .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 14px 16px; }
+        .stat-card .stat-value { font: 800 1.5rem Manrope, sans-serif; }
+        .stat-card .stat-label { color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
+        .stat-card.tone-ok .stat-value { color: var(--forest); }
+        .stat-card.tone-warn .stat-value { color: #8a5a00; }
+        .stat-card.tone-off .stat-value { color: var(--danger); }
+        .toolbar-clientes { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+        .toolbar-clientes input { max-width: 320px; }
+        .badge.soon { background: #fff3cd; color: #8a5a00; }
+        .copy-btn { background: transparent; border: 1px dashed var(--line); color: var(--muted); padding: 2px 6px; font: 700 .68rem Manrope, sans-serif; border-radius: 4px; cursor: pointer; }
+        .copy-btn:hover { color: var(--forest); border-color: var(--forest); }
+        .empty-state { text-align: center; padding: 36px 10px; color: var(--muted); }
+        .admin-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 16px; }
+        .admin-tools { display: flex; gap: 8px; }
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .chip { border: 1px solid var(--line); background: white; color: var(--muted); border-radius: 999px; padding: 6px 12px; font: 700 .76rem Manrope, sans-serif; cursor: pointer; }
+        .chip:hover { border-color: var(--forest); color: var(--forest); }
+        .chip.active { background: var(--forest); border-color: var(--forest); color: white; }
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable::after { content: '↕'; margin-left: 5px; color: #b3bfb8; }
+        th.sortable.asc::after { content: '↑'; color: var(--forest); }
+        th.sortable.desc::after { content: '↓'; color: var(--forest); }
+        #clientes-body tr { cursor: pointer; transition: background .12s; }
+        #clientes-body tr:hover { background: #f4f8f1; }
+        .table-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; }
+        .pager { display: flex; gap: 6px; }
+        .pager button { padding: 7px 12px; font-size: .78rem; }
+        .pager button:disabled { opacity: .45; cursor: default; }
+        .modal-overlay { position: fixed; inset: 0; display: none; place-items: center; background: rgba(24,34,31,.45); backdrop-filter: blur(3px); z-index: 50; padding: 20px; }
+        .modal-overlay.visible { display: grid; }
+        .modal { width: min(660px, 100%); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: 10px; padding: 26px; box-shadow: 0 30px 70px rgba(0,0,0,.28); }
+        .modal h2 { margin: 2px 0 0; font-size: 1.25rem; }
+        .modal h3 { margin: 20px 0 10px; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+        .modal-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+        .icon-btn { background: transparent; border: 1px solid var(--line); color: var(--muted); width: 34px; height: 34px; border-radius: 6px; font-size: .95rem; }
+        .modal-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+        .modal-info { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+        .info-item { padding: 10px 12px; background: #f5f7f4; border: 1px solid var(--line); border-radius: 6px; }
+        .info-item .k { color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; }
+        .info-item .v { font: 500 .85rem 'DM Mono', monospace; overflow-wrap: anywhere; margin-top: 3px; }
+        .modal-licencas { display: grid; gap: 8px; }
+        .lic-card { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; font: .78rem 'DM Mono', monospace; }
+        .modal-actions { display: grid; gap: 12px; }
+        .action-row { display: grid; grid-template-columns: 140px 1fr auto; gap: 8px; align-items: center; }
+        .action-row label { margin: 0; }
+        .toasts { position: fixed; right: 18px; bottom: 18px; display: grid; gap: 8px; z-index: 80; }
+        .toast { padding: 12px 16px; border-radius: 7px; background: var(--ink); color: white; font: 600 .84rem Manrope, sans-serif; box-shadow: 0 12px 30px rgba(0,0,0,.25); animation: toast-in .18s ease; max-width: 340px; }
+        .toast.ok { background: var(--forest); }
+        .toast.err { background: var(--danger); }
+        @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+        @media (max-width: 680px) { .admin-head { flex-direction: column; align-items: start; } .modal-info { grid-template-columns: 1fr; } .action-row { grid-template-columns: 1fr; } .table-foot { flex-direction: column; } }
+        @media (max-width: 680px) { .stats { grid-template-columns: repeat(2, 1fr); } .toolbar-clientes { flex-wrap: wrap; } }
         @media (max-width: 680px) { .shell { width: min(100% - 24px, 1120px); } .topbar { align-items: start; flex-direction: column; } .form-grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } .panel, .gate { padding: 20px; } }
     </style>
 </head>
@@ -67,7 +133,11 @@
                 <div><div class="eyebrow">Operação comercial</div><h1>Novo cliente</h1><p class="lead">Um único cadastro cria o tenant, a licença do PDV e o administrador do cliente.</p></div>
                 <button id="logout" class="secondary">Sair</button>
             </div>
-            <section class="panel">
+            <div class="tabs">
+                <button id="tab-novo" class="active">Novo cliente</button>
+                <button id="tab-admin">Clientes cadastrados</button>
+            </div>
+            <section id="panel-novo" class="panel">
                 <form id="client-form">
                     <div class="form-grid">
                         <div class="wide"><label for="nome-cliente">Nome do cliente</label><input id="nome-cliente" required placeholder="Ex.: Empresa Modelo Ltda."></div>
@@ -89,7 +159,74 @@
                     <div id="install-values" class="install-values"></div>
                 </section>
             </section>
+
+            <section id="panel-admin" class="panel" style="display:none;">
+                <div class="admin-head">
+                    <div><div class="eyebrow">Gerenciador</div><h1 style="font-size:1.2rem;">Clientes e licenças</h1></div>
+                    <div class="admin-tools">
+                        <button id="export-csv" class="secondary">Exportar CSV</button>
+                        <button id="refresh-clientes" class="secondary">Atualizar</button>
+                    </div>
+                </div>
+                <div id="stats" class="stats"></div>
+                <div class="toolbar-clientes">
+                    <input id="busca-cliente" type="search" placeholder="Buscar por nome, e-mail, CNPJ ou serial...">
+                    <div id="chips" class="chips"></div>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table id="clientes-table">
+                        <thead><tr>
+                            <th data-sort="nome" class="sortable">Cliente</th>
+                            <th data-sort="cnpj" class="sortable">CNPJ</th>
+                            <th>Licenças</th>
+                            <th data-sort="validade" class="sortable">Validade</th>
+                            <th data-sort="situacao" class="sortable">Situação</th>
+                            <th></th>
+                        </tr></thead>
+                        <tbody id="clientes-body"></tbody>
+                    </table>
+                </div>
+                <div class="table-foot">
+                    <span id="paginacao-info" class="serials"></span>
+                    <div class="pager">
+                        <button id="pag-prev" class="secondary">‹ Anterior</button>
+                        <button id="pag-next" class="secondary">Próxima ›</button>
+                    </div>
+                </div>
+                <p id="admin-message" class="message"></p>
+            </section>
         </section>
+
+        <div id="modal-overlay" class="modal-overlay">
+            <div class="modal" role="dialog" aria-modal="true">
+                <div class="modal-head">
+                    <div><div class="eyebrow">Detalhes do cliente</div><h2 id="modal-nome">—</h2></div>
+                    <button id="modal-fechar" class="icon-btn" aria-label="Fechar">✕</button>
+                </div>
+                <div id="modal-badges" class="modal-badges"></div>
+                <div id="modal-info" class="modal-info"></div>
+                <h3>Licenças</h3>
+                <div id="modal-licencas" class="modal-licencas"></div>
+                <h3>Ações</h3>
+                <div class="modal-actions">
+                    <div class="action-row">
+                        <label for="modal-renovar">Renovar por</label>
+                        <select id="modal-renovar"><option value="30">30 dias</option><option value="180">6 meses</option><option value="365" selected>12 meses</option><option value="730">24 meses</option><option value="1825">5 anos</option></select>
+                        <button id="btn-renovar">Renovar</button>
+                    </div>
+                    <div class="action-row">
+                        <label for="modal-data">Definir validade</label>
+                        <input id="modal-data" type="date">
+                        <button id="btn-data" class="secondary">Salvar</button>
+                    </div>
+                    <div class="action-row">
+                        <label>Status da conta</label>
+                        <button id="btn-status" class="secondary">Suspender cliente</button>
+                    </div>
+                </div>
+                <p id="modal-message" class="message"></p>
+            </div>
+        </div>
     </main>
     <script>
         const SUPABASE_URL = 'https://knasgssawkkiwmeyjhhb.supabase.co';
@@ -148,6 +285,270 @@
             byId('client-form').reset();
             setMessage(message, 'Cadastro concluído. Guarde os dados de instalação antes de fechar esta página.');
         });
+
+        // --- ABA DE ADMINISTRAÇÃO DE CLIENTES ---
+        byId('tab-novo').addEventListener('click', () => switchTab('novo'));
+        byId('tab-admin').addEventListener('click', () => switchTab('admin'));
+
+        function switchTab(tab) {
+            byId('panel-novo').style.display = tab === 'novo' ? '' : 'none';
+            byId('panel-admin').style.display = tab === 'admin' ? '' : 'none';
+            byId('tab-novo').classList.toggle('active', tab === 'novo');
+            byId('tab-admin').classList.toggle('active', tab === 'admin');
+            if (tab === 'admin') carregarClientes();
+        }
+
+        // ===== Gerenciador profissional =====
+        let clientesCache = [];
+        let filtroEstado = 'todos';
+        let ordenacao = { campo: 'nome', asc: true };
+        let pagina = 1;
+        const POR_PAGINA = 8;
+        let clienteSelecionado = null;
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        function apiHeaders(session, json = false) {
+            const h = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` };
+            if (json) h['Content-Type'] = 'application/json';
+            return h;
+        }
+
+        async function postAcao(acao, colegio_id, extra = {}) {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/gerenciar-clientes`, {
+                method: 'POST',
+                headers: apiHeaders(session, true),
+                body: JSON.stringify({ acao, colegio_id, ...extra }),
+            });
+            return response.json().catch(() => ({ ok: false, mensagem: 'Resposta invalida do servidor.' }));
+        }
+
+        function classificarCliente(c) {
+            if (c.situacao === 'expirado') return { cls: 'off', texto: 'Expirado' };
+            if (c.status_assinatura !== 'ativo') return { cls: 'warn', texto: 'Suspenso' };
+            if (c.dias_restantes !== null && c.dias_restantes <= 30) return { cls: 'soon', texto: `Vence em ${c.dias_restantes}d` };
+            return { cls: 'ok', texto: 'Ativo' };
+        }
+
+        function renderStats() {
+            const stats = byId('stats');
+            const expirados = clientesCache.filter((c) => c.situacao === 'expirado').length;
+            const suspensos = clientesCache.filter((c) => c.situacao !== 'expirado' && c.status_assinatura !== 'ativo').length;
+            const ativos = clientesCache.length - expirados - suspensos;
+            const licencas = clientesCache.reduce((n, c) => n + (c.licencas || []).length, 0);
+            const criticos = clientesCache.filter((c) => c.dias_restantes !== null && c.dias_restantes <= 30 && c.dias_restantes > 0 && c.status_assinatura === 'ativo').length;
+            stats.innerHTML = `
+                <div class="stat-card"><div class="stat-value">${clientesCache.length}</div><div class="stat-label">Clientes</div></div>
+                <div class="stat-card tone-ok"><div class="stat-value">${ativos}</div><div class="stat-label">Ativos</div></div>
+                <div class="stat-card tone-warn"><div class="stat-value">${expirados}</div><div class="stat-label">Expirados</div></div>
+                <div class="stat-card tone-off"><div class="stat-value">${suspensos}</div><div class="stat-label">Suspensos</div></div>
+                <div class="stat-card tone-warn"><div class="stat-value">${criticos}</div><div class="stat-label">Vencendo (30d)</div></div>
+                <div class="stat-card"><div class="stat-value">${licencas}</div><div class="stat-label">Licenças</div></div>`;
+        }
+
+        function filtrarClientes() {
+            const termo = byId('busca-cliente').value.trim().toLowerCase();
+            let lista = clientesCache;
+            if (filtroEstado === 'ativos') lista = lista.filter((c) => ['ok', 'soon'].includes(classificarCliente(c).cls));
+            else if (filtroEstado === 'vencendo') lista = lista.filter((c) => classificarCliente(c).cls === 'soon');
+            else if (filtroEstado === 'expirados') lista = lista.filter((c) => c.situacao === 'expirado');
+            else if (filtroEstado === 'suspensos') lista = lista.filter((c) => c.situacao !== 'expirado' && c.status_assinatura !== 'ativo');
+            if (termo) {
+                lista = lista.filter((c) => [c.nome, c.email, c.cnpj, ...(c.licencas || []).map((l) => l.serial_pdv)]
+                    .join(' ').toLowerCase().includes(termo));
+            }
+            const { campo, asc } = ordenacao;
+            lista = [...lista].sort((a, b) => {
+                let va, vb;
+                if (campo === 'dias_restantes') { va = a.dias_restantes ?? Infinity; vb = b.dias_restantes ?? Infinity; return asc ? va - vb : vb - va; }
+                if (campo === 'nome') { va = (a.nome || '').toLowerCase(); vb = (b.nome || '').toLowerCase(); return asc ? va.localeCompare(vb) : vb.localeCompare(va); }
+                if (campo === 'licencas') { va = (a.licencas || []).length; vb = (b.licencas || []).length; return asc ? va - vb : vb - va; }
+                va = a[campo] ?? ''; vb = b[campo] ?? '';
+                return asc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+            });
+            return lista;
+        }
+
+        function renderClientes() {
+            const body = byId('clientes-body');
+            const lista = filtrarClientes();
+            const totalPaginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
+            if (pagina > totalPaginas) pagina = totalPaginas;
+            const inicio = (pagina - 1) * POR_PAGINA;
+            const itens = lista.slice(inicio, inicio + POR_PAGINA);
+            byId('paginacao-info').textContent = lista.length ? `${inicio + 1}–${Math.min(inicio + POR_PAGINA, lista.length)} de ${lista.length}` : '0 resultados';
+            byId('pag-prev').disabled = pagina <= 1;
+            byId('pag-next').disabled = pagina >= totalPaginas;
+            document.querySelectorAll('#clientes-table th[data-sort]').forEach((th) => {
+                th.classList.toggle('sorted', th.dataset.sort === ordenacao.campo);
+                th.querySelector('.sort-ind').textContent = th.dataset.sort === ordenacao.campo ? (ordenacao.asc ? '▲' : '▼') : '↕';
+            });
+            if (!itens.length) {
+                body.innerHTML = `<tr><td colspan="5" class="empty-state">${clientesCache.length ? 'Nenhum cliente corresponde aos filtros.' : 'Nenhum cliente cadastrado ainda.'}</td></tr>`;
+                return;
+            }
+            body.innerHTML = '';
+            for (const c of itens) {
+                const tr = document.createElement('tr');
+                const validade = c.data_expiracao ? new Date(c.data_expiracao).toLocaleDateString('pt-BR') : '—';
+                const badge = classificarCliente(c);
+                const licencasHtml = (c.licencas || []).map((l) =>
+                    `<div class="lic-item"><code>${escapeHtml(l.serial_pdv)}</code><span class="lic-chave">${escapeHtml(l.chave_ativacao)}</span>
+                        <button class="copy-btn" data-copy="${escapeHtml(l.serial_pdv)}|${escapeHtml(l.chave_ativacao)}" title="Copiar serial e chave">⧉</button></div>`
+                ).join('') || '<span class="serials">Sem licenças</span>';
+                const suspenso = c.status_assinatura !== 'ativo';
+                tr.innerHTML = `
+                    <td><strong>${escapeHtml(c.nome)}</strong><br><span class="serials">${escapeHtml(c.email || '')}</span>${c.cnpj ? `<br><span class="serials">CNPJ: ${escapeHtml(c.cnpj)}</span>` : ''}</td>
+                    <td class="serials">${licencasHtml}</td>
+                    <td>${validade}${c.dias_restantes !== null ? `<br><span class="serials">${c.dias_restantes >= 0 ? c.dias_restantes + ' dia(s)' : 'vencida'}</span>` : ''}</td>
+                    <td><span class="badge ${badge.cls}">${badge.texto}</span></td>
+                    <td class="actions-cell">
+                        <button data-acao="renovar" data-id="${c.colegio_id}" data-nome="${escapeHtml(c.nome)}">Renovar</button>
+                        <button data-acao="detalhes" data-id="${c.colegio_id}" class="secondary">Detalhes</button>
+                        <button data-acao="${suspenso ? 'reativar' : 'suspender'}" data-id="${c.colegio_id}" data-nome="${escapeHtml(c.nome)}" class="secondary">${suspenso ? 'Reativar' : 'Suspender'}</button>
+                    </td>`;
+                body.appendChild(tr);
+            }
+        }
+
+        const FILTROS = [['todos', 'Todos'], ['ativos', 'Ativos'], ['vencendo', 'Vencendo (30d)'], ['expirados', 'Expirados'], ['suspensos', 'Suspensos']];
+
+        function renderChips() {
+            byId('chips').innerHTML = FILTROS.map(([valor, texto]) =>
+                `<button class="chip${filtroEstado === valor ? ' active' : ''}" data-filtro="${valor}">${texto}</button>`).join('');
+        }
+
+        byId('chips').addEventListener('click', (e) => {
+            const chip = e.target.closest('button.chip');
+            if (!chip) return;
+            filtroEstado = chip.dataset.filtro;
+            pagina = 1;
+            renderChips();
+            renderClientes();
+        });
+
+        function formatarData(valor) {
+            return valor ? new Date(valor).toLocaleDateString('pt-BR') : '—';
+        }
+
+        function abrirDetalhes(c) {
+            clienteSelecionado = c;
+            const badge = classificarCliente(c);
+            byId('modal-nome').textContent = c.nome || '—';
+            byId('modal-badges').innerHTML = `<span class="badge ${badge.cls}">${badge.texto}</span>` +
+                (c.situacao === 'expirado' ? '<span class="badge off">Assinatura vencida</span>' : '');
+            byId('modal-info').innerHTML = [
+                ['CNPJ', c.cnpj || '—'], ['E-mail', c.email || '—'],
+                ['Expira em', formatarData(c.data_expiracao)],
+                ['Dias restantes', c.dias_restantes ?? '—'],
+                ['Cadastrado em', formatarData(c.created_at)],
+                ['Licenças', (c.licencas || []).length],
+            ].map(([k, v]) => `<div class="info-item"><div class="k">${k}</div><div class="v">${escapeHtml(String(v))}</div></div>`).join('');
+            byId('modal-licencas').innerHTML = (c.licencas || []).map((l) =>
+                `<div class="lic-card"><span>${escapeHtml(l.serial_pdv)}</span><span>${escapeHtml(l.chave_ativacao)}</span>
+                    <span class="badge ${l.status === 'ativa' ? 'ok' : 'off'}">${escapeHtml(l.status)}</span>
+                    <button class="copy-btn" data-copy="${escapeHtml(l.serial_pdv)}|${escapeHtml(l.chave_ativacao)}" title="Copiar">⧉</button></div>`
+            ).join('') || '<em>Nenhuma licença emitida.</em>';
+            const suspenso = c.status_assinatura !== 'ativo';
+            byId('btn-status').textContent = suspenso ? 'Reativar cliente' : 'Suspender cliente';
+            byId('btn-status').dataset.acao = suspenso ? 'reativar' : 'suspender';
+            setMessage(byId('modal-message'), '');
+            byId('modal-overlay').classList.add('visible');
+        }
+
+        async function carregarClientes() {
+            const body = byId('clientes-body');
+            body.innerHTML = '<tr><td colspan="5">Carregando...</td></tr>';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/gerenciar-clientes`, { headers: apiHeaders(session) });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || !result.ok) throw new Error(result.mensagem || 'Erro ao carregar clientes.');
+                clientesCache = result.clientes || [];
+                renderStats();
+                renderClientes();
+            } catch (err) {
+                clientesCache = [];
+                renderStats();
+                body.innerHTML = `<tr><td colspan="5" class="empty-state">${escapeHtml(err.message || 'Erro ao carregar clientes.')}</td></tr>`;
+            }
+        }
+
+        byId('busca-cliente').addEventListener('input', () => { pagina = 1; renderClientes(); });
+        byId('refresh-clientes').addEventListener('click', carregarClientes);
+        byId('pag-prev').addEventListener('click', () => { pagina--; renderClientes(); });
+        byId('pag-next').addEventListener('click', () => { pagina++; renderClientes(); });
+        document.querySelectorAll('#clientes-table th[data-sort]').forEach((th) =>
+            th.addEventListener('click', () => {
+                const campo = th.dataset.sort;
+                if (ordenacao.campo === campo) ordenacao.asc = !ordenacao.asc;
+                else ordenacao = { campo, asc: true };
+                renderClientes();
+            }));
+
+        byId('clientes-body').addEventListener('click', async (event) => {
+            const copyButton = event.target.closest('button.copy-btn');
+            if (copyButton) {
+                const [serial, chave] = copyButton.dataset.copy.split('|');
+                try { await navigator.clipboard.writeText(`${serial} / ${chave}`); setMessage(byId('admin-message'), `Copiado: ${serial}`); }
+                catch { setMessage(byId('admin-message'), 'Não foi possível copiar.', true); }
+                return;
+            }
+            const button = event.target.closest('button[data-acao]');
+            if (!button) return;
+            const cliente = clientesCache.find((c) => c.colegio_id === button.dataset.id);
+            if (button.dataset.acao === 'detalhes') { if (cliente) abrirDetalhes(cliente); return; }
+            if (button.dataset.acao === 'renovar') {
+                const entrada = prompt(`Renovar licença de "${button.dataset.nome}"\nDias de validade (365 = 12 meses):`, '365');
+                if (entrada === null) return;
+                const dias = parseInt(entrada, 10);
+                if (!Number.isInteger(dias) || dias <= 0 || dias > 3650) { setMessage(byId('admin-message'), 'Informe um número de dias entre 1 e 3650.', true); return; }
+                button.disabled = true;
+                setMessage(byId('admin-message'), 'Renovando...');
+                const result = await postAcao('renovar', button.dataset.id, { dias_validade: dias });
+                button.disabled = false;
+                setMessage(byId('admin-message'), result.mensagem || (result.ok ? 'Licença renovada.' : 'Falha na renovação.'), !result.ok);
+                await carregarClientes();
+                return;
+            }
+            if (button.dataset.acao === 'suspender' && !confirm(`Suspender o cliente "${button.dataset.nome}"?\nTodas as licenças dele serão bloqueadas.`)) return;
+            button.disabled = true;
+            setMessage(byId('admin-message'), 'Processando...');
+            const result = await postAcao(button.dataset.acao, button.dataset.id);
+            button.disabled = false;
+            setMessage(byId('admin-message'), result.mensagem || (result.ok ? 'Concluído.' : 'Falha na operação.'), !result.ok);
+            await carregarClientes();
+        });
+
+        function fecharModal() { byId('modal-overlay').classList.remove('visible'); clienteSelecionado = null; }
+        byId('modal-fechar').addEventListener('click', fecharModal);
+        byId('modal-overlay').addEventListener('click', (e) => { if (e.target === byId('modal-overlay')) fecharModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharModal(); });
+
+        async function executarNoModal(acao, extra = {}) {
+            if (!clienteSelecionado) return;
+            setMessage(byId('modal-message'), 'Processando...');
+            const result = await postAcao(acao, clienteSelecionado.colegio_id, extra);
+            setMessage(byId('modal-message'), result.mensagem || (result.ok ? 'Concluído.' : 'Falha na operação.'), !result.ok);
+            await carregarClientes();
+            if (result.ok) {
+                const atualizado = clientesCache.find((c) => c.colegio_id === clienteSelecionado.colegio_id);
+                if (atualizado) abrirDetalhes(atualizado);
+            }
+        }
+
+        byId('btn-renovar').addEventListener('click', () => executarNoModal('renovar', { dias_validade: Number(byId('modal-renovar').value) }));
+        byId('btn-status').addEventListener('click', async (e) => {
+            const acao = e.target.dataset.acao;
+            if (acao === 'suspender' && !confirm(`Suspender o cliente "${clienteSelecionado.nome}"?\nTodas as licenças dele serão bloqueadas.`)) return;
+            executarNoModal(acao);
+        });
+
+        renderChips();
+        switchTab('novo');
 
         showWorkspace();
     </script>
