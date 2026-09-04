@@ -23,6 +23,10 @@
         .workspace { display: none; }
         .workspace.visible { display: block; }
         .topbar { display: flex; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 24px; }
+        .session-info { display: flex; flex-direction: column; align-items: end; gap: 6px; }
+        .session-user { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,.92); font: 700 .82rem Manrope, sans-serif; }
+        .session-user .avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--lime); color: var(--forest-dark); font: 800 .8rem Manrope, sans-serif; }
+        .session-date { color: rgba(255,255,255,.65); font: 500 .72rem 'DM Mono', monospace; }
         .eyebrow { color: var(--forest); font: 500 .76rem 'DM Mono', monospace; text-transform: uppercase; }
         .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 26px; box-shadow: 0 10px 30px rgba(33, 55, 41, .08); }
         .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; }
@@ -34,6 +38,10 @@
         button { border: 0; border-radius: 5px; padding: 11px 16px; background: var(--forest); color: white; cursor: pointer; font: 800 .86rem Manrope, sans-serif; }
         button:hover { background: var(--forest-dark); }
         button.secondary { background: transparent; color: var(--forest); border: 1px solid var(--line); }
+        button.danger { background: transparent; color: var(--danger); border: 1px solid #e4b3ab; }
+        button.danger:hover { background: #f7d9d4; }
+        .lic-card .lic-acoes { display: flex; gap: 6px; }
+        .lic-card button { padding: 5px 9px; font-size: .7rem; }
         .message { min-height: 20px; margin: 15px 0 0; color: var(--muted); font-size: .86rem; }
         .message.error { color: var(--danger); }
         .result { display: none; margin-top: 22px; padding: 20px; border: 1px solid #a4c44b; border-radius: 7px; background: #f5fae6; }
@@ -54,8 +62,14 @@
         .badge.ok { background: #e2f3d8; color: #2d5a17; }
         .badge.warn { background: #fdeecd; color: #8a5a00; }
         .badge.off { background: #f7d9d4; color: #8c2a1a; }
-        td.actions-cell { display: flex; gap: 6px; }
+        td.actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
         td.actions-cell button { padding: 6px 10px; font-size: .74rem; }
+        button.quick { background: #e2f3d8; color: #2d5a17; border: 1px solid transparent; }
+        button.quick:hover { background: #2d5a17; color: white; }
+        button.quick-year { background: var(--forest); color: white; }
+        button.quick-year:hover { background: var(--forest-dark); }
+        .contact-line { display: inline-flex; align-items: center; gap: 4px; }
+        .contact-line::before { content: '☎'; font-size: .7rem; color: #9aa8a0; }
         .serials { font: .72rem 'DM Mono', monospace; color: var(--muted); overflow-wrap: anywhere; }
         .stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
         .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; transition: transform .12s, box-shadow .12s; }
@@ -137,7 +151,11 @@
         <section id="workspace" class="workspace">
             <div class="topbar">
                 <div><div class="eyebrow">Operação comercial</div><h1>Novo cliente</h1><p class="lead">Um único cadastro cria o tenant, a licença do PDV e o administrador do cliente.</p></div>
-                <button id="logout" class="secondary">Sair</button>
+                <div class="session-info">
+                    <div class="session-user"><span class="avatar" id="session-initial">?</span><span id="session-email">—</span></div>
+                    <div class="session-date" id="session-date"></div>
+                    <button id="logout" class="secondary">Sair</button>
+                </div>
             </div>
             <div class="tabs">
                 <button id="tab-novo" class="active">Novo cliente</button>
@@ -229,6 +247,32 @@
                         <label>Status da conta</label>
                         <button id="btn-status" class="secondary">Suspender cliente</button>
                     </div>
+                    <div class="action-row">
+                        <label for="modal-edit-nome">Editar nome</label>
+                        <input id="modal-edit-nome" placeholder="Nome do cliente">
+                        <button id="btn-editar" class="secondary">Salvar</button>
+                    </div>
+                    <div class="action-row">
+                        <label for="modal-edit-cnpj">Editar CNPJ / e-mail</label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                            <input id="modal-edit-cnpj" placeholder="CNPJ">
+                            <input id="modal-edit-email" type="email" placeholder="E-mail comercial">
+                        </div>
+                        <span></span>
+                    </div>
+                    <div class="action-row">
+                        <label>Nova licença</label>
+                        <button id="btn-nova-licenca" class="secondary">Emitir nova licença de PDV</button>
+                    </div>
+                    <div class="action-row">
+                        <label>Backup</label>
+                        <button id="btn-exportar" class="secondary">Exportar dados do cliente</button>
+                    </div>
+                    <div class="action-row">
+                        <label>Zona de risco</label>
+                        <button id="btn-excluir" class="danger">Excluir cliente</button>
+                        <span></span>
+                    </div>
                 </div>
                 <p id="modal-message" class="message"></p>
             </div>
@@ -244,6 +288,10 @@
         async function showWorkspace() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) return;
+            const email = session.user?.email || '—';
+            byId('session-email').textContent = email;
+            byId('session-initial').textContent = email.charAt(0).toUpperCase();
+            byId('session-date').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
             byId('login-panel').style.display = 'none';
             byId('workspace').classList.add('visible');
         }
@@ -412,8 +460,10 @@
                     <td>${validade}${c.dias_restantes !== null ? `<br><span class="serials">${c.dias_restantes >= 0 ? c.dias_restantes + ' dia(s)' : 'vencida'}</span>` : ''}</td>
                     <td><span class="badge ${badge.cls}">${badge.texto}</span></td>
                     <td class="actions-cell">
-                        <button data-acao="renovar" data-id="${c.colegio_id}" data-nome="${escapeHtml(c.nome)}">Renovar</button>
+                        <button data-acao="renovar-rapida" data-dias="30" data-id="${c.colegio_id}" data-nome="${escapeHtml(c.nome)}" class="quick" title="Renovar por 1 mês">+1 mês</button>
+                        <button data-acao="renovar-rapida" data-dias="365" data-id="${c.colegio_id}" data-nome="${escapeHtml(c.nome)}" class="quick-year" title="Renovar por 12 meses">+1 ano</button>
                         <button data-acao="detalhes" data-id="${c.colegio_id}" class="secondary">Detalhes</button>
+                        <button data-acao="exportar" data-id="${c.colegio_id}" class="secondary">Exportar</button>
                         <button data-acao="${suspenso ? 'reativar' : 'suspender'}" data-id="${c.colegio_id}" data-nome="${escapeHtml(c.nome)}" class="secondary">${suspenso ? 'Reativar' : 'Suspender'}</button>
                     </td>`;
                 body.appendChild(tr);
@@ -448,6 +498,7 @@
                 (c.situacao === 'expirado' ? '<span class="badge off">Assinatura vencida</span>' : '');
             byId('modal-info').innerHTML = [
                 ['CNPJ', c.cnpj || '—'], ['E-mail', c.email || '—'],
+                ...(c.telefone ? [['Telefone', c.telefone]] : []), ...(c.responsavel ? [['Responsável', c.responsavel]] : []),
                 ['Expira em', formatarData(c.data_expiracao)],
                 ['Dias restantes', c.dias_restantes ?? '—'],
                 ['Cadastrado em', formatarData(c.created_at)],
@@ -495,6 +546,32 @@
                 renderClientes();
             }));
 
+        function baixarExportacao(cliente, dados) {
+            const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const slug = (cliente.nome || 'cliente').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            link.href = url;
+            link.download = `backup-${slug}-${new Date().toISOString().slice(0, 10)}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function exportarCliente(cliente, botao, msgEl) {
+            botao.disabled = true;
+            setMessage(msgEl, 'Gerando backup...');
+            try {
+                const result = await postAcao('exportar', cliente.colegio_id);
+                if (!result.ok) throw new Error(result.mensagem || 'Falha ao exportar dados.');
+                baixarExportacao(result.cliente || {}, result);
+                setMessage(msgEl, 'Backup gerado com sucesso.');
+            } catch (err) {
+                setMessage(msgEl, err.message || 'Falha ao exportar dados.', true);
+            } finally {
+                botao.disabled = false;
+            }
+        }
+
         byId('clientes-body').addEventListener('click', async (event) => {
             const copyButton = event.target.closest('button.copy-btn');
             if (copyButton) {
@@ -507,6 +584,19 @@
             if (!button) return;
             const cliente = clientesCache.find((c) => c.colegio_id === button.dataset.id);
             if (button.dataset.acao === 'detalhes') { if (cliente) abrirDetalhes(cliente); return; }
+            if (button.dataset.acao === 'exportar') { if (cliente) await exportarCliente(cliente, button, byId('admin-message')); return; }
+            if (button.dataset.acao === 'renovar-rapida') {
+                const dias = parseInt(button.dataset.dias, 10);
+                const rotulo = dias >= 365 ? `${Math.round(dias / 365)} ano(s)` : `${dias} dias`;
+                if (!confirm(`Renovar licença de "${button.dataset.nome}" por ${rotulo}?`)) return;
+                button.disabled = true;
+                setMessage(byId('admin-message'), `Renovando por ${rotulo}...`);
+                const result = await postAcao('renovar', button.dataset.id, { dias_validade: dias });
+                button.disabled = false;
+                setMessage(byId('admin-message'), result.mensagem || (result.ok ? `Licença renovada por ${rotulo}.` : 'Falha na renovação.'), !result.ok);
+                await carregarClientes();
+                return;
+            }
             if (button.dataset.acao === 'renovar') {
                 const entrada = prompt(`Renovar licença de "${button.dataset.nome}"\nDias de validade (365 = 12 meses):`, '365');
                 if (entrada === null) return;
@@ -547,6 +637,62 @@
         }
 
         byId('btn-renovar').addEventListener('click', () => executarNoModal('renovar', { dias_validade: Number(byId('modal-renovar').value) }));
+        byId('btn-data').addEventListener('click', () => {
+            const data = byId('modal-data').value;
+            if (!data) return setMessage(byId('modal-message'), 'Escolha uma data.', true);
+            executarNoModal('definir_expiracao', { data_expiracao: data });
+        });
+        byId('btn-editar').addEventListener('click', () => {
+            const nome = byId('modal-edit-nome').value.trim();
+            if (!nome) return setMessage(byId('modal-message'), 'Informe o nome do cliente.', true);
+            const extra = { nome, cnpj: byId('modal-edit-cnpj').value.trim(), email: byId('modal-edit-email').value.trim() };
+            executarNoModal('editar', extra);
+        });
+        byId('btn-nova-licenca').addEventListener('click', async () => {
+            if (!clienteSelecionado) return;
+            if (!confirm(`Emitir uma nova licença de PDV para "${clienteSelecionado.nome}"?`)) return;
+            setMessage(byId('modal-message'), 'Emitindo licença...');
+            const result = await postAcao('nova_licenca', clienteSelecionado.colegio_id);
+            setMessage(byId('modal-message'), result.ok
+                ? `Nova licença: ${result.licenca.serial_pdv} / ${result.licenca.chave_ativacao}`
+                : (result.mensagem || 'Falha ao emitir licença.'), !result.ok);
+            await carregarClientes();
+            if (result.ok) {
+                const atualizado = clientesCache.find((c) => c.colegio_id === clienteSelecionado.colegio_id);
+                if (atualizado) abrirDetalhes(atualizado);
+            }
+        });
+        byId('btn-excluir').addEventListener('click', async () => {
+            if (!clienteSelecionado) return;
+            if (!confirm(`EXCLUIR o cliente "${clienteSelecionado.nome}" permanentemente?\nTodas as licenças serão apagadas. Esta ação não pode ser desfeita.`)) return;
+            setMessage(byId('modal-message'), 'Excluindo...');
+            const result = await postAcao('excluir', clienteSelecionado.colegio_id);
+            if (result.ok) { fecharModal(); setMessage(byId('admin-message'), 'Cliente excluído.'); }
+            else setMessage(byId('modal-message'), result.mensagem || 'Falha ao excluir.', true);
+            await carregarClientes();
+        });
+
+        byId('export-csv').addEventListener('click', () => {
+            const linhas = [['Cliente', 'CNPJ', 'E-mail', 'Situação', 'Validade', 'Dias restantes', 'Licenças', 'Seriais/Chaves']];
+            for (const c of filtrarClientes()) {
+                const badge = classificarCliente(c);
+                const lics = (c.licencas || []).map((l) => `${l.serial_pdv} / ${l.chave_ativacao} (${l.status})`).join(' | ');
+                linhas.push([c.nome || '', c.cnpj || '', c.email || '', badge.texto,
+                    c.data_expiracao ? new Date(c.data_expiracao).toLocaleDateString('pt-BR') : '',
+                    c.dias_restantes ?? '', String((c.licencas || []).length), lics]);
+            }
+            const csv = '\ufeff' + linhas.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+            const a = document.createElement('a');
+            a.href = url; a.download = `clientes_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+            URL.revokeObjectURL(url);
+            setMessage(byId('admin-message'), 'CSV exportado.');
+        });
+        byId('btn-exportar').addEventListener('click', async (e) => {
+            if (!clienteSelecionado) return;
+            await exportarCliente(clienteSelecionado, e.target, byId('modal-message'));
+        });
+
         byId('btn-status').addEventListener('click', async (e) => {
             const acao = e.target.dataset.acao;
             if (acao === 'suspender' && !confirm(`Suspender o cliente "${clienteSelecionado.nome}"?\nTodas as licenças dele serão bloqueadas.`)) return;

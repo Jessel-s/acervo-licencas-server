@@ -37,6 +37,23 @@ async function requirePlatformAdmin(request: Request) {
   return { user: authData.user };
 }
 
+async function registrarAuditoria(
+  adminUserId: string,
+  adminEmail: string | undefined,
+  colegioId: string | null,
+  acao: string,
+  detalhe?: Record<string, unknown>,
+) {
+  const { error } = await supabase.from("auditoria_admin").insert({
+    admin_user_id: adminUserId,
+    admin_email: adminEmail ?? null,
+    colegio_id: colegioId,
+    acao,
+    detalhe: detalhe ?? {},
+  });
+  if (error) console.error("Falha ao registrar auditoria", error); // nao bloqueia a operacao
+}
+
 function diasRestantes(dataExpiracao: string | null): number | null {
   if (!dataExpiracao) return null;
   const diff = new Date(dataExpiracao).getTime() - Date.now();
@@ -93,7 +110,7 @@ function gerarChaveAtivacao(): string {
   return [hex.slice(0, 4), hex.slice(4, 8), hex.slice(8, 12), hex.slice(12, 16)].join("-");
 }
 
-async function cadastrarCliente(body: Record<string, unknown>) {
+async function cadastrarCliente(user: { id: string; email?: string }, body: Record<string, unknown>) {
   const nome = typeof body?.nome === "string" ? body.nome.trim() : "";
   if (!nome) {
     return json({ ok: false, mensagem: "nome do cliente obrigatorio" }, 400);
@@ -111,6 +128,9 @@ async function cadastrarCliente(body: Record<string, unknown>) {
       nome,
       cnpj: typeof body?.cnpj === "string" && body.cnpj.trim() ? body.cnpj.trim() : null,
       email: typeof body?.email === "string" && body.email.trim() ? body.email.trim() : null,
+      telefone: typeof body?.telefone === "string" && body.telefone.trim() ? body.telefone.trim() : null,
+      responsavel: typeof body?.responsavel === "string" && body.responsavel.trim() ? body.responsavel.trim() : null,
+      observacoes: typeof body?.observacoes === "string" && body.observacoes.trim() ? body.observacoes.trim() : null,
       status_assinatura: trial ? "trial" : "ativo",
       data_expiracao: dataExpiracao,
     })
@@ -132,6 +152,7 @@ async function cadastrarCliente(body: Record<string, unknown>) {
     });
   if (erroLicenca) throw erroLicenca;
 
+  await registrarAuditoria(user.id, user.email, colegio.id, "cadastrar", { nome, trial });
   return json({
     ok: true,
     mensagem: `Cliente ${nome} cadastrado. Envie os dados de ativacao para ele.`,
@@ -146,7 +167,7 @@ async function cadastrarCliente(body: Record<string, unknown>) {
   }, 201);
 }
 
-async function renovarCliente(colegioId: string, diasValidade: number) {
+async function renovarCliente(user: { id: string; email?: string }, colegioId: string, diasValidade: number) {
   const dataExpiracao = new Date(Date.now() + diasValidade * 24 * 60 * 60 * 1000).toISOString();
   const { error } = await supabase
     .from("colegios")
@@ -155,10 +176,11 @@ async function renovarCliente(colegioId: string, diasValidade: number) {
   if (error) throw error;
   // Reativa licenças revogadas do cliente
   await supabase.from("licencas").update({ status: "ativa" }).eq("colegio_id", colegioId);
+  await registrarAuditoria(user.id, user.email, colegioId, "renovar", { dias_validade: diasValidade });
   return json({ ok: true, mensagem: "Licenca renovada", data_expiracao: dataExpiracao });
 }
 
-async function definirExpiracao(colegioId: string, dataExpiracao: string) {
+async function definirExpiracao(user: { id: string; email?: string }, colegioId: string, dataExpiracao: string) {
   if (!/^\d{4}-\d{2}-\d{2}/.test(dataExpiracao) || Number.isNaN(new Date(dataExpiracao).getTime())) {
     return json({ ok: false, mensagem: "Data de expiracao invalida (use AAAA-MM-DD)" }, 400);
   }
@@ -169,7 +191,96 @@ async function definirExpiracao(colegioId: string, dataExpiracao: string) {
     .update({ data_expiracao: dataExpiracao, status_assinatura: status === "expirado" ? "expirado" : "ativo" })
     .eq("id", colegioId);
   if (error) throw error;
+  await registrarAuditoria(user.id, user.email, colegioId, "definir_expiracao", { data_expiracao: dataExpiracao });
   return json({ ok: true, mensagem: "Validade atualizada", data_expiracao: dataExpiracao });
+}
+
+async function editarCliente(user: { id: string; email?: string }, colegioId: string, body: Record<string, unknown>) {
+  const update: Record<string, string> = {};
+  if (typeof body?.nome === "string" && body.nome.trim()) update.nome = body.nome.trim();
+  if (typeof body?.cnpj === "string") update.cnpj = body.cnpj.trim() || null as unknown as string;
+  if (typeof body?.email === "string") update.email = body.email.trim() || null as unknown as string;
+  if (typeof body?.telefone === "string") update.telefone = body.telefone.trim() || null as unknown as string;
+  if (typeof body?.responsavel === "string") update.responsavel = body.responsavel.trim() || null as unknown as string;
+  if (typeof body?.observacoes === "string") update.observacoes = body.observacoes.trim() || null as unknown as string;
+  if (!Object.keys(update).length) {
+    return json({ ok: false, mensagem: "Nenhum campo para atualizar (nome, cnpj, email)" }, 400);
+  }
+  const { error } = await supabase.from("colegios").update(update).eq("id", colegioId);
+  if (error) throw error;
+  await registrarAuditoria(user.id, user.email, colegioId, "editar", update);
+  return json({ ok: true, mensagem: "Dados do cliente atualizados" });
+}
+
+async function exportarCliente(colegioId: string) {
+  const { data: colegio, error: erroColegio } = await supabase
+    .from("colegios")
+    .select("*")
+    .eq("id", colegioId)
+    .maybeSingle();
+  if (erroColegio) throw erroColegio;
+  if (!colegio) return json({ ok: false, mensagem: "Cliente nao encontrado" }, 404);
+
+  const { data: licencas, error: erroLic } = await supabase
+    .from("licencas")
+    .select("*")
+    .eq("colegio_id", colegioId)
+    .order("criado_em", { ascending: true });
+  if (erroLic) throw erroLic;
+
+  const { data: auditoria, error: erroAud } = await supabase
+    .from("auditoria_admin")
+    .select("*")
+    .eq("colegio_id", colegioId)
+    .order("criado_em", { ascending: true });
+  if (erroAud) console.error("Falha ao buscar auditoria", erroAud); // exporta mesmo assim
+
+  return json({
+    ok: true,
+    exportado_em: new Date().toISOString(),
+    cliente: colegio,
+    licencas: licencas ?? [],
+    auditoria: auditoria ?? [],
+  });
+}
+
+async function excluirCliente(colegioId: string) {
+  // Remove licencas primeiro (seguranca caso nao haja ON DELETE CASCADE)
+  const { error: erroLic } = await supabase.from("licencas").delete().eq("colegio_id", colegioId);
+  if (erroLic) throw erroLic;
+  const { error } = await supabase.from("colegios").delete().eq("id", colegioId);
+  if (error) throw error;
+  return json({ ok: true, mensagem: "Cliente excluido permanentemente" });
+}
+
+async function novaLicenca(colegioId: string) {
+  const { data: colegio } = await supabase
+    .from("colegios")
+    .select("id")
+    .eq("id", colegioId)
+    .maybeSingle();
+  if (!colegio) return json({ ok: false, mensagem: "Cliente nao encontrado" }, 404);
+  const serialPdv = gerarSerialPdv();
+  const chaveAtivacao = gerarChaveAtivacao();
+  const { error } = await supabase.from("licencas").insert({
+    colegio_id: colegioId,
+    serial_pdv: serialPdv,
+    chave_ativacao: chaveAtivacao,
+    status: "pendente",
+  });
+  if (error) throw error;
+  return json({ ok: true, mensagem: "Nova licenca emitida", licenca: { serial_pdv: serialPdv, chave_ativacao: chaveAtivacao } }, 201);
+}
+
+async function alterarStatusLicenca(colegioId: string, serialPdv: string, status: string) {
+  if (!serialPdv) return json({ ok: false, mensagem: "serial_pdv obrigatorio" }, 400);
+  const { error } = await supabase
+    .from("licencas")
+    .update({ status })
+    .eq("colegio_id", colegioId)
+    .eq("serial_pdv", serialPdv);
+  if (error) throw error;
+  return json({ ok: true, mensagem: `Licenca ${status}` });
 }
 
 async function alterarStatus(colegioId: string, novoStatus: string) {
@@ -225,6 +336,22 @@ Deno.serve(async (request: Request) => {
       }
       if (acao === "suspender" || acao === "reativar") {
         return await alterarStatus(colegioId, acao === "reativar" ? "ativo" : "suspenso");
+      }
+      if (acao === "editar") {
+        return await editarCliente(colegioId, body);
+      }
+      if (acao === "exportar") {
+        return await exportarCliente(colegioId);
+      }
+      if (acao === "excluir") {
+        return await excluirCliente(colegioId);
+      }
+      if (acao === "nova_licenca") {
+        return await novaLicenca(colegioId);
+      }
+      if (acao === "revogar_licenca" || acao === "reativar_licenca") {
+        const serial = typeof body?.serial_pdv === "string" ? body.serial_pdv : "";
+        return await alterarStatusLicenca(colegioId, serial, acao === "revogar_licenca" ? "revogada" : "ativa");
       }
       return json({ ok: false, mensagem: "Acao invalida" }, 400);
     }
