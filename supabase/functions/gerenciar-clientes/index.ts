@@ -46,8 +46,8 @@ function diasRestantes(dataExpiracao: string | null): number | null {
 async function listarClientes() {
   const { data: colegios, error } = await supabase
     .from("colegios")
-    .select("id, nome, cnpj, email, status_assinatura, data_expiracao, created_at")
-    .order("created_at", { ascending: false });
+    .select("id, nome, cnpj, email, status_assinatura, data_expiracao, criado_em")
+    .order("criado_em", { ascending: false });
   if (error) throw error;
 
   const { data: licencas, error: licError } = await supabase
@@ -73,7 +73,7 @@ async function listarClientes() {
       email: c.email,
       status_assinatura: c.status_assinatura,
       data_expiracao: c.data_expiracao,
-      created_at: c.created_at,
+      criado_em: c.criado_em,
       situacao: expirou ? "expirado" : "ativo",
       dias_restantes: diasRestantes(c.data_expiracao),
       licencas: licencasDoCliente,
@@ -81,6 +81,69 @@ async function listarClientes() {
   });
 
   return json({ ok: true, clientes });
+}
+
+// Gera serial (PDV-XXXXXXXX) e chave (XXXX-XXXX-XXXX-XXXX) a partir de UUIDs.
+function gerarSerialPdv(): string {
+  return `PDV-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}
+
+function gerarChaveAtivacao(): string {
+  const hex = crypto.randomUUID().replace(/-/g, "").toUpperCase();
+  return [hex.slice(0, 4), hex.slice(4, 8), hex.slice(8, 12), hex.slice(12, 16)].join("-");
+}
+
+async function cadastrarCliente(body: Record<string, unknown>) {
+  const nome = typeof body?.nome === "string" ? body.nome.trim() : "";
+  if (!nome) {
+    return json({ ok: false, mensagem: "nome do cliente obrigatorio" }, 400);
+  }
+
+  const dias = Number.isInteger(body?.dias_validade) && body.dias_validade > 0
+    ? Math.min(body.dias_validade, 3650)
+    : 365;
+  const trial = body?.trial === true;
+  const dataExpiracao = new Date(Date.now() + dias * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: colegio, error: erroColegio } = await supabase
+    .from("colegios")
+    .insert({
+      nome,
+      cnpj: typeof body?.cnpj === "string" && body.cnpj.trim() ? body.cnpj.trim() : null,
+      email: typeof body?.email === "string" && body.email.trim() ? body.email.trim() : null,
+      status_assinatura: trial ? "trial" : "ativo",
+      data_expiracao: dataExpiracao,
+    })
+    .select("id, nome, status_assinatura, data_expiracao")
+    .single();
+  if (erroColegio) throw erroColegio;
+
+  const serialPdv = gerarSerialPdv();
+  const chaveAtivacao = gerarChaveAtivacao();
+
+  // Nasce 'pendente' e vira 'ativa' na primeira validacao feita pelo exe do cliente.
+  const { error: erroLicenca } = await supabase
+    .from("licencas")
+    .insert({
+      colegio_id: colegio.id,
+      serial_pdv: serialPdv,
+      chave_ativacao: chaveAtivacao,
+      status: "pendente",
+    });
+  if (erroLicenca) throw erroLicenca;
+
+  return json({
+    ok: true,
+    mensagem: `Cliente ${nome} cadastrado. Envie os dados de ativacao para ele.`,
+    cliente: {
+      colegio_id: colegio.id,
+      nome: colegio.nome,
+      status_assinatura: colegio.status_assinatura,
+      data_expiracao: colegio.data_expiracao,
+      serial_pdv: serialPdv,
+      chave_ativacao: chaveAtivacao,
+    },
+  }, 201);
 }
 
 async function renovarCliente(colegioId: string, diasValidade: number) {
@@ -146,6 +209,9 @@ Deno.serve(async (request: Request) => {
 
       if (!colegioId) return json({ ok: false, mensagem: "colegio_id obrigatorio" }, 400);
 
+      if (acao === "cadastrar") {
+        return await cadastrarCliente(body);
+      }
       if (acao === "renovar") {
         const dias = Number.isInteger(body?.dias_validade) && body.dias_validade > 0
           ? Math.min(body.dias_validade, 3650)

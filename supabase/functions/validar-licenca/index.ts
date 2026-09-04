@@ -62,13 +62,25 @@ Deno.serve(async (req: Request) => {
     const agora = new Date();
     const assinaturaAtiva = colegio?.status_assinatura === "ativo" || colegio?.status_assinatura === "trial";
     const expirou = !!colegio?.data_expiracao && new Date(colegio.data_expiracao).getTime() < agora.getTime();
-    const valid = licenca.status === "ativa" && assinaturaAtiva && !expirou;
+
+    // Status terminais decididos pelo admin NAO sao sobrescritos pela validacao,
+    // caso contrario uma licenca revogada voltaria a ficar 'ativa' sozinha.
+    const statusTerminal = ["revogada", "bloqueada", "cancelada"].includes(licenca.status);
+    const valid = !statusTerminal && licenca.status === "ativa" && assinaturaAtiva && !expirou;
+
+    // Renova o update para ativar licenca pendente na primeira validacao,
+    // e expira automaticamente quando a assinatura acaba.
+    const novoStatus = statusTerminal
+      ? licenca.status
+      : valid
+        ? "ativa"
+        : "expirada";
 
     await supabase
       .from("licencas")
       .update({
         ultima_checagem: agora.toISOString(),
-        status: valid ? "ativa" : "expirada",
+        status: novoStatus,
       })
       .eq("id", licenca.id);
 
@@ -78,7 +90,7 @@ Deno.serve(async (req: Request) => {
         valid,
         colegio_id: licenca.colegio_id,
         serial_pdv: licenca.serial_pdv,
-        status_licenca: valid ? "ativa" : "expirada",
+        status_licenca: novoStatus,
         data_expiracao: colegio?.data_expiracao || null,
       }),
       { headers: { "Content-Type": "application/json" } }

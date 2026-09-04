@@ -21,67 +21,27 @@ else:
 @settings_bp.route('/configuracoes', methods=['GET', 'POST'])
 @permission_required('perm_config')
 def configuracoes():
-    # Lógica de Ativação Manual
-    if request.method == 'POST' and 'license_key' in request.form: 
-        from app import get_license_info # Importa a função de validação central
-        key_input = request.form.get('license_key', '').strip()
-        license_path = os.path.join(basedir, "licenca.key")
-        
-        # Salva a chave temporariamente para que a função de validação possa lê-la
-        with open(license_path, 'w') as f:
-            f.write(key_input)
-        
-        # Força a revalidação da licença (ignora o cache)
-        status, _, new_modules = get_license_info(force_revalidate=True)
-        if status == 'VALID':
-            # CORREÇÃO: Limpa o cache da licença para garantir que a próxima página carregue o novo status.
-            from app import _license_cache
-            _license_cache['time'] = 0
-            _license_cache['data'] = None
-
-            flash("Sistema ATIVADO! A página será recarregada para exibir o novo status.", "success")
-            # CORREÇÃO CRÍTICA: Atualiza a sessão do usuário com os novos módulos imediatamente
-            if 'user_id' in session:
-                session['modules'] = new_modules
-            # Força a atualização dos dados da licença no 'g' para a renderização imediata
-            g.license_status = status
-            g.modules = new_modules # CORREÇÃO: Atualiza os módulos no 'g' também
-            # A variável 'days_left' será recalculada no redirect, então não precisamos nos preocupar com ela aqui.
-            return redirect(url_for('settings.configuracoes'))
-        else:
-            if os.path.exists(license_path): os.remove(license_path)
-            flash("Chave de licença inválida.", "error")
-            return redirect(url_for('settings.configuracoes'))
-            
     users = Usuario.query.order_by(Usuario.username.asc()).all()
-    
+
     # --- NOVO: Obtém IP da máquina e Lê o Log ---
     # CORREÇÃO: Usa a mesma função de ID da tela de ativação para consistência.
-    from utils import obter_ip_local, gerar_machine_id
-    machine_id = gerar_machine_id()
+    from utils import obter_ip_local
     meu_ip = obter_ip_local()
     url_acesso = f"https://{meu_ip}:8080"
-    
+
     log_path = os.path.join(basedir, 'sistema_erros.log')
     if os.path.exists(log_path):
         with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
             log_content = "".join(f.readlines()[-100:]) # Pega as últimas 100 linhas para não travar
     else:
         log_content = "Nenhum log de inicialização encontrado ainda."
-        
-    # Lê a chave de licença atual para o cliente poder copiar
-    license_path = os.path.join(basedir, "licenca.key")
-    current_key = ""
-    if os.path.exists(license_path):
-        with open(license_path, 'r') as f:
-            current_key = f.read().strip()
-            
+
     # --- NOVO: Busca o IP do Totem ---
     config_iot = db.session.get(ConfiguracaoSistema, 'ip_totem_iot') # MODERNIZADO
     ip_totem = config_iot.valor if config_iot else '192.168.0.50'
-            
+
     # g.license_status e g.days_left são definidos no before_request do app.py
-    return render_template('configuracoes.html', users=users, status=g.license_status, days=g.days_left, machine_id=machine_id, url_acesso=url_acesso, log_content=log_content, modules=g.modules, current_key=current_key, ip_totem=ip_totem)
+    return render_template('configuracoes.html', users=users, status=g.license_status, days=g.days_left, url_acesso=url_acesso, log_content=log_content, modules=g.modules, ip_totem=ip_totem)
 
 @settings_bp.route('/configuracoes/salvar_iot', methods=['POST'])
 @permission_required('perm_config')
@@ -107,7 +67,7 @@ def add_user():
         perm_chamados = 1 if 'perm_chamados' in request.form else 0
         perm_ajuda = 1 if 'perm_ajuda' in request.form else 0
         perm_almoxarifado = 1 if 'perm_almoxarifado' in request.form else 0
-        
+
         novo_usuario = Usuario(
             username=username,
             password=generate_password_hash(password),
@@ -190,14 +150,14 @@ def exportar():
     df_sessoes = pd.read_sql_query("SELECT * FROM sessoes_uso ORDER BY data_inicio DESC", conn)
     df_problemas = pd.read_sql_query("SELECT * FROM problemas ORDER BY data_registro DESC", conn)
     df_historico = pd.read_sql_query("SELECT * FROM historico ORDER BY data DESC", conn)
-    
+
     # --- Módulo Almoxarifado ---
     df_almox_prod = pd.read_sql_query("SELECT * FROM almox_produtos ORDER BY nome ASC", conn)
     df_almox_mov = pd.read_sql_query("SELECT * FROM almox_movimentacoes ORDER BY id DESC", conn)
-    
+
     # Tradução corporativa: Renomeia as colunas do banco para nomes mais profissionais no Excel
     df_notebooks.rename(columns={'numero_carrinho': 'numero_controle'}, inplace=True)
-    
+
     df_sessoes.rename(columns={
         'turma': 'setor_destino',
         'professor': 'responsavel',
@@ -205,12 +165,12 @@ def exportar():
         'quantidade_notebooks': 'quantidade_itens',
         'usuario_movimentacao': 'operador_sistema'
     }, inplace=True)
-    
+
     df_historico.rename(columns={
         'usuario_movimentacao': 'operador_sistema',
         'id_etiqueta': 'ativo_id'
     }, inplace=True)
-    
+
     # Reorganiza as colunas de Sessões de Uso
     cols_sess = ['id', 'setor_destino', 'responsavel', 'operador_sistema', 'finalidade', 'data_inicio', 'previsao_devolucao', 'quantidade_itens', 'observacoes']
     cols_sess = [c for c in cols_sess if c in df_sessoes.columns]
@@ -220,7 +180,7 @@ def exportar():
     cols_hist = ['id', 'ativo_id', 'acao', 'operador_sistema', 'responsavel', 'data', 'obs']
     cols_hist = [c for c in cols_hist if c in df_historico.columns]
     df_historico = df_historico[cols_hist]
-    
+
     # Formata todos os cabeçalhos das planilhas para MAIÚSCULAS
     df_notebooks.columns = [str(c).upper() for c in df_notebooks.columns]
     df_sessoes.columns = [str(c).upper() for c in df_sessoes.columns]
@@ -256,24 +216,24 @@ def upload_logo():
     if 'logo' not in request.files:
         flash('Nenhum arquivo enviado.', 'error')
         return redirect(url_for('settings.configuracoes'))
-        
+
     file = request.files['logo']
     if file.filename == '':
         flash('Nenhum arquivo selecionado.', 'error')
         return redirect(url_for('settings.configuracoes'))
-        
+
     if file and file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
         try:
             logo_path = os.path.join(basedir, 'static', 'favicon.png')
-            
+
             img = Image.open(file)
             img = img.convert("RGBA") # Mantém a transparência se for PNG
             img.save(logo_path, format="PNG")
-            
+
             flash('Logotipo atualizado com sucesso! (O sistema carregará a nova imagem imediatamente)', 'success')
         except Exception as e:
             flash(f'Erro ao salvar logotipo: {str(e)}', 'error')
     else:
         flash('Formato de imagem inválido. Envie um arquivo .PNG ou .JPG.', 'error')
-        
+
     return redirect(url_for('settings.configuracoes'))

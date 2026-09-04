@@ -68,7 +68,7 @@
             <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ total }}</div>
         </div>
     </div>
-    
+
     <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
         <div style="background: rgba(16, 185, 129, 0.15); color: var(--success); padding: 1rem; border-radius: 12px; display: flex;">
             <span class="material-icons-round" style="font-size: 2rem;">check_circle</span>
@@ -78,7 +78,7 @@
             <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ disponiveis }}</div>
         </div>
     </div>
-    
+
     <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
         <div style="background: var(--primary-light); color: var(--primary); padding: 1rem; border-radius: 12px; display: flex;">
             <span class="material-icons-round" style="font-size: 2rem;">assignment_ind</span>
@@ -96,6 +96,46 @@
         <div>
             <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Em Manutenção</h3>
             <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ manutencao }}</div>
+        </div>
+    </div>
+
+    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <div style="background: rgba(139, 92, 246, 0.15); color: #a855f7; padding: 1rem; border-radius: 12px; display: flex;">
+            <span class="material-icons-round" style="font-size: 2rem;">bookmark_added</span>
+        </div>
+        <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Reservados</h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ reservados }}</div>
+        </div>
+    </div>
+
+    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15); cursor: pointer;" onclick="window.location='{{ url_for('inventory.inventario') }}?status=Inativo'">
+        <div style="background: rgba(107, 114, 128, 0.15); color: var(--text-muted); padding: 1rem; border-radius: 12px; display: flex;">
+            <span class="material-icons-round" style="font-size: 2rem;">archive</span>
+        </div>
+        <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Inativos / Expurgados</h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ inativos }}</div>
+        </div>
+    </div>
+
+    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <div style="background: rgba(239, 68, 68, 0.15); color: var(--danger); padding: 1rem; border-radius: 12px; display: flex;">
+            <span class="material-icons-round" style="font-size: 2rem;">schedule</span>
+        </div>
+        <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Devoluções em Atraso</h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ emprestimos_atrasados }}</div>
+        </div>
+    </div>
+
+    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid var(--border-soft); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <div style="background: rgba(59, 130, 246, 0.15); color: var(--primary); padding: 1rem; border-radius: 12px; display: flex;">
+            <span class="material-icons-round" style="font-size: 2rem;">trending_up</span>
+        </div>
+        <div>
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 0.25rem 0;">Taxa de Utilização</h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1;">{{ taxa_utilizacao }}%</div>
         </div>
     </div>
 </div>
@@ -123,9 +163,63 @@
     {% endfor %}
 </div>
 
+<!-- PAINEL GERENCIAL: ESTADO DO PARQUE + CHAMADOS -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+    <div class="card" style="padding: 1.5rem;">
+        <div class="card-header" style="border-bottom: none; padding-bottom: 0;">Estado do Parque</div>
+        <div style="position: relative; height: 280px; margin-top: 1rem;">
+            <canvas id="chartParque"></canvas>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 1.5rem; display: flex; flex-direction: column;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 1rem; margin-bottom: 1rem;">
+            <span>Chamados Abertos (Help Desk)</span>
+            <span style="background: rgba(239, 68, 68, 0.15); color: var(--danger); padding: 2px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 700;">{{ total_chamados_abertos }}</span>
+        </div>
+        {% if chamados_abertos %}
+        <div style="flex: 1; overflow-y: auto; max-height: 280px;">
+            <table class="table-std">
+                <thead>
+                    <tr>
+                        <th style="padding: 10px 14px;">Ativo</th>
+                        <th style="padding: 10px 14px;">Problema</th>
+                        <th style="padding: 10px 14px;">Prioridade</th>
+                        <th style="padding: 10px 14px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ch in chamados_abertos %}
+                    <tr>
+                        <td style="padding: 10px 14px; font-weight: 600;">{{ ch.notebook_id }}</td>
+                        <td style="padding: 10px 14px; color: var(--text-muted);">{{ ch.tipo_problema }}</td>
+                        <td style="padding: 10px 14px;">
+                            {% if ch.prioridade == 'Alta' %}
+                                <span style="background: rgba(239, 68, 68, 0.15); color: var(--danger); padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Alta</span>
+                            {% elif ch.prioridade == 'Baixa' %}
+                                <span style="background: rgba(107, 114, 128, 0.15); color: var(--text-muted); padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Baixa</span>
+                            {% else %}
+                                <span style="background: rgba(245, 158, 11, 0.15); color: var(--warning); padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Normal</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 10px 14px; color: var(--text-muted);">{{ ch.status }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7;">
+            <span class="material-icons-round" style="font-size: 3rem; margin-bottom: 1rem;">verified</span>
+            <p>Nenhum chamado aberto. Tudo em ordem!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 <!-- ÁREA DE INTELIGÊNCIA E MONITORAMENTO -->
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 3rem;">
-    
+
     <!-- 1. Gráfico de Movimentação -->
     <div class="card" style="padding: 1.5rem;">
         <div class="card-header" style="border-bottom: none; padding-bottom: 0;">Movimentação (Últimos 7 Dias)</div>
@@ -140,7 +234,7 @@
             <span>Equipamentos em Uso</span>
             <span style="background: var(--primary-light); color: var(--primary); padding: 2px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 700;">{{ em_uso_agora|length }}</span>
         </div>
-        
+
         <div style="flex: 1; overflow-y: auto; margin-top: 1rem; padding-right: 5px;">
             {% if em_uso_agora %}
             <table class="table-std">
@@ -237,7 +331,7 @@
 
     <div class="card" style="padding: 1.5rem;">
         <div class="card-header" style="border-bottom: 1px solid var(--border-soft); padding-bottom: 1rem; margin-bottom: 1rem;">Cronograma Futuro</div>
-        
+
         {% if not previsao_agenda %}
             <div style="height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7;">
                 <span class="material-icons-round" style="font-size: 3rem; margin-bottom: 1rem;">event_busy</span>
@@ -252,7 +346,7 @@
                         <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary);">{{ dia.data }}</div>
                         <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">{{ dia.dia_sem }}</div>
                     </div>
-                    
+
                     <!-- Itens -->
                     <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;">
                         {% for item in dia.itens %}
@@ -310,7 +404,7 @@
         grid-template-columns: 1fr !important;
     }
 }
-    
+
     /* Botões limpos do Dashboard */
     .action-btn-clean {
         background: var(--bg-card); border: 1px solid var(--border-soft); color: var(--text-main);
@@ -331,7 +425,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const rawData = {{ movimentacoes|tojson|safe }};
-    
+
     const labels = [];
     for (let i = 6; i >= 0; i--) {
         let d = new Date();
@@ -341,7 +435,7 @@
         let dia = String(d.getDate()).padStart(2, '0');
         labels.push(`${ano}-${mes}-${dia}`);
     }
-    
+
     const dataSaidas = labels.map(dia => {
         const found = rawData.find(r => r.dia === dia && r.acao === 'Saída/Empréstimo');
         return found ? found.total : 0;
@@ -357,12 +451,12 @@
     const colorGrid = style.getPropertyValue('--border-soft').trim() || '#e5eaec';
 
     const ctx = document.getElementById('chartMovimentacao').getContext('2d');
-    
+
     // Gradiente bonito para o preenchimento
     let gradientSaida = ctx.createLinearGradient(0, 0, 0, 300);
     gradientSaida.addColorStop(0, 'rgba(22, 128, 93, 0.22)');
     gradientSaida.addColorStop(1, 'rgba(22, 128, 93, 0.0)');
-    
+
     let gradientDev = ctx.createLinearGradient(0, 0, 0, 300);
     gradientDev.addColorStop(0, 'rgba(38, 117, 168, 0.22)');
     gradientDev.addColorStop(1, 'rgba(38, 117, 168, 0.0)');
@@ -409,9 +503,9 @@
                 mode: 'index',
                 intersect: false,
             },
-            scales: { 
-                y: { 
-                    beginAtZero: true, 
+            scales: {
+                y: {
+                    beginAtZero: true,
                     ticks: { stepSize: 1, color: colorText, font: { family: 'Inter', size: 11 } },
                     grid: { color: colorGrid, drawBorder: false },
                     border: { display: false }
@@ -435,6 +529,42 @@
                     cornerRadius: 8,
                     borderColor: 'rgba(255,255,255,0.1)',
                     borderWidth: 1
+                }
+            }
+        }
+    });
+    // --- GRÁFICO DE ROSCA: ESTADO DO PARQUE ---
+    const parqueData = {{ parque_por_status|tojson|safe }};
+    const statusColors = {
+        'Disponível': '#10b981',
+        'Em uso': '#0ea5e9',
+        'Reservado': '#a855f7',
+        'Em manutenção': '#f59e0b',
+        'Inativo': '#6b7280'
+    };
+    const ctxParque = document.getElementById('chartParque').getContext('2d');
+    new Chart(ctxParque, {
+        type: 'doughnut',
+        data: {
+            labels: parqueData.map(p => p.status),
+            datasets: [{
+                data: parqueData.map(p => p.qtd),
+                backgroundColor: parqueData.map(p => statusColors[p.status] || '#94a3b8'),
+                borderWidth: 2,
+                borderColor: '#ffffff',
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: { position: 'right', labels: { color: colorText, font: { family: 'IBM Plex Sans', weight: 600, size: 12 }, usePointStyle: true, boxWidth: 8, padding: 14 } },
+                tooltip: {
+                    backgroundColor: '#17252d', titleColor: '#ffffff', bodyColor: '#dce7e9',
+                    padding: 12, cornerRadius: 8,
+                    callbacks: { label: (c) => ` ${c.label}: ${c.raw} ativo(s)` }
                 }
             }
         }

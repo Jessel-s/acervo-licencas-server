@@ -104,10 +104,10 @@
     <!-- Seção de Licença e Sistema -->
     <div class="config-section">
         <h3>Licença e Sistema</h3>
-        
+
         <!-- Painel de Status Elegante -->
         <div class="license-summary" style="display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 20px; background: var(--bg-body); padding: 15px 25px; border-radius: 8px; border: 1px solid var(--border-color);">
-            
+
             <div>
                 <p style="margin: 0 0 5px 0; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">Status Atual</p>
                 {% if status == 'VALID' %}
@@ -118,10 +118,10 @@
                     <span style="color: #ef4444; font-weight: 900; font-size: 1.3rem;">BLOQUEADO</span>
                 {% endif %}
             </div>
-            
+
             <!-- Linha Divisória Vertical -->
             <div style="width: 2px; height: 40px; background: var(--border-soft);"></div>
-            
+
             <div>
                 <p style="margin: 0 0 5px 0; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">Validade do Contrato</p>
                 {% if days > 30000 %}
@@ -130,63 +130,12 @@
                     <span style="background: rgba(16, 185, 129, 0.15); color: #34d399; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 1rem; border: 1px solid rgba(16, 185, 129, 0.3);">{{ days }} DIAS RESTANTES</span>
                 {% endif %}
             </div>
-            
-            <div style="width: 2px; height: 40px; background: var(--border-soft);"></div>
-            
-            <div>
-                <p style="margin: 0 0 5px 0; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">ID da Máquina</p>
-                <span class="status-machine-id" style="color: var(--text-main); font-weight: bold;">{{ machine_id }}</span>
-            </div>
-            
+
         </div>
-
-        <!-- NOVO: Seção de Ativação com Abas -->
-        <div class="tabs">
-            <div class="tab-link active" onclick="showTab('online', this)">Ativação Online</div>
-            <div class="tab-link" onclick="showTab('offline', this)">Ativação Manual</div>
-        </div>
-
-        <!-- ABA DE ATIVAÇÃO ONLINE -->
-        <div id="online" class="tab-content active">
-            <form id="form-online" onsubmit="ativarOnline(event)">
-                <div class="form-group">
-                    <label for="chave_compra">Chave de Compra</label>
-                    <input type="text" id="chave_compra" name="chave_compra" placeholder="Ex: COMPRA-123-XYZ" required>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <span class="material-icons-round">cloud_sync</span> Ativar Online
-                </button>
-            </form>
-        </div>
-
-        <!-- ABA DE ATIVAÇÃO OFFLINE/MANUAL -->
-        <div id="offline" class="tab-content">
-            <form id="form-offline" action="{{ url_for('settings.configuracoes') }}" method="POST">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="form-group">
-                    <label for="license_key">Chave de Licença</label>
-                    <textarea id="license_key" name="license_key" rows="4" placeholder="Cole a chave de licença fornecida aqui..." required>{{ current_key }}</textarea>
-                </div>
-                <button type="submit" class="btn btn-primary">Ativar Manualmente</button>
-            </form>
-        </div>
-
-        <hr style="margin: 25px 0;">
-
-        <!-- NOVO: Estilos para as abas -->
-        <style>
-            .tabs { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 1.5rem; }
-            .tab-link { padding: 0.75rem 1rem; cursor: pointer; color: var(--text-muted); font-weight: 600; border-bottom: 2px solid transparent; transition: all 0.2s ease; }
-            .tab-link:hover { color: var(--text-main); }
-            .tab-link.active { color: var(--primary); border-bottom-color: var(--primary); }
-            .tab-content { display: none; animation: fadeIn 0.5s; }
-            .tab-content.active { display: block; }
-            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        </style>
 
         <div class="settings-card" style="margin-bottom: 20px;">
             <h4 style="margin-top: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
-                <span class="material-icons-round" style="color: var(--primary);">image</span> 
+                <span class="material-icons-round" style="color: var(--primary);">image</span>
                 Personalizar Logotipo
             </h4>
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">
@@ -205,7 +154,7 @@
 
         <div class="settings-card" style="margin-bottom: 20px; {% if not g.modules.get('iot') %}opacity: 0.6; filter: grayscale(1); pointer-events: none;{% endif %}">
             <h4 style="margin-top: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
-                <span class="material-icons-round" style="color: var(--primary);">router</span> 
+                <span class="material-icons-round" style="color: var(--primary);">router</span>
                 Configuração do Carrinho Inteligente (IoT)
                 {% if not g.modules.get('iot') %}<span class="module-badge locked" style="margin-left: auto;">Módulo Bloqueado</span>{% endif %}
             </h4>
@@ -230,25 +179,7 @@
             <p style="margin: 0 0 5px 0; font-weight: bold; font-size: 1.1rem; color: var(--text-main);">JSL Sistemas</p>
             <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-muted);">Desenvolvedor: Jessé Silva Leite</p>
 
-            <label style="font-weight: bold; color: var(--text-muted); font-size: 0.85rem;">SEU ID DE MÁQUINA:</label>
-            <div class="machine-id-box" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; border-radius: 6px; border: 1px dashed; margin-bottom: 15px;">
-                <span id="configMachineId" class="machine-id-value" style="font-family: monospace; font-weight: 600;">{{ machine_id }}</span>
-                <button type="button" onclick="copiarIDConfig()" id="btnCopyConfig" style="background: #323248; color: #00d2ff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; transition: 0.3s;">
-                    <span class="material-icons-round" style="font-size: 18px;">content_copy</span> Copiar
-                </button>
-            </div>
-            
-            {% if current_key %}
-            <label style="font-weight: bold; color: var(--text-muted); font-size: 0.85rem;">SUA CHAVE ATUAL (Envie para comprar módulos):</label>
-            <div class="license-key-box" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; border-radius: 6px; border: 1px dashed; margin-bottom: 15px;">
-                <span style="font-family: monospace; font-size: 0.9rem; color: #a78bfa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;">{{ current_key[:20] }}...{{ current_key[-10:] }}</span>
-                <button type="button" onclick="navigator.clipboard.writeText('{{ current_key }}'); Swal.fire('Copiada!', 'Sua chave foi copiada. Cole no WhatsApp do suporte!', 'success');" style="background: #323248; color: #a78bfa; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; transition: 0.3s;">
-                    <span class="material-icons-round" style="font-size: 18px;">content_copy</span> Copiar Chave
-                </button>
-            </div>
-            {% endif %}
-
-            <a href="https://wa.me/5519998082712?text=Olá, Jessé! Preciso de suporte/licença para o Acervo TI. Meu ID é: {{ machine_id }}" target="_blank" style="display: block; text-align: center; background: #25D366; color: white; padding: 10px; border-radius: 6px; text-decoration: none; font-weight: bold; transition: 0.3s;">
+            <a href="https://wa.me/5519998082712?text=Olá, Jessé! Preciso de suporte/licença para o Acervo TI." target="_blank" style="display: block; text-align: center; background: #25D366; color: white; padding: 10px; border-radius: 6px; text-decoration: none; font-weight: bold; transition: 0.3s;">
                 <span class="material-icons-round" style="vertical-align: middle; font-size: 18px;">chat</span> Contato via WhatsApp: (19) 99808-2712
             </a>
         </div>
@@ -293,11 +224,11 @@
                         <span class="module-badge locked">Bloqueado</span>
                     {% endif %}
                 </div>
-                
+
                 <p style="font-size: 0.9rem; margin-bottom: 15px; z-index: 1; color: #cbd5e1;">
                     Conecte o sistema a trancas eletrônicas (ESP32/Relé). Destrave as portas do carrinho automaticamente para o usuário.
                 </p>
-                
+
                 <ul class="module-features">
                     <li class="{% if not g.modules.get('iot') %}locked-feature{% endif %}"><span class="material-icons-round" style="color: {% if g.modules.get('iot') %}#0ea5e9{% endif %}">{% if g.modules.get('iot') %}check_circle{% else %}lock{% endif %}</span> Disparo Automático (Wi-Fi)</li>
                     <li class="{% if not g.modules.get('iot') %}locked-feature{% endif %}"><span class="material-icons-round" style="color: {% if g.modules.get('iot') %}#0ea5e9{% endif %}">{% if g.modules.get('iot') %}check_circle{% else %}lock{% endif %}</span> API de Autoatendimento</li>
@@ -325,9 +256,9 @@
     <h2 style="color: var(--primary); display: flex; align-items: center; gap: 10px; margin-top: 0; border-bottom: 2px solid var(--border-color); padding-bottom: 12px;">
         <span class="material-icons-round">terminal</span> Monitoramento do Servidor
     </h2>
-    
+
     <p style="margin-top: 20px;">Compartilhe o endereço abaixo para que outras pessoas acessem o sistema pela rede da empresa:</p>
-    
+
     <div style="background: #1e1e2d; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
         <span style="color: #4ade80; font-size: 1.2rem; font-weight: bold; font-family: monospace; letter-spacing: 1px;">{{ url_acesso }}</span>
         <button type="button" onclick="navigator.clipboard.writeText('{{ url_acesso }}'); Swal.fire('Copiado!', 'Link copiado para a área de transferência', 'success');" style="background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 5px; font-weight: bold;">

@@ -1,4 +1,4 @@
-name: Deploy Edge Functions (Supabase)
+﻿name: Deploy Edge Functions (Supabase)
 
 on:
   push:
@@ -29,3 +29,4 @@ jobs:
           supabase functions deploy validar-licenca --project-ref "$SUPABASE_PROJECT_ID"
           supabase functions deploy sincronizar-operacoes --project-ref "$SUPABASE_PROJECT_ID"
           supabase functions deploy webhook-pagamento --project-ref "$SUPABASE_PROJECT_ID"
+          supabase functions deploy gerenciar-clientes --project-ref "$SUPABASE_PROJECT_ID"

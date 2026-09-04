@@ -10,8 +10,6 @@ try:
 except ImportError:
     def load_dotenv(*args, **kwargs):
         return False
-import uuid
-import hashlib
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -215,68 +213,7 @@ def get_saas_license_info():
         local_db.close()
 
 
-def get_license_secret():
-    """Carrega a chave secreta de um arquivo para não deixá-la no código."""
-    secret_file = os.path.join(basedir, 'license_secret.bin')
-    if os.path.exists(secret_file):
-        with open(secret_file, 'rb') as f:
-            return f.read()
-    # Se o arquivo não existir, o sistema não pode validar licenças.
-    # Retornar None fará com que a validação falhe de forma segura.
-    return None
-
-
-def try_supabase_license_validation(machine_id: str, license_key: str):
-    """Validação opcional pelo Supabase para o modelo SaaS híbrido."""
-    if not app.config.get('SUPABASE_ENABLED'):
-        return None
-
-    try:
-        from database_local import LocalDatabase
-        from licenca_manager import LicencaManager
-
-        local_db = LocalDatabase(os.path.join(basedir, 'pdv_local.db'))
-        manager = LicencaManager(
-            db=local_db,
-            serial_pdv=machine_id,
-            chave_ativacao=license_key,
-            colegio_id=os.environ.get('COLEGIO_ID'),
-            supabase_url=app.config.get('SUPABASE_URL'),
-            supabase_key=app.config.get('SUPABASE_ANON_KEY'),
-        )
-        result = manager.validar_licenca_online()
-        local_db.close()
-        return result
-    except Exception as exc:
-        app.logger.warning(f'Validação Supabase falhou: {exc}')
-        return None
-
 _license_cache = {'time': 0, 'data': None}
-LICENSE_ONLINE_GRACE_SECONDS = 7 * 24 * 60 * 60
-
-def get_license_online_cache_path():
-    return os.path.join(basedir, '.license_online_cache.json')
-
-def save_license_online_validation(machine_id, license_key):
-    cache_data = {
-        'machine_id': machine_id,
-        'license_hash': hashlib.sha256(license_key.encode()).hexdigest(),
-        'validated_at': time.time()
-    }
-    with open(get_license_online_cache_path(), 'w', encoding='utf-8') as cache_file:
-        json.dump(cache_data, cache_file)
-
-def has_recent_online_validation(machine_id, license_key):
-    try:
-        with open(get_license_online_cache_path(), 'r', encoding='utf-8') as cache_file:
-            cache_data = json.load(cache_file)
-        return (
-            cache_data.get('machine_id') == machine_id and
-            cache_data.get('license_hash') == hashlib.sha256(license_key.encode()).hexdigest() and
-            time.time() - float(cache_data.get('validated_at', 0)) < LICENSE_ONLINE_GRACE_SECONDS
-        )
-    except (OSError, ValueError, TypeError):
-        return False
 
 def get_license_info(force_revalidate: bool = False) -> tuple:
     """Valida a licença e retorna o status e os módulos habilitados."""
@@ -297,117 +234,12 @@ def get_license_info(force_revalidate: bool = False) -> tuple:
         _license_cache = {'time': time.time(), 'data': result}
         return result
 
-    # O modo cloud pertence ao servidor de licenças, não ao executável do cliente.
-    # Nunca ignore a licença no cliente, pois isso impede revogação remota.
-    if os.environ.get('CLOUD_DEPLOY') == 'TRUE' and os.environ.get('LICENSE_SERVER_MODE') == 'TRUE':
-        all_modules = {'iot': True, 'helpdesk': True, 'storeroom': True}
-        result = ('VALID', 36500, all_modules) # Licença "infinita" para o seu próprio servidor
-        _license_cache = {'time': time.time(), 'data': result}
-        return result
-
+    # Sem licença Supabase configurada: aplica o Trial de 7 dias.
+    # LÓGICA DE TRIAL APRIMORADA: Uma vez que o Trial é iniciado, ele não pode ser resetado.
     # NOVA LÓGICA: Help Desk e Almoxarifado são padrão. Apenas IoT é opcional.
     # CORREÇÃO: Durante o Trial, TODOS os módulos devem estar liberados para teste.
     default_modules = {'iot': True, 'helpdesk': True, 'storeroom': True}
 
-    from utils import gerar_machine_id
-    current_machine_id = gerar_machine_id()
-    license_file = os.path.join(basedir, "licenca.key")
-
-    # 1. Tenta validar a licença completa
-    if os.path.exists(license_file):
-        try:
-            with open(license_file, 'r') as f:
-                stored_key = f.read().strip()
-
-            license_secret = get_license_secret()
-            if not license_secret:
-                app.logger.error("FALHA CRÍTICA: Arquivo 'license_secret.bin' não encontrado. Não é possível validar a licença.")
-                return 'INVALID', 0, default_modules
-
-            fernet_obj = Fernet(license_secret)
-            decrypted_data = fernet_obj.decrypt(stored_key.encode()).decode()
-
-            parts = decrypted_data.split('|')
-            licensed_id = parts[0]
-
-            if licensed_id == current_machine_id:
-                # NOVA LÓGICA: Licença Anual (SaaS)
-                days_left = 36500 # Padrão para licenças vitalícias (formato antigo) -> ~100 anos
-
-                # Verifica se a licença tem data de expiração (formato novo)
-                if len(parts) > 1 and '-' in parts[1]:
-                    try:
-                        expiration_date_str = parts[1] # Espera o formato YYYY-MM-DD
-                        expiration_date = datetime.strptime(expiration_date_str, '%Y-%m-%d')
-                        # Adiciona um dia para incluir o dia da expiração
-                        days_left = (expiration_date.date() - datetime.now().date()).days + 1
-
-                        # CORREÇÃO: Se for 0 ou menos dias, a licença expirou.
-                        if days_left <= 0:
-                            return 'EXPIRED', 0, default_modules
-                    except (ValueError, IndexError):
-                        # Se a data estiver mal formatada, a chave é inválida. Não prossegue para o Trial.
-                        return 'INVALID', 0, default_modules
-
-                # NOVA LÓGICA: Help Desk e Almoxarifado são padrão. Apenas IoT é verificado.
-                modules = {'iot': False, 'helpdesk': True, 'storeroom': True}
-                # Itera sobre as partes da licença para encontrar o módulo IoT
-                for part in parts[2:]: # Começa do índice 2 para pular MAC e DATA
-                    if 'IOT=TRUE' in part: modules['iot'] = True
-
-                # Licenças emitidas pelo servidor podem ser revogadas no painel.
-                if 'ONLINE=TRUE' in parts[2:]:
-                    if not has_recent_online_validation(current_machine_id, stored_key):
-                        try:
-                            validation_data = json.dumps({'machine_id': current_machine_id}).encode('utf-8')
-                            validation_request = urllib.request.Request(
-                                'https://acervo-licencas-server.onrender.com/api/validar',
-                                data=validation_data,
-                                headers={'Content-Type': 'application/json'}
-                            )
-                            with urllib.request.urlopen(validation_request, timeout=8) as response:
-                                validation_result = json.loads(response.read().decode('utf-8'))
-                            if not validation_result.get('valida', False):
-                                app.logger.warning('Licença online revogada pelo servidor.')
-                                return 'INVALID', 0, default_modules
-                            save_license_online_validation(current_machine_id, stored_key)
-                        except Exception as validation_error:
-                            app.logger.error(f'Falha na validação online sem cache válido: {validation_error}')
-                            return 'INVALID', 0, default_modules
-
-                # LÓGICA HÍBRIDA: Se a licença não tem IoT, mas o trial ainda está ativo, libera o IoT temporariamente.
-                if not modules['iot']:
-                    trial_file_check = os.path.join(basedir, '.sys_init')
-                    if os.path.exists(trial_file_check):
-                        try:
-                            with open(trial_file_check, 'r') as f:
-                                start_timestamp = float(f.read().strip())
-                            start_date = datetime.fromtimestamp(start_timestamp)
-                            days_passed = (datetime.now() - start_date).days
-                            trial_days_left = 7 - days_passed
-                            if trial_days_left >= 1:
-                                modules['iot'] = True # Libera o IoT pelo período restante do trial
-                                # Adiciona um marcador para a interface saber que é um trial
-                                modules['iot_trial_active'] = True
-                        except (IOError, ValueError):
-                            pass # Se o arquivo de trial estiver corrompido, ignora.
-
-                result = ('VALID', days_left, modules)
-                _license_cache = {'time': time.time(), 'data': result}
-                app.logger.info("Licença validada com SUCESSO.")
-                return result
-        except InvalidToken:
-            app.logger.error(f"FALHA NA VALIDAÇÃO DA LICENÇA: Chave inválida ou corrompida (InvalidToken).")
-            return 'INVALID', 0, default_modules # Se a chave não pode ser descriptografada, é inválida.
-        except Exception as e: # Captura outros erros (ex: arquivo mal formatado)
-            print("\n\n--- ERRO NA VALIDAÇÃO DA LICENÇA ---")
-            traceback.print_exc()
-            print("-------------------------------------\n\n")
-            app.logger.error(f"FALHA NA VALIDAÇÃO DA LICENÇA: {e}\n{traceback.format_exc()}")
-            return 'INVALID', 0, default_modules # Se a chave não pode ser descriptografada, é inválida.
-
-    # 2. Se a licença falhou, verifica o Trial
-    # LÓGICA DE TRIAL APRIMORADA: Uma vez que o Trial é iniciado, ele não pode ser resetado.
     first_run_file = os.path.join(basedir, '.sys_first_run')
     trial_file = os.path.join(basedir, '.sys_init')
 
@@ -576,7 +408,13 @@ def dashboard():
     total = db.session.query(func.count(Ativo.id)).filter(Ativo.status != 'Inativo').scalar()
     disponiveis = db.session.query(func.count(Ativo.id)).filter(Ativo.status == 'Disponível').scalar()
     manutencao = db.session.query(func.count(Ativo.id)).filter(Ativo.status == 'Em manutenção').scalar()
+    reservados = db.session.query(func.count(Ativo.id)).filter(Ativo.status == 'Reservado').scalar()
+    inativos = db.session.query(func.count(Ativo.id)).filter(Ativo.status == 'Inativo').scalar()
     por_tipo = db.session.query(Ativo.tipo, func.count(Ativo.tipo).label('qtd')).filter(Ativo.status != 'Inativo').group_by(Ativo.tipo).all()
+
+    # CORREÇÃO: Dados do gráfico de rosca (Estado do Parque) que o template espera
+    parque_query = db.session.query(Ativo.status, func.count(Ativo.id).label('qtd')).group_by(Ativo.status).all()
+    parque_por_status = [{'status': row.status or 'Indefinido', 'qtd': row.qtd} for row in parque_query]
 
     data_limite = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
 
@@ -650,6 +488,36 @@ def dashboard():
     # CORRECAO: Conta baseado na lista real processada para evitar divergência
     em_uso = len(lista_em_uso)
 
+    # Enriquece a lista com a hora real de saída (exibida no dashboard)
+    for item in lista_em_uso:
+        saida = None
+        if item.get('data_inicio_raw'):
+            try:
+                saida = datetime.fromisoformat(item['data_inicio_raw'])
+            except (ValueError, TypeError):
+                saida = None
+        item['data_saida'] = saida.isoformat() if saida else None
+
+    # Empréstimos em atraso: itens 'Em uso' cuja previsão de devolução já passou
+    # (ou sem previsão, detectados pelo alerta de atraso no processamento acima)
+    emprestimos_atrasados = sum(1 for item in lista_em_uso if item.get('alerta_atraso'))
+
+    # Taxa de utilização: (em uso + reservados) / ativos totais (não inativos)
+    taxa_utilizacao = round(((em_uso + (reservados or 0)) / total) * 100, 1) if total else 0.0
+
+    # Chamados abertos do Help Desk
+    chamados_abertos = []
+    total_chamados_abertos = 0
+    try:
+        chamados_abertos = Problema.query.filter(
+            Problema.status.in_(['Aberto', 'Em análise', 'Em manutenção'])
+        ).order_by(Problema.prioridade.desc(), Problema.data_registro.desc()).limit(20).all()
+        total_chamados_abertos = db.session.query(func.count(Problema.id)).filter(
+            Problema.status.in_(['Aberto', 'Em análise', 'Em manutenção'])
+        ).scalar()
+    except Exception:
+        app.logger.exception('Falha ao carregar chamados do Help Desk no dashboard.')
+
     # Busca agendamentos de HOJE
     hoje_str = datetime.now().strftime('%Y-%m-%d')
     agendamentos_hoje = Agendamento.query.filter_by(data_uso=hoje_str, status='Agendado').order_by(Agendamento.horario_retirada.asc()).all()
@@ -709,6 +577,17 @@ def dashboard():
             'itens': agenda_map[d]
         })
 
+    # --- CHAMADOS DO HELP DESK ---
+    chamados_abertos = []
+    total_chamados_abertos = 0
+    try:
+        from models import Problema
+        chamados_query = Problema.query.filter(Problema.status != 'Resolvido').order_by(Problema.id.desc()).limit(10).all()
+        chamados_abertos = chamados_query
+        total_chamados_abertos = len(chamados_query)
+    except Exception as e:
+        app.logger.error(f"Erro ao buscar chamados do Help Desk no Dashboard: {e}")
+
     # --- INTEGRAÇÃO ENTERPRISE: INDICADORES DO ALMOXARIFADO NO DASHBOARD PRINCIPAL ---
     almox_kpis = None
     if session.get('perm_almoxarifado'):
@@ -732,7 +611,14 @@ def dashboard():
                            disponiveis=disponiveis,
                            em_uso=em_uso,
                            manutencao=manutencao,
+                           reservados=reservados,
+                           inativos=inativos,
+                           emprestimos_atrasados=emprestimos_atrasados,
+                           taxa_utilizacao=taxa_utilizacao,
+                           chamados_abertos=chamados_abertos,
+                           total_chamados_abertos=total_chamados_abertos,
                            por_tipo=por_tipo,
+                           parque_por_status=parque_por_status,
                            movimentacoes=movimentacoes,
                            em_uso_agora=lista_em_uso,
                            agendamentos_hoje=agendamentos_hoje,
@@ -1194,7 +1080,7 @@ def iot_validar_reserva(codigo):
     if not agendamento:
         return {"autorizado": False, "mensagem": "Reserva inválida, cancelada ou já devolvida."}
 
-    itens_str = agendamento['itens_reservados']
+    itens_str = agendamento.itens_reservados
     if not itens_str:
         return {"autorizado": False, "mensagem": "Reserva sem itens específicos."}
 

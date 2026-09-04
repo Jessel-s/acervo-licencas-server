@@ -1,6 +1,26 @@
 -- =====================================================
 -- SUPABASE - SCHEMA PARA MULTI-TENANCY E LICENÇAS
 -- =====================================================
+-- ORIGEM DA VERDADE: este arquivo é a definição única e completa do banco
+-- Supabase do SaaS. Toda migração pontual eventual deve estar refletida
+-- aqui também (a versão nova de uma base sempre sai deste arquivo).
+--
+-- ARQUITETURA:
+--   colegios    -> o cliente (escola) que assina o sistema
+--   licencas    -> uma linha por máquina instalada (chave + serial)
+--   perfis      -> usuários Supabase Auth e seu papel/colegio
+--   pdv_devices -> dispositivo/serial de PDV ligado ao colegio
+--   pagamentos  -> histórico financeiro do cliente
+--
+-- FLUXO DE ATIVAÇÃO DE UM CLIENTE:
+--   1. Admin cria o colegio  (SQL Editor / painel admin)
+--   2. Gera licença:         insert em licencas (chave + serial + colegio_id)
+--   3. Status do colegio vira 'ativo' (ou 'trial')
+--   4. Cliente instala o exe, preenche COLEGIO_ID + Serial + Chave na tela
+--      /ativacao -> Edge Function validar-licenca confere os dados e o
+--      status (ativo/trial) -> .env local é gravado e licença validada
+--   5. app.py valida a licença a cada requisição via licenca_manager
+-- =====================================================
 
 create extension if not exists pgcrypto;
 
@@ -9,7 +29,9 @@ create type public.assinatura_status as enum (
   'ativo',
   'trial',
   'cancelado',
-  'bloqueado'
+  'bloqueado',
+  'expirado',
+  'suspenso'
 );
 
 create type public.licenca_status as enum (
@@ -17,7 +39,8 @@ create type public.licenca_status as enum (
   'ativa',
   'expirada',
   'bloqueada',
-  'cancelada'
+  'cancelada',
+  'revogada'
 );
 
 create type public.user_role as enum (
