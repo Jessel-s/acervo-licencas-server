@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bem-vindo ao Acervo TI Enterprise</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.85);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --radius: 20px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius);
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2));
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            border-radius: 18px;
+            color: #60a5fa;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .header-icon span { font-size: 32px; }
+
+        .title {
+            font-size: 1.6rem;
+            font-weight: 800;
+            margin-bottom: 0.4rem;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.92rem;
+        }
+
+        /* Stepper Progress Bar */
+        .stepper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+            position: relative;
+        }
+
+        .stepper::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: 1;
+            transform: translateY(-50%);
+        }
+
+        .step {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-dark);
+            padding: 0 10px;
+        }
+
+        .step-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 2px solid #334155;
+            color: #94a3b8;
+            font-weight: 800;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .step.active .step-circle {
+            background: var(--primary);
+            border-color: #60a5fa;
+            color: #ffffff;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .step.completed .step-circle {
+            background: var(--success);
+            border-color: #34d399;
+            color: #ffffff;
+        }
+
+        .step-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        .step.active .step-label { color: #f8fafc; }
+
+        /* Step Content Panels */
+        .step-panel {
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .step-panel.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .panel-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-desc {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.85rem 1rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.92rem;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .btn-group {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 2rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .btn {
+            padding: 0.85rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.92rem;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            color: #cbd5e1;
+            border: 1px solid var(--card-border);
+        }
+
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.12); }
+
+        .feature-box {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .feature-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .feature-info h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 2px; }
+        .feature-info p { font-size: 0.82rem; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            
+            <div class="header">
+                <div class="header-icon">
+                    <span class="material-icons-round">rocket_launch</span>
+                </div>
+                <h1 class="title">Configuração Inicial do Sistema</h1>
+                <p class="subtitle">Siga os 3 passos rápidos para deixar o seu ambiente pronto para uso.</p>
+            </div>
+
+            <!-- Stepper -->
+            <div class="stepper">
+                <div class="step active" id="step-indicator-1">
+                    <div class="step-circle">1</div>
+                    <div class="step-label">Identidade</div>
+                </div>
+                <div class="step" id="step-indicator-2">
+                    <div class="step-circle">2</div>
+                    <div class="step-label">Primeiros Ativos</div>
+                </div>
+                <div class="step" id="step-indicator-3">
+                    <div class="step-circle">3</div>
+                    <div class="step-label">Conclusão</div>
+                </div>
+            </div>
+
+            <!-- Step 1: Identidade da Empresa/Escola -->
+            <div class="step-panel active" id="step-panel-1">
+                <div class="panel-title">
+                    <span class="material-icons-round" style="color: var(--primary);">business</span>
+                    <span>1. Personalizar Identidade do Ambiente</span>
+                </div>
+                <p class="panel-desc">Defina o nome da sua empresa ou instituição de ensino para aparecer nos relatórios e cabeçalhos do sistema.</p>
+
+                <div class="form-group">
+                    <label for="nome-ambiente">Nome da Instituição ou Empresa</label>
+                    <input type="text" id="nome-ambiente" class="form-input" placeholder="Ex.: Colégio Modelo / Empresa TI Ltda" value="{{ session.get('username', '') }}">
+                </div>
+
+                <div class="feature-box">
+                    <div class="feature-icon">
+                        <span class="material-icons-round">photo_camera</span>
+                    </div>
+                    <div class="feature-info">
+                        <h4>Logotipo Personalizado</h4>
+                        <p>Você poderá alterar o logotipo oficial a qualquer momento no menu <strong>Configurações</strong>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Primeiros Equipamentos -->
+            <div class="step-panel" id="step-panel-2">
+                <div class="panel-title">
+                    <span class="material-icons-round" style="color: var(--primary);">devices</span>
+                    <span>2. Estrutura de Equipamentos & Almoxarifado</span>
+                </div>
+                <p class="panel-desc">O Acervo TI já vem preparado com os módulos de Gestão de Ativos, Help Desk e Almoxarifado prontos.</p>
+
+                <div class="feature-box">
+                    <div class="feature-icon">
+                        <span class="material-icons-round">laptop_mac</span>
+                    </div>
+                    <div class="feature-info">
+                        <h4>Cadastro de Notebooks & Carrinhos</h4>
+                        <p>Gerencie notebooks, carrinhos de recarga, impressoras e periféricos com QR Code automático.</p>
+                    </div>
+                </div>
+
+                <div class="feature-box">
+                    <div class="feature-icon">
+                        <span class="material-icons-round">inventory_2</span>
+                    </div>
+                    <div class="feature-info">
+                        <h4>Almoxarifado & Insumos</h4>
+                        <p>Controle entradas, saídas de materiais e receba alertas de estoque mínimo em tempo real.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Conclusão -->
+            <div class="step-panel" id="step-panel-3">
+                <div class="panel-title">
+                    <span class="material-icons-round" style="color: var(--success);">check_circle</span>
+                    <span>3. Ambiente Pronto para Uso!</span>
+                </div>
+                <p class="panel-desc">Tudo foi configurado com sucesso. O seu banco de dados local está sincronizado e seguro no Supabase.</p>
+
+                <div class="feature-box" style="border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08);">
+                    <div class="feature-icon" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">
+                        <span class="material-icons-round">verified</span>
+                    </div>
+                    <div class="feature-info">
+                        <h4>Backup & Sincronização Ativa</h4>
+                        <p>Seus dados locais estão protegidos e sincronizados continuamente com a nuvem.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" id="btn-prev" style="display: none;">
+                    <span class="material-icons-round">arrow_back</span>
+                    <span>Anterior</span>
+                </button>
+                
+                <button type="button" class="btn btn-primary" id="btn-next" style="margin-left: auto;">
+                    <span>Próximo Passo</span>
+                    <span class="material-icons-round">arrow_forward</span>
+                </button>
+
+                <form id="form-finish" action="{{ url_for('concluir_onboarding') }}" method="POST" style="display: none; margin-left: auto;">
+                    <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, var(--success), #059669);">
+                        <span>Acessar Painel Principal</span>
+                        <span class="material-icons-round">dashboard</span>
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            let currentStep = 1;
+            const totalSteps = 3;
+
+            const btnNext = document.getElementById('btn-next');
+            const btnPrev = document.getElementById('btn-prev');
+            const formFinish = document.getElementById('form-finish');
+
+            function updateStepUI() {
+                for (let i = 1; i <= totalSteps; i++) {
+                    const panel = document.getElementById(`step-panel-${i}`);
+                    const indicator = document.getElementById(`step-indicator-${i}`);
+
+                    if (panel) panel.classList.toggle('active', i === currentStep);
+                    if (indicator) {
+                        indicator.classList.toggle('active', i === currentStep);
+                        indicator.classList.toggle('completed', i < currentStep);
+                    }
+                }
+
+                btnPrev.style.display = currentStep > 1 ? 'inline-flex' : 'none';
+                
+                if (currentStep === totalSteps) {
+                    btnNext.style.display = 'none';
+                    formFinish.style.display = 'inline-block';
+                } else {
+                    btnNext.style.display = 'inline-flex';
+                    formFinish.style.display = 'none';
+                }
+            }
+
+            btnNext.addEventListener('click', () => {
+                if (currentStep < totalSteps) {
+                    currentStep++;
+                    updateStepUI();
+                }
+            });
+
+            btnPrev.addEventListener('click', () => {
+                if (currentStep > 1) {
+                    currentStep--;
+                    updateStepUI();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

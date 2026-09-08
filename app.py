@@ -358,7 +358,7 @@ def check_license_access():
 
     # Mantém as rotas de recuperação disponíveis quando a licença expirou.
     allowed_endpoints = {
-        'ativacao', 'ativacao_online', 'static', 'favicon',
+        'ativacao', 'ativacao_online', 'onboarding', 'concluir_onboarding', 'static', 'favicon',
         'auth.login', 'auth.logout'
     }
     if request.endpoint in allowed_endpoints or request.path == '/ativacao':
@@ -1278,6 +1278,18 @@ def iot_devolucao_lote():
     slots_str = ", ".join(slots) if slots else "Qualquer"
 
     return {"sucesso": True, "slots": slots_str, "qtd": len(ids_list)}
+
+@app.route('/onboarding')
+def onboarding():
+    """Tela de boas-vindas e assistente inicial de primeiro acesso pós-ativação."""
+    return render_template('onboarding.html')
+
+@app.route('/onboarding/concluir', methods=['POST'])
+def concluir_onboarding():
+    """Marca o onboarding como concluído e redireciona para o login ou dashboard."""
+    session['onboarding_completed'] = True
+    flash('Configuração inicial concluída! Faça login para começar a utilizar o sistema.', 'success')
+    return redirect(url_for('auth.login'))
 
 @app.route('/ativacao')
 def ativacao():
