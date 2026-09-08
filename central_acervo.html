@@ -352,9 +352,29 @@
                 <input id="login-password" type="password" autocomplete="current-password" required>
                 <div class="actions" style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button type="submit">Entrar na Central</button>
-                    <button type="button" id="recover-password" class="secondary">Recuperar acesso</button>
+                    <button type="button" id="recover-password" class="secondary">Recuperar por e-mail</button>
                 </div>
             </form>
+
+            <div id="sms-auth-panel" style="display:none; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line);">
+                <label for="login-phone">Celular para código</label>
+                <input id="login-phone" type="tel" placeholder="Ex.: +55 11 99999-9999">
+                <div class="actions" style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px;">
+                    <button type="button" id="send-sms-code">Enviar código por SMS</button>
+                    <button type="button" id="toggle-sms-login" class="secondary">Voltar</button>
+                </div>
+                <div id="sms-otp-block" style="display:none; margin-top: 12px;">
+                    <label for="sms-code">Código recebido</label>
+                    <input id="sms-code" type="text" inputmode="numeric" maxlength="6" placeholder="Digite o código">
+                    <div class="actions" style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px;">
+                        <button type="button" id="verify-sms-code">Validar código</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 16px;">
+                <button type="button" id="show-sms-auth" class="secondary" style="width:100%;">Usar código do celular</button>
+            </div>
             <p id="login-message" class="message"></p>
         </section>
 
@@ -534,6 +554,45 @@
             return secondDigit === Number(cnpj[13]);
         }
 
+        function getAuthRedirectUrl() {
+            const base = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'https://jessel-s.github.io/acervo-licencas-server/'
+                : window.location.origin + window.location.pathname;
+            return `${base}${base.includes('?') ? '&' : '?'}auth=done`;
+        }
+
+        async function handleRecoveryCallback() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const type = params.get('type');
+            if (!code || type !== 'recovery') return;
+
+            const message = byId('login-message');
+            setMessage(message, 'Link de recuperação validado. Defina uma nova senha.');
+            const novaSenha = window.prompt('Digite a nova senha para o administrador da plataforma (mínimo 8 caracteres):');
+            if (!novaSenha || novaSenha.length < 8) {
+                setMessage(message, 'A nova senha precisa ter no mínimo 8 caracteres.', true);
+                return;
+            }
+
+            const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
+            if (error) {
+                setMessage(message, 'Não foi possível concluir a redefinição de senha.', true);
+                return;
+            }
+
+            const { error: updateError } = await supabaseClient.auth.updateUser({ password: novaSenha });
+            if (updateError) {
+                setMessage(message, updateError.message || 'Não foi possível atualizar a senha.', true);
+                return;
+            }
+
+            setMessage(message, 'Senha redefinida com sucesso. Faça login novamente.');
+            if (data?.session) {
+                await showWorkspace();
+            }
+        }
+
         async function showWorkspace() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) return;
@@ -556,6 +615,8 @@
 
         byId('logout').addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.reload(); });
 
+        handleRecoveryCallback();
+
         byId('recover-password').addEventListener('click', async () => {
             const email = byId('login-email').value.trim();
             const message = byId('login-message');
@@ -564,12 +625,56 @@
             }
             setMessage(message, 'Enviando link de recuperação de acesso...');
             const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}${window.location.pathname}`,
+                redirectTo: getAuthRedirectUrl(),
             });
             if (error) {
                 return setMessage(message, error.message || 'Não foi possível enviar o link de recuperação.', true);
             }
             setMessage(message, 'Se este e-mail estiver cadastrado, enviamos um link para redefinir sua senha.');
+        });
+
+        byId('show-sms-auth').addEventListener('click', () => {
+            const panel = byId('sms-auth-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        byId('toggle-sms-login').addEventListener('click', () => {
+            byId('sms-auth-panel').style.display = 'none';
+            byId('sms-otp-block').style.display = 'none';
+        });
+
+        byId('send-sms-code').addEventListener('click', async () => {
+            const phone = byId('login-phone').value.trim();
+            const message = byId('login-message');
+            if (!phone) {
+                return setMessage(message, 'Informe o celular para receber o código.', true);
+            }
+            setMessage(message, 'Enviando código por SMS...');
+            const { error } = await supabaseClient.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
+            if (error) {
+                const msg = error.message || 'Não foi possível enviar o código por SMS.';
+                setMessage(message, msg, true);
+                return;
+            }
+            byId('sms-otp-block').style.display = 'block';
+            setMessage(message, 'Código enviado. Digite o código recebido no celular.');
+        });
+
+        byId('verify-sms-code').addEventListener('click', async () => {
+            const phone = byId('login-phone').value.trim();
+            const token = byId('sms-code').value.trim();
+            const message = byId('login-message');
+            if (!phone || !token) {
+                return setMessage(message, 'Informe o celular e o código recebido.', true);
+            }
+            const { data, error } = await supabaseClient.auth.verifyOtp({ phone, token, type: 'sms' });
+            if (error) {
+                return setMessage(message, error.message || 'Código inválido.', true);
+            }
+            if (data?.session) {
+                setMessage(message, 'Acesso validado por SMS.');
+                await showWorkspace();
+            }
         });
 
         byId('client-form').addEventListener('submit', async (event) => {
