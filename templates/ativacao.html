@@ -726,34 +726,35 @@
                 });
             });
 
-            // Paste helpers
-            function setupPasteButton(btnId, targetInput) {
+            // Paste helpers com fallback universal por prompt
+            function setupPasteButton(btnId, targetInput, fieldName) {
                 const btn = document.getElementById(btnId);
                 if (!btn || !targetInput) return;
                 btn.addEventListener('click', async () => {
+                    let text = '';
                     try {
-                        const text = await navigator.clipboard.readText();
-                        if (text) {
-                            targetInput.value = text.trim();
-                            targetInput.dispatchEvent(new Event('input'));
-                            const btnSpan = btn.querySelector('span:not(.material-icons-round)');
-                            if (btnSpan) {
-                                btnSpan.textContent = 'Colado!';
-                                setTimeout(() => { btnSpan.textContent = 'Colar'; }, 1500);
-                            }
-                        }
+                        text = await navigator.clipboard.readText();
                     } catch (err) {
-                        // Fallback em caso de permissão do navegador
-                        targetInput.focus();
-                        targetInput.select();
-                        mostrarErro('Use o atalho Ctrl + V para colar o texto no campo.');
+                        text = window.prompt(`Cole aqui o valor de ${fieldName} (pressione Ctrl + V) e clique em OK:`) || '';
+                    }
+                    if (!text) {
+                        text = window.prompt(`Cole aqui o valor de ${fieldName} (pressione Ctrl + V) e clique em OK:`) || '';
+                    }
+                    if (text && text.trim()) {
+                        targetInput.value = text.trim();
+                        targetInput.dispatchEvent(new Event('input'));
+                        const btnSpan = btn.querySelector('span:not(.material-icons-round)');
+                        if (btnSpan) {
+                            btnSpan.textContent = 'Colado!';
+                            setTimeout(() => { btnSpan.textContent = 'Colar'; }, 1500);
+                        }
                     }
                 });
             }
 
-            setupPasteButton('btn-paste-colegio', colegioInput);
-            setupPasteButton('btn-paste-serial', serialInput);
-            setupPasteButton('btn-paste-chave', chaveInput);
+            setupPasteButton('btn-paste-colegio', colegioInput, 'ID do Cliente (COLEGIO_ID)');
+            setupPasteButton('btn-paste-serial', serialInput, 'Serial do Dispositivo (PDV_SERIAL)');
+            setupPasteButton('btn-paste-chave', chaveInput, 'Chave de Ativação (PDV_CHAVE)');
 
             function updateWhatsAppSupportUrl() {
                 const colegio = colegioInput ? colegioInput.value : '';

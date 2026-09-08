@@ -1310,8 +1310,18 @@ def ativacao_online():
     serial_pdv = (request.form.get('serial_pdv') or '').strip()
     chave = (request.form.get('chave_ativacao') or '').strip()
 
-    if not all([colegio_id, serial_pdv, chave]):
-        return jsonify({'sucesso': False, 'mensagem': 'Preencha todos os campos obrigatórios (ID do Cliente, Serial e Chave de Ativação).'}), 400
+    faltantes = []
+    if not colegio_id:
+        faltantes.append('ID do Cliente')
+    if not serial_pdv:
+        faltantes.append('Serial do Dispositivo')
+    if not chave:
+        faltantes.append('Chave de Ativação')
+
+    if faltantes:
+        msg = f"Campo(s) em branco: {', '.join(faltantes)}. Preencha todos os campos obrigatórios."
+        app.logger.warning('Ativação rejeitada (campos em branco): %s', msg)
+        return jsonify({'sucesso': False, 'mensagem': msg}), 400
 
     supabase_url = app.config.get('SUPABASE_URL') or os.environ.get('SUPABASE_URL')
     supabase_key = app.config.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY')
