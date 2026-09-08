@@ -401,15 +401,19 @@
                 <button id="tab-admin">Clientes cadastrados</button>
             </div>
             <section id="panel-novo" class="panel">
-                <form id="client-form">
+                <form id="client-form" autocomplete="off">
+                    <!-- Previne preenchimento automático passivo do gerenciador de senhas do navegador -->
+                    <input type="text" style="position:absolute; top:-9999px; left:-9999px;" tabindex="-1" readonly aria-hidden="true">
+                    <input type="password" style="position:absolute; top:-9999px; left:-9999px;" tabindex="-1" readonly aria-hidden="true">
+
                     <div class="form-grid">
-                        <div class="wide"><label for="nome-cliente">Nome do cliente</label><input id="nome-cliente" required placeholder="Ex.: Empresa Modelo Ltda."></div>
-                        <div><label for="cnpj">CNPJ</label><input id="cnpj" placeholder="Opcional"></div>
-                        <div><label for="email-cliente">E-mail comercial</label><input id="email-cliente" type="email" required></div>
-                        <div><label for="nome-admin">Nome do administrador</label><input id="nome-admin" required></div>
-                        <div><label for="telefone">Telefone</label><input id="telefone" placeholder="Opcional"></div>
-                        <div><label for="email-admin">E-mail de acesso</label><input id="email-admin" type="email" required></div>
-                        <div><label for="senha-admin">Senha temporária</label><input id="senha-admin" type="password" minlength="8" required></div>
+                        <div class="wide"><label for="nome-cliente">Nome do cliente</label><input id="nome-cliente" name="cliente_nome_field" autocomplete="off" required placeholder="Ex.: Empresa Modelo Ltda."></div>
+                        <div><label for="cnpj">CNPJ</label><input id="cnpj" name="cliente_cnpj_field" autocomplete="off" placeholder="Opcional"></div>
+                        <div><label for="email-cliente">E-mail comercial</label><input id="email-cliente" type="text" inputmode="email" name="cliente_email_field" autocomplete="off" required></div>
+                        <div><label for="nome-admin">Nome do administrador</label><input id="nome-admin" name="admin_nome_field" autocomplete="off" required></div>
+                        <div><label for="telefone">Telefone</label><input id="telefone" name="cliente_telefone_field" autocomplete="off" placeholder="Opcional"></div>
+                        <div><label for="email-admin">E-mail de acesso</label><input id="email-admin" type="text" inputmode="email" name="admin_email_field" autocomplete="off" required></div>
+                        <div><label for="senha-admin">Senha temporária</label><input id="senha-admin" type="password" minlength="8" name="admin_senha_field" autocomplete="new-password" required></div>
                         <div><label for="serial-pdv">Serial do PDV (automático)</label><input id="serial-pdv" placeholder="Gerado automaticamente" disabled></div>
                         <div><label for="dias-validade">Validade</label><select id="dias-validade"><option value="30">30 dias</option><option value="365" selected>12 meses</option><option value="730">24 meses</option></select></div>
                     </div>
@@ -635,6 +639,7 @@
             byId('session-date').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
             byId('login-panel').style.display = 'none';
             byId('workspace').classList.add('visible');
+            limparFormularioNovoCliente();
             if (byId('busca-cliente')) {
                 byId('busca-cliente').value = '';
             }
@@ -766,11 +771,23 @@
         byId('tab-novo').addEventListener('click', () => switchTab('novo'));
         byId('tab-admin').addEventListener('click', () => switchTab('admin'));
 
+        function limparFormularioNovoCliente() {
+            const form = byId('client-form');
+            if (form) form.reset();
+            ['nome-cliente', 'cnpj', 'email-cliente', 'nome-admin', 'telefone', 'email-admin', 'senha-admin'].forEach((id) => {
+                const el = byId(id);
+                if (el) el.value = '';
+            });
+        }
+
         function switchTab(tab) {
             byId('panel-novo').style.display = tab === 'novo' ? '' : 'none';
             byId('panel-admin').style.display = tab === 'admin' ? '' : 'none';
             byId('tab-novo').classList.toggle('active', tab === 'novo');
             byId('tab-admin').classList.toggle('active', tab === 'admin');
+            if (tab === 'novo') {
+                limparFormularioNovoCliente();
+            }
             if (tab === 'admin') {
                 if (byId('busca-cliente')) byId('busca-cliente').value = '';
                 filtroEstado = 'todos';
@@ -840,7 +857,15 @@
         }
 
         function filtrarClientes() {
-            const termo = byId('busca-cliente').value.trim().toLowerCase();
+            let termo = (byId('busca-cliente').value || '').trim().toLowerCase();
+            const sessionEmail = (byId('session-email').textContent || '').trim().toLowerCase();
+            
+            // Previne injeção de autofill passivo do gerenciador de senhas do navegador
+            if (termo && sessionEmail && termo === sessionEmail && document.activeElement !== byId('busca-cliente')) {
+                byId('busca-cliente').value = '';
+                termo = '';
+            }
+
             let lista = clientesCache;
             if (filtroEstado === 'ativos') lista = lista.filter((c) => ['ok', 'soon'].includes(classificarCliente(c).cls));
             else if (filtroEstado === 'vencendo') lista = lista.filter((c) => classificarCliente(c).cls === 'soon');
@@ -978,7 +1003,22 @@
             }
         }
 
-        byId('busca-cliente').addEventListener('input', () => { pagina = 1; renderClientes(); });
+        byId('busca-cliente').addEventListener('input', (e) => {
+            const sessionEmail = (byId('session-email').textContent || '').trim().toLowerCase();
+            if (sessionEmail && e.target.value.trim().toLowerCase() === sessionEmail && document.activeElement !== byId('busca-cliente')) {
+                e.target.value = '';
+                return;
+            }
+            pagina = 1;
+            renderClientes();
+        });
+        byId('busca-cliente').addEventListener('change', (e) => {
+            const sessionEmail = (byId('session-email').textContent || '').trim().toLowerCase();
+            if (sessionEmail && e.target.value.trim().toLowerCase() === sessionEmail && document.activeElement !== byId('busca-cliente')) {
+                e.target.value = '';
+                renderClientes();
+            }
+        });
         byId('refresh-clientes').addEventListener('click', carregarClientes);
         byId('pag-prev').addEventListener('click', () => { pagina--; renderClientes(); });
         byId('pag-next').addEventListener('click', () => { pagina++; renderClientes(); });
