@@ -185,6 +185,51 @@ Deno.serve(async (request: Request) => {
     });
     if (deviceError) throw deviceError;
 
+    // --- ENVIO AUTOMÁTICO DE E-MAIL VIA RESEND (SE CONFIGURADO) ---
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (resendApiKey) {
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${resendApiKey}`,
+          },
+          body: JSON.stringify({
+            from: "Acervo TI <nao-responder@acervoti.com.br>",
+            to: [emailCliente, emailAdmin],
+            subject: `🎉 Bem-vindo ao Acervo TI - Dados de Ativação (${nomeCliente})`,
+            html: `
+              <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background: #ffffff;">
+                <h2 style="color: #2563eb; margin-top: 0;">Sua licença do Acervo TI foi criada!</h2>
+                <p>Olá <strong>${nomeAdmin}</strong>,</p>
+                <p>Parabéns por adquirir o <strong>Acervo TI Enterprise</strong> para a empresa/escola <strong>${nomeCliente}</strong>.</p>
+                
+                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                  <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">🔑 Dados para Ativação do Sistema Local:</h3>
+                  <p style="margin: 6px 0;"><strong>ID do Cliente (COLEGIO_ID):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${colegio.id}</code></p>
+                  <p style="margin: 6px 0;"><strong>Serial do Dispositivo (PDV_SERIAL):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${serialPdv}</code></p>
+                  <p style="margin: 6px 0;"><strong>Chave de Ativação (PDV_CHAVE):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${chaveAtivacao}</code></p>
+                </div>
+
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                  <h3 style="margin-top: 0; color: #1e40af; font-size: 16px;">👤 Credenciais do Administrador:</h3>
+                  <p style="margin: 6px 0;"><strong>E-mail de Acesso:</strong> ${emailAdmin}</p>
+                  <p style="margin: 6px 0;"><strong>Senha Temporária:</strong> ${senhaAdmin}</p>
+                </div>
+
+                <p style="color: #64748b; font-size: 14px;">No computador onde o sistema foi instalado, abra o link de ativação e insira os dados acima para liberar o seu acesso.</p>
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+                <p style="font-size: 12px; color: #94a3b8; text-align: center;">Acervo TI • Gestão de Ativos & Almoxarifado Enterprise</p>
+              </div>
+            `,
+          }),
+        });
+      } catch (emailErr) {
+        console.error("Falha ao enviar e-mail de boas-vindas via Resend:", emailErr);
+      }
+    }
+
     return json({
       ok: true,
       cliente: {
