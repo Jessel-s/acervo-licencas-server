@@ -955,14 +955,38 @@
             return valor ? new Date(valor).toLocaleDateString('pt-BR') : '—';
         }
 
+        function formatarTempoDecorrido(isoString) {
+            if (!isoString) return 'Nunca conectou';
+            const diffMs = Date.now() - new Date(isoString).getTime();
+            const diffMin = Math.floor(diffMs / 60000);
+            if (diffMin < 1) return 'Online agora';
+            if (diffMin < 60) return `Há ${diffMin} min`;
+            const diffHoras = Math.floor(diffMin / 60);
+            if (diffHoras < 24) return `Há ${diffHoras}h`;
+            const diffDias = Math.floor(diffHoras / 24);
+            return `Há ${diffDias}d`;
+        }
+
         function abrirDetalhes(c) {
             clienteSelecionado = c;
             const badge = classificarCliente(c);
+            
+            // Encontra o último check-in entre todas as licenças do cliente
+            let ultimoCheckinGeral = null;
+            (c.licencas || []).forEach(l => {
+                if (l.ultima_checagem) {
+                    if (!ultimoCheckinGeral || new Date(l.ultima_checagem) > new Date(ultimoCheckinGeral)) {
+                        ultimoCheckinGeral = l.ultima_checagem;
+                    }
+                }
+            });
+
             byId('modal-nome').textContent = c.nome || '—';
             byId('modal-badges').innerHTML = `<span class="badge ${badge.cls}">${badge.texto}</span>` +
                 (c.situacao === 'expirado' ? '<span class="badge off">Assinatura vencida</span>' : '');
             byId('modal-info').innerHTML = [
                 ['ID do Cliente (COLEGIO_ID)', c.colegio_id],
+                ['Último Uso Local (Check-in)', formatarTempoDecorrido(ultimoCheckinGeral)],
                 ['CNPJ', c.cnpj || '—'], 
                 ['E-mail Comercial', c.email || '—'],
                 ...(c.telefone ? [['Telefone', c.telefone]] : []), 
@@ -976,11 +1000,14 @@
             byId('modal-licencas').innerHTML = (c.licencas || []).map((l) =>
                 `<div class="lic-card" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #ffffff;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                        <span class="badge ${l.status === 'ativa' ? 'ok' : 'off'}">${escapeHtml(l.status)}</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="badge ${l.status === 'ativa' ? 'ok' : 'off'}">${escapeHtml(l.status)}</span>
+                            <span style="font-size: 0.72rem; color: var(--muted); font-weight: 700;">Última atividade: ${formatarTempoDecorrido(l.ultima_checagem)}</span>
+                        </div>
                         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                             <button class="copy-btn" data-copy-type="serial" data-val="${escapeHtml(l.serial_pdv)}" title="Copiar somente Serial">Copiar Serial</button>
                             <button class="copy-btn" data-copy-type="chave" data-val="${escapeHtml(l.chave_ativacao)}" title="Copiar somente Chave">Copiar Chave</button>
-                            <button class="danger" data-revogar-serial="${escapeHtml(l.serial_pdv)}" style="padding: 3px 8px; font-size: 0.72rem;" title="Revogar/Revogar esta licença">Revogar Licença</button>
+                            <button class="danger" data-revogar-serial="${escapeHtml(l.serial_pdv)}" style="padding: 3px 8px; font-size: 0.72rem;" title="Revogar esta licença">Revogar Licença</button>
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">

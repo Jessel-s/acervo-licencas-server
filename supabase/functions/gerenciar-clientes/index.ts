@@ -69,13 +69,18 @@ async function listarClientes() {
 
   const { data: licencas, error: licError } = await supabase
     .from("licencas")
-    .select("colegio_id, serial_pdv, chave_ativacao, status");
+    .select("colegio_id, serial_pdv, chave_ativacao, status, ultima_checagem");
   if (licError) throw licError;
 
-  const licencasPorColegio = new Map<string, { serial_pdv: string; chave_ativacao: string; status: string }[]>();
+  const licencasPorColegio = new Map<string, { serial_pdv: string; chave_ativacao: string; status: string; ultima_checagem: string | null }[]>();
   for (const lic of licencas ?? []) {
     const lista = licencasPorColegio.get(lic.colegio_id) ?? [];
-    lista.push({ serial_pdv: lic.serial_pdv, chave_ativacao: lic.chave_ativacao, status: lic.status });
+    lista.push({ 
+      serial_pdv: lic.serial_pdv, 
+      chave_ativacao: lic.chave_ativacao, 
+      status: lic.status,
+      ultima_checagem: lic.ultima_checagem || null
+    });
     licencasPorColegio.set(lic.colegio_id, lista);
   }
 
