@@ -12,19 +12,24 @@
     <style>
 :root {
             --ink: #15231d;
-            --muted: #5c6d66;
-            --line: #d4dfd8;
-            --surface: rgba(255,255,255,0.96);
+            --muted: #4f645d;
+            --line: #cfe0d8;
+            --surface: rgba(255,255,255,0.97);
             --surface-strong: #ffffff;
             --canvas: #edf3ee;
             --forest: #176245;
+            --forest-dark: #0f4d3a;
             --forest-strong: #0b4636;
-            --forest-soft: #e9f5ee;
-            --lime: #bfe55a;
-            --lime-soft: #eef9c7;
+            --forest-soft: #ecf8f1;
+            --forest-soft-strong: #dff3e7;
+            --lime: #c7ef5a;
+            --lime-soft: #f2f9d6;
             --danger: #d94234;
+            --danger-soft: #fceae8;
             --warning: #d48a1c;
-            --shadow-soft: 0 18px 45px rgba(14, 34, 27, 0.08);
+            --warning-soft: #fff3dc;
+            --shadow-soft: 0 18px 45px rgba(14, 34, 27, 0.1);
+            --text-strong: #102820;
         }
         * { box-sizing: border-box; }
         body::before {
@@ -34,8 +39,10 @@
         }
         body {
             margin: 0; min-height: 100vh; color: var(--ink);
-            background: linear-gradient(180deg, #eaf2ee 0%, #edf3ee 100%);
-            font-family: Manrope, sans-serif;
+            background: linear-gradient(180deg, #edf3ef 0%, #f6faf7 100%);
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            font-size: 16px;
+            line-height: 1.5;
         }
         .shell {
             width: min(1200px, calc(100% - 32px));
@@ -54,15 +61,16 @@
             box-shadow: 0 10px 20px rgba(191,229,90,.28);
         }
         .gate {
-            width: min(460px, 100%); margin: 7vh auto 0; padding: 32px;
-            background: rgba(255,255,255,.97); border: 1px solid rgba(255,255,255,.16);
-            border-radius: 18px; box-shadow: 0 26px 60px rgba(11, 33, 25, .25);
+            width: min(460px, 100%); margin: 7vh auto 0; padding: 34px 30px 28px;
+            background: rgba(255,255,255,.98); border: 1px solid rgba(255,255,255,.22);
+            border-radius: 22px; box-shadow: 0 26px 60px rgba(11, 33, 25, .22);
+            backdrop-filter: blur(8px);
         }
         h1 {
-            margin: 0; font-size: clamp(1.45rem, 2vw, 1.9rem); letter-spacing: -.03em;
+            margin: 0; font-size: clamp(1.45rem, 2vw, 1.9rem); letter-spacing: -.04em; color: var(--text-strong);
         }
         .lead {
-            color: var(--muted); margin: 10px 0 24px; line-height: 1.6; font-size: .92rem;
+            color: var(--muted); margin: 10px 0 24px; line-height: 1.6; font-size: .94rem;
         }
         .workspace { display: none; }
         .workspace.visible { display: block; }
@@ -88,7 +96,8 @@
             text-transform: uppercase; letter-spacing: .08em;
         }
         .panel {
-            background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+            background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(248,251,249,.98));
+            border: 1px solid var(--line); border-radius: 20px;
             padding: 26px; box-shadow: var(--shadow-soft);
         }
         .form-grid {
@@ -96,34 +105,51 @@
         }
         .wide { grid-column: 1 / -1; }
         label {
-            display: block; margin-bottom: 6px; color: #425750; font-size: .78rem;
+            display: block; margin-bottom: 7px; color: var(--text-strong); font-size: .78rem;
             font-weight: 800;
+            letter-spacing: .01em;
         }
         input, select {
-            width: 100%; border: 1px solid #c5d3ca; border-radius: 9px; padding: 12px 13px;
-            color: var(--ink); background: #fff; font: 500 .9rem Manrope, sans-serif;
-            transition: border-color .15s ease, box-shadow .15s ease;
+            width: 100%; border: 1px solid #bfd0c6; border-radius: 12px; padding: 12px 13px;
+            color: var(--ink); background: #ffffff; font: 600 .9rem "Manrope", "Segoe UI", sans-serif;
+            transition: border-color .15s ease, box-shadow .15s ease, transform .12s ease;
         }
+        input:hover, select:hover { border-color: #a9c2b3; }
         input:focus, select:focus {
             outline: none; border-color: var(--forest); box-shadow: 0 0 0 4px rgba(23,98,69,.12);
+            transform: translateY(-1px);
         }
         .actions {
             display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 24px;
         }
         button {
-            border: 0; border-radius: 9px; padding: 11px 16px; background: var(--forest);
-            color: white; cursor: pointer; font: 800 .86rem Manrope, sans-serif;
-            transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+            border: 0; border-radius: 10px; padding: 11px 16px; background: linear-gradient(180deg, var(--forest) 0%, var(--forest-dark) 100%);
+            color: #ffffff; cursor: pointer; font: 800 .86rem "Manrope", "Segoe UI", sans-serif; letter-spacing: .01em;
+            transition: transform .12s ease, box-shadow .12s ease, filter .12s ease, background .12s ease, color .12s ease, border-color .12s ease;
+            box-shadow: 0 10px 18px rgba(23, 98, 69, 0.18);
         }
-        button:hover { background: var(--forest-dark); transform: translateY(-1px); }
+        button:hover {
+            background: linear-gradient(180deg, var(--forest-dark) 0%, var(--forest-strong) 100%);
+            box-shadow: 0 14px 22px rgba(23, 98, 69, 0.24);
+            transform: translateY(-1px);
+            filter: brightness(1.02);
+        }
+        button:active { transform: translateY(0); }
         button.secondary {
-            background: transparent; color: var(--forest); border: 1px solid var(--line);
+            background: var(--forest-soft); color: var(--forest-strong); border: 1px solid var(--line);
+            box-shadow: none;
         }
-        button.secondary:hover { background: var(--forest-soft); }
+        button.secondary:hover {
+            background: var(--forest-soft-strong);
+            color: var(--forest-strong);
+            border-color: var(--forest);
+            box-shadow: 0 8px 16px rgba(23, 98, 69, 0.08);
+        }
         button.danger {
-            background: transparent; color: var(--danger); border: 1px solid #e9b6af;
+            background: var(--danger-soft); color: var(--danger); border: 1px solid #f0c5bf;
+            box-shadow: none;
         }
-        button.danger:hover { background: #fceae8; }
+        button.danger:hover { background: #f9d9d5; color: #ad2a1d; }
         .lic-card .lic-acoes { display: flex; gap: 6px; }
         .lic-card button { padding: 5px 9px; font-size: .7rem; }
         .message {
@@ -150,18 +176,26 @@
         .tabs button {
             background: transparent; color: var(--muted); border: 0; border-radius: 9px;
             font-weight: 800; min-width: 170px; padding: 11px 16px;
+            box-shadow: none;
         }
-        .tabs button:hover { color: var(--forest); background: rgba(23,98,69,.05); }
+        .tabs button:hover {
+            color: var(--forest-strong); background: var(--forest-soft);
+            box-shadow: none;
+        }
         .tabs button.active {
-            background: linear-gradient(135deg, var(--forest), #1d7a56);
+            background: linear-gradient(135deg, var(--forest), #1f7b59);
             color: white; box-shadow: 0 12px 20px rgba(23,98,69,.18);
         }
-        table { width: 100%; border-collapse: collapse; font-size: .86rem; color: var(--ink); }
+        table { width: 100%; border-collapse: collapse; font-size: .86rem; color: var(--ink); background: rgba(255,255,255,.7); border-radius: 12px; overflow: hidden; }
         th, td {
-            text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line);
+            text-align: left; padding: 13px 10px; border-bottom: 1px solid var(--line);
             vertical-align: top; color: var(--ink);
         }
-        th { color: #304b43; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+        th {
+            color: #2d4d45; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+            background: linear-gradient(180deg, #f6faf8 0%, #eef5f2 100%);
+        }
+        #clientes-body tr { background: rgba(255,255,255,.35); }
         .badge {
             display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .72rem; font-weight: 800;
             letter-spacing: .01em;
@@ -182,11 +216,13 @@
             margin-bottom: 18px;
         }
         .stat-card {
-            background: linear-gradient(180deg, #ffffff 0%, #f7faf8 100%);
-            border: 1px solid var(--line); border-radius: 14px; padding: 16px 14px;
-            box-shadow: 0 10px 20px rgba(20, 34, 29, 0.03);
+            background: linear-gradient(180deg, #ffffff 0%, #f8faf9 100%);
+            border: 1px solid var(--line); border-radius: 16px; padding: 16px 14px;
+            box-shadow: 0 8px 18px rgba(20, 34, 29, 0.04);
+            transition: transform .12s ease, box-shadow .12s ease;
         }
-        .stat-card .stat-value { font: 800 1.55rem Manrope, sans-serif; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 12px 22px rgba(20, 34, 29, 0.06); }
+        .stat-card .stat-value { font: 800 1.55rem "Manrope", "Segoe UI", sans-serif; color: var(--text-strong); }
         .stat-card .stat-label { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; }
         .stat-card.tone-ok .stat-value { color: var(--forest); }
         .stat-card.tone-warn .stat-value { color: var(--warning); }
@@ -194,10 +230,11 @@
         .toolbar-clientes { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
         .toolbar-clientes input { max-width: 330px; }
         .copy-btn {
-            background: transparent; border: 1px dashed var(--line); color: var(--muted);
-            padding: 2px 6px; font: 700 .68rem Manrope, sans-serif; border-radius: 6px; cursor: pointer;
+            background: var(--forest-soft); border: 1px dashed var(--line); color: var(--forest-strong);
+            padding: 2px 6px; font: 700 .68rem "Manrope", "Segoe UI", sans-serif; border-radius: 6px; cursor: pointer;
+            box-shadow: none;
         }
-        .copy-btn:hover { color: var(--forest); border-color: var(--forest); }
+        .copy-btn:hover { color: var(--forest-strong); border-color: var(--forest); background: var(--forest-soft-strong); }
         .empty-state { text-align: center; padding: 36px 10px; color: var(--muted); }
         .admin-head {
             display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 16px;
@@ -206,9 +243,13 @@
         .chips { display: flex; gap: 6px; flex-wrap: wrap; }
         .chip {
             border: 1px solid var(--line); background: white; color: var(--muted);
-            border-radius: 999px; padding: 7px 12px; font: 700 .76rem Manrope, sans-serif; cursor: pointer;
+            border-radius: 999px; padding: 7px 12px; font: 700 .76rem "Manrope", "Segoe UI", sans-serif; cursor: pointer;
         }
-        .chip:hover { border-color: var(--forest); color: var(--forest); }
+        .chip:hover {
+            border-color: var(--forest);
+            color: var(--forest-strong);
+            background: var(--forest-soft);
+        }
         .chip.active {
             background: linear-gradient(135deg, var(--forest), #1d7a56); border-color: var(--forest);
             color: white; box-shadow: 0 10px 18px rgba(23,98,69,.15);
@@ -217,8 +258,15 @@
         th.sortable::after { content: '↕'; margin-left: 5px; color: #a0b2ab; }
         th.sortable.asc::after { content: '↑'; color: var(--forest); }
         th.sortable.desc::after { content: '↓'; color: var(--forest); }
-        #clientes-body tr { cursor: pointer; transition: background .12s; }
-        #clientes-body tr:hover { background: #f4f8f1; }
+        #clientes-body tr { cursor: pointer; transition: background .12s, color .12s; }
+        #clientes-body tr:hover {
+            background: #f4f8f1;
+        }
+        #clientes-body tr:hover td,
+        #clientes-body tr:hover .serials,
+        #clientes-body tr:hover strong {
+            color: var(--ink);
+        }
         #clientes-body td:first-child strong { color: var(--forest-dark); }
         .table-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; }
         .pager { display: flex; gap: 6px; }
@@ -231,8 +279,9 @@
         .modal-overlay.visible { display: grid; }
         .modal {
             width: min(680px, 100%); max-height: 88vh; overflow: auto;
-            background: var(--surface-strong); border-radius: 18px; padding: 26px;
-            box-shadow: 0 32px 70px rgba(0,0,0,.24);
+            background: linear-gradient(180deg, #ffffff 0%, #f7faf8 100%); border-radius: 22px; padding: 26px;
+            box-shadow: 0 32px 70px rgba(0,0,0,.25);
+            border: 1px solid rgba(195,214,205,0.8);
         }
         .modal h2 { margin: 2px 0 0; font-size: 1.25rem; }
         .modal h3 {
@@ -241,13 +290,15 @@
         }
         .modal-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
         .icon-btn {
-            background: transparent; border: 1px solid var(--line); color: var(--muted);
+            background: var(--forest-soft); border: 1px solid var(--line); color: var(--forest-strong);
             width: 34px; height: 34px; border-radius: 8px; font-size: .95rem;
+            box-shadow: none;
         }
+        .icon-btn:hover { background: var(--forest-soft-strong); border-color: var(--forest); }
         .modal-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
         .modal-info { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
         .info-item {
-            padding: 10px 12px; background: #f5f8f6; border: 1px solid var(--line); border-radius: 8px;
+            padding: 10px 12px; background: linear-gradient(180deg, #f9fbfa 0%, #f3f8f5 100%); border: 1px solid var(--line); border-radius: 10px;
         }
         .info-item .k {
             color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
@@ -266,9 +317,9 @@
         }
         .action-row label { margin: 0; }
         .toasts { position: fixed; right: 18px; bottom: 18px; display: grid; gap: 8px; z-index: 80; }
-        .toast { padding: 12px 16px; border-radius: 7px; background: var(--ink); color: white; font: 600 .84rem Manrope, sans-serif; box-shadow: 0 12px 30px rgba(0,0,0,.25); animation: toast-in .18s ease; max-width: 340px; }
-        .toast.ok { background: var(--forest); }
-        .toast.err { background: var(--danger); }
+        .toast { padding: 12px 16px; border-radius: 10px; background: #183a31; color: white; font: 700 .84rem "Manrope", "Segoe UI", sans-serif; box-shadow: 0 14px 28px rgba(0,0,0,.18); animation: toast-in .18s ease; max-width: 340px; }
+        .toast.ok { background: linear-gradient(180deg, var(--forest) 0%, var(--forest-dark) 100%); }
+        .toast.err { background: linear-gradient(180deg, #d94234 0%, #b92f22 100%); }
         @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
         @media (max-width: 900px) { .stats { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 680px) {
@@ -299,7 +350,10 @@
                 <input id="login-email" type="email" autocomplete="email" required>
                 <label for="login-password" style="margin-top: 15px;">Senha</label>
                 <input id="login-password" type="password" autocomplete="current-password" required>
-                <div class="actions"><button type="submit">Entrar na Central</button></div>
+                <div class="actions" style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="submit">Entrar na Central</button>
+                    <button type="button" id="recover-password" class="secondary">Recuperar acesso</button>
+                </div>
             </form>
             <p id="login-message" class="message"></p>
         </section>
@@ -448,6 +502,38 @@
         const byId = (id) => document.getElementById(id);
         const setMessage = (element, text, error = false) => { element.textContent = text; element.className = `message${error ? ' error' : ''}`; };
 
+        function digitsOnly(value) {
+            return String(value ?? '').replace(/\D/g, '');
+        }
+
+        function isValidEmail(value) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? '').trim());
+        }
+
+        function isValidPhone(value) {
+            const digits = digitsOnly(value);
+            return digits.length === 10 || digits.length === 11;
+        }
+
+        function isValidCnpj(value) {
+            const cnpj = digitsOnly(value);
+            if (cnpj.length !== 14 || /^\d{14}$/.test(cnpj) === false) return false;
+
+            const calcDigit = (sequence, weights) => {
+                const sum = sequence.reduce((acc, num, idx) => acc + (num * weights[idx]), 0);
+                const rest = sum % 11;
+                return rest < 2 ? 0 : 11 - rest;
+            };
+
+            const firstSequence = cnpj.slice(0, 12).split('').map(Number);
+            const firstDigit = calcDigit(firstSequence, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+            if (firstDigit !== Number(cnpj[12])) return false;
+
+            const secondSequence = cnpj.slice(0, 13).split('').map(Number);
+            const secondDigit = calcDigit(secondSequence, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+            return secondDigit === Number(cnpj[13]);
+        }
+
         async function showWorkspace() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) return;
@@ -470,20 +556,53 @@
 
         byId('logout').addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.reload(); });
 
+        byId('recover-password').addEventListener('click', async () => {
+            const email = byId('login-email').value.trim();
+            const message = byId('login-message');
+            if (!email || !isValidEmail(email)) {
+                return setMessage(message, 'Informe um e-mail válido para receber o link de recuperação.', true);
+            }
+            setMessage(message, 'Enviando link de recuperação de acesso...');
+            const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}${window.location.pathname}`,
+            });
+            if (error) {
+                return setMessage(message, error.message || 'Não foi possível enviar o link de recuperação.', true);
+            }
+            setMessage(message, 'Se este e-mail estiver cadastrado, enviamos um link para redefinir sua senha.');
+        });
+
         byId('client-form').addEventListener('submit', async (event) => {
             event.preventDefault();
             const button = byId('create-client');
             const message = byId('client-message');
+
+            const nomeCliente = byId('nome-cliente').value.trim();
+            const cnpj = byId('cnpj').value.trim();
+            const emailCliente = byId('email-cliente').value.trim();
+            const nomeAdmin = byId('nome-admin').value.trim();
+            const telefone = byId('telefone').value.trim();
+            const emailAdmin = byId('email-admin').value.trim();
+            const senhaAdmin = byId('senha-admin').value;
+
+            if (!nomeCliente) return setMessage(message, 'Informe o nome do cliente.', true);
+            if (!isValidEmail(emailCliente)) return setMessage(message, 'E-mail comercial inválido.', true);
+            if (!nomeAdmin) return setMessage(message, 'Informe o nome do administrador.', true);
+            if (!isValidEmail(emailAdmin)) return setMessage(message, 'E-mail de acesso inválido.', true);
+            if (telefone && !isValidPhone(telefone)) return setMessage(message, 'Telefone inválido. Use DDD + 8 ou 9 dígitos.', true);
+            if (cnpj && !isValidCnpj(cnpj)) return setMessage(message, 'CNPJ inválido.', true);
+            if (senhaAdmin.length < 8) return setMessage(message, 'A senha temporária deve ter no mínimo 8 caracteres.', true);
+
             button.disabled = true;
             setMessage(message, 'Criando cliente, licença e administrador...');
             const payload = {
-                nome_cliente: byId('nome-cliente').value,
-                cnpj: byId('cnpj').value,
-                email_cliente: byId('email-cliente').value,
-                nome_admin: byId('nome-admin').value,
-                telefone: byId('telefone').value,
-                email_admin: byId('email-admin').value,
-                senha_admin: byId('senha-admin').value,
+                nome_cliente: nomeCliente,
+                cnpj,
+                email_cliente: emailCliente,
+                nome_admin: nomeAdmin,
+                telefone,
+                email_admin: emailAdmin,
+                senha_admin: senhaAdmin,
                 dias_validade: Number(byId('dias-validade').value),
             };
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -558,13 +677,14 @@
 
         function renderStats() {
             const stats = byId('stats');
-            const expirados = clientesCache.filter((c) => c.situacao === 'expirado').length;
-            const suspensos = clientesCache.filter((c) => c.situacao !== 'expirado' && c.status_assinatura !== 'ativo').length;
-            const ativos = clientesCache.length - expirados - suspensos;
-            const licencas = clientesCache.reduce((n, c) => n + (c.licencas || []).length, 0);
-            const criticos = clientesCache.filter((c) => c.dias_restantes !== null && c.dias_restantes <= 30 && c.dias_restantes > 0 && c.status_assinatura === 'ativo').length;
+            const lista = filtrarClientes();
+            const expirados = lista.filter((c) => c.situacao === 'expirado').length;
+            const suspensos = lista.filter((c) => c.situacao !== 'expirado' && c.status_assinatura !== 'ativo').length;
+            const ativos = lista.filter((c) => ['ok', 'soon'].includes(classificarCliente(c).cls)).length;
+            const licencas = lista.reduce((n, c) => n + (c.licencas || []).length, 0);
+            const criticos = lista.filter((c) => c.dias_restantes !== null && c.dias_restantes <= 30 && c.dias_restantes > 0 && c.status_assinatura === 'ativo').length;
             stats.innerHTML = `
-                <div class="stat-card"><div class="stat-value">${clientesCache.length}</div><div class="stat-label">Clientes</div></div>
+                <div class="stat-card"><div class="stat-value">${lista.length}</div><div class="stat-label">Clientes</div></div>
                 <div class="stat-card tone-ok"><div class="stat-value">${ativos}</div><div class="stat-label">Ativos</div></div>
                 <div class="stat-card tone-warn"><div class="stat-value">${expirados}</div><div class="stat-label">Expirados</div></div>
                 <div class="stat-card tone-off"><div class="stat-value">${suspensos}</div><div class="stat-label">Suspensos</div></div>

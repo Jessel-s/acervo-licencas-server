@@ -37,6 +37,36 @@ function requiredText(value: unknown, field: string) {
   return value.trim();
 }
 
+function normalizeDigits(value: string | null | undefined) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function isValidPhone(value: string | null | undefined) {
+  const digits = normalizeDigits(value);
+  return digits.length === 10 || digits.length === 11;
+}
+
+function isValidCnpj(value: string | null | undefined) {
+  const cnpj = normalizeDigits(value);
+  if (cnpj.length !== 14 || /^\d{14}$/.test(cnpj) === false) return false;
+
+  const calc = (slice: number) => {
+    const numbers = cnpj.slice(0, slice).split("").map(Number);
+    const weights = Array.from({ length: slice }, (_, index) => slice + 1 - index);
+    const sum = numbers.reduce((acc, num, idx) => acc + num * weights[idx], 0);
+    const rest = sum % 11;
+    return rest < 2 ? 0 : 11 - rest;
+  };
+
+  const dig1 = calc(12);
+  const dig2 = calc(13);
+  return dig1 === Number(cnpj[12]) && dig2 === Number(cnpj[13]);
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -77,6 +107,23 @@ Deno.serve(async (request: Request) => {
     const serialPdv = await gerarSerialPdv();
     const cnpj = typeof body?.cnpj === "string" ? body.cnpj.trim() || null : null;
     const telefone = typeof body?.telefone === "string" ? body.telefone.trim() || null : null;
+
+    if (!isValidEmail(emailCliente)) {
+      throw new Error("E-mail comercial inválido.");
+    }
+    if (!isValidEmail(emailAdmin)) {
+      throw new Error("E-mail de acesso inválido.");
+    }
+    if (telefone && !isValidPhone(telefone)) {
+      throw new Error("Telefone inválido. Use DDD + 8 ou 9 dígitos.");
+    }
+    if (cnpj && !isValidCnpj(cnpj)) {
+      throw new Error("CNPJ inválido.");
+    }
+    if (senhaAdmin.length < 8) {
+      throw new Error("Senha temporária deve ter no mínimo 8 caracteres.");
+    }
+
     const diasValidade = Number.isInteger(body?.dias_validade) && body.dias_validade > 0
       ? Math.min(body.dias_validade, 3650)
       : 365;
@@ -103,6 +150,13 @@ Deno.serve(async (request: Request) => {
     });
     if (adminError || !adminUser.user) {
       await supabase.from("colegios").delete().eq("id", colegio.id);
+      const mensagem = String(adminError?.message ?? "").toLowerCase();
+      if (mensagem.includes("already registered") || mensagem.includes("already exists") || mensagem.includes("user already")) {
+        throw new Error("Este e-mail de acesso já está cadastrado no sistema.");
+      }
+      if (mensagem.includes("password")) {
+        throw new Error("Senha inválida. Use uma senha mais forte.");
+      }
       throw adminError || new Error("Não foi possível criar o administrador.");
     }
 
@@ -142,7 +196,9 @@ Deno.serve(async (request: Request) => {
       },
     }, 201);
   } catch (error) {
+    const mensagem = error instanceof Error ? error.message : "Não foi possível concluir o cadastro do cliente";
+    const status = mensagem.includes("obrigatório") || mensagem.includes("inválido") || mensagem.includes("já está") || mensagem.includes("mínimo") ? 400 : 500;
     console.error("Falha ao criar cliente", error);
-    return json({ ok: false, mensagem: "Não foi possível concluir o cadastro do cliente" }, 500);
+    return json({ ok: false, mensagem }, status);
   }
 });
