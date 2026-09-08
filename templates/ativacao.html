@@ -3,206 +3,811 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ativação do Sistema - Acervo TI</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <title>Ativação de Licença - Acervo TI Enterprise</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <style>
         :root {
-            --bg-body: #0f172a;
-            --bg-card: #1e293b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
+            --bg-dark: #090d16;
+            --card-bg: rgba(17, 24, 39, 0.82);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --card-border-focus: rgba(59, 130, 246, 0.4);
+            
             --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.25);
             --primary-hover: #2563eb;
-            --danger: #ef4444;
+            
+            --cyan-accent: #06b6d4;
             --success: #10b981;
-            --border-color: rgba(255, 255, 255, 0.1);
-            --radius: 16px;
+            --success-glow: rgba(16, 185, 129, 0.2);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.15);
+            
+            --text-title: #f8fafc;
+            --text-body: #cbd5e1;
+            --text-muted: #64748b;
+            
+            --radius-lg: 20px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
         }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-body);
-            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-body);
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            margin: 0;
+            padding: 1.5rem;
+            position: relative;
+            overflow-x: hidden;
         }
-        .container {
+
+        /* Ambient Glow Background */
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .glow-sphere-1 {
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 50vw;
+            height: 50vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(9, 13, 22, 0) 70%);
+            filter: blur(60px);
+        }
+
+        .glow-sphere-2 {
+            position: absolute;
+            bottom: -15%;
+            right: -10%;
+            width: 55vw;
+            height: 55vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(9, 13, 22, 0) 70%);
+            filter: blur(70px);
+        }
+
+        /* Wrapper Container */
+        .activation-container {
+            position: relative;
+            z-index: 10;
             width: 100%;
-            max-width: 550px;
-            padding: 20px;
+            max-width: 520px;
         }
-        .card {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
+
+        /* Glassmorphic Card */
+        .activation-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
             padding: 2.5rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
         }
-        .card-header {
+
+        /* Header */
+        .brand-header {
             text-align: center;
             margin-bottom: 2rem;
         }
-        .card-header h1 {
-            font-size: 1.75rem;
-            font-weight: 800;
-            margin: 0 0 0.5rem 0;
-        }
-        .card-header p {
-            color: var(--text-muted);
-            margin: 0;
-        }
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        .form-group label {
-            display: block;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-        input, textarea {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1px solid var(--border-color);
-            background-color: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 0.95rem;
-            box-sizing: border-box;
-        }
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-        }
-        .btn {
-            width: 100%;
-            padding: 0.8rem 1.2rem;
-            border-radius: 8px;
-            font-weight: 700;
-            cursor: pointer;
-            border: none;
-            font-size: 1rem;
+
+        .logo-badge {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem;
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2));
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 18px;
+            color: #60a5fa;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 0 20px var(--primary-glow);
         }
-        .btn-primary {
-            background-color: var(--primary);
-            color: white;
+
+        .logo-badge span {
+            font-size: 32px;
         }
-        .btn-primary:hover {
-            background-color: var(--primary-hover);
+
+        .brand-title {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--text-title);
+            letter-spacing: -0.02em;
+            margin-bottom: 0.4rem;
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        .alert {
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
+
+        .brand-subtitle {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        /* System Status Badge */
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--card-border);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
             font-weight: 600;
-            border: 1px solid transparent;
+            color: #94a3b8;
+            margin-top: 0.75rem;
         }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 1.25rem;
+            text-align: left;
+        }
+
+        .form-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            color: #64748b;
+            font-size: 20px;
+            pointer-events: none;
+            transition: color 0.2s ease;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.85rem 1rem 0.85rem 2.75rem;
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            color: var(--text-title);
+            font-family: inherit;
+            font-size: 0.92rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .form-input.monospace {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            letter-spacing: 0.03em;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background-color: rgba(15, 23, 42, 0.85);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+        }
+
+        .form-input:focus + .input-icon,
+        .input-wrapper:focus-within .input-icon {
+            color: var(--primary);
+        }
+
+        .copy-btn {
+            position: absolute;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+        }
+
+        .input-hint {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Primary Action Button */
+        .btn-submit {
+            width: 100%;
+            padding: 0.95rem 1.5rem;
+            margin-top: 0.75rem;
+            background: linear-gradient(135deg, var(--primary) 0%, #2563eb 100%);
+            border: none;
+            border-radius: var(--radius-md);
+            color: #ffffff;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 15px var(--primary-glow);
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+            background: linear-gradient(135deg, #60a5fa 0%, var(--primary) 100%);
+        }
+
+        .btn-submit:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.75;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #ffffff;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Alerts & Status Cards */
+        .alert-box {
+            display: none;
+            padding: 1rem 1.25rem;
+            border-radius: var(--radius-md);
+            margin-bottom: 1.5rem;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .alert-danger {
-            background-color: rgba(239, 68, 68, 0.1);
-            color: #f87171;
-            border-color: rgba(239, 68, 68, 0.3);
+            background-color: var(--danger-glow);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
         }
-        .tabs { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 1.5rem; }
-        .tab-link { padding: 0.75rem 1rem; cursor: pointer; color: var(--text-muted); font-weight: 600; border-bottom: 2px solid transparent; }
-        .tab-link.active { color: var(--primary); border-bottom-color: var(--primary); }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+
+        .alert-danger .alert-title {
+            font-weight: 700;
+            margin-bottom: 2px;
+            color: #f87171;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Success View */
+        .success-card {
+            display: none;
+            text-align: center;
+            padding: 1rem 0;
+            animation: scaleUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes scaleUp {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .success-icon-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2));
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            border-radius: 50%;
+            color: #34d399;
+            font-size: 36px;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 0 30px var(--success-glow);
+        }
+
+        .success-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+        }
+
+        .success-desc {
+            font-size: 0.9rem;
+            color: var(--text-body);
+            margin-bottom: 1.5rem;
+        }
+
+        .info-grid {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: left;
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.84rem;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .info-value {
+            color: var(--text-title);
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .badge-active {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        /* Progress Bar for Auto Redirect */
+        .redirect-progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        .redirect-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--primary), var(--cyan-accent));
+            transition: width 2.5s linear;
+        }
+
+        /* Footer & Support */
+        .card-footer {
+            margin-top: 2rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid var(--card-border);
+            text-align: center;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .support-link {
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s ease;
+        }
+
+        .support-link:hover {
+            color: #60a5fa;
+            text-decoration: underline;
+        }
+
+        .sec-badge {
+            font-size: 0.72rem;
+            color: #475569;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        @media (max-width: 480px) {
+            .activation-card {
+                padding: 1.75rem 1.25rem;
+            }
+            .brand-title {
+                font-size: 1.35rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <div class="card-header">
-                <h1>Ativação do Acervo TI</h1>
-                <p>Informe os dados de licença fornecidos pela Central Acervo TI para ativar esta instalação.</p>
+
+    <!-- Ambient background spheres -->
+    <div class="ambient-bg">
+        <div class="glow-sphere-1"></div>
+        <div class="glow-sphere-2"></div>
+    </div>
+
+    <div class="activation-container">
+        <div class="activation-card">
+
+            <!-- Header -->
+            <div class="brand-header">
+                <div class="logo-badge">
+                    <span class="material-icons-round">verified_user</span>
+                </div>
+                <h1 class="brand-title">Ativação de Licença</h1>
+                <p class="brand-subtitle">Acervo TI • Gestão de Ativos & Almoxarifado Enterprise</p>
+
+                <div class="status-pill">
+                    <div class="status-dot"></div>
+                    <span>Servidor de Validação: Online</span>
+                </div>
             </div>
 
-            <div id="alerta" class="alert alert-danger"></div>
-
-            <form id="form-ativacao" autocomplete="off" method="post" action="{{ url_for('ativacao_online') }}">
-                <div class="form-group">
-                    <label for="colegio_id">ID do Cliente (COLEGIO_ID)</label>
-                    <input type="text" id="colegio_id" name="colegio_id" placeholder="Cole aqui o COLEGIO_ID" required>
+            <!-- Error Box -->
+            <div id="alerta-erro" class="alert-box alert-danger">
+                <div class="alert-title">
+                    <span class="material-icons-round" style="font-size: 18px;">error_outline</span>
+                    <span>Falha na Ativação</span>
                 </div>
-                <div class="form-group">
-                    <label for="serial_pdv">Serial do Dispositivo (PDV_SERIAL)</label>
-                    <input type="text" id="serial_pdv" name="serial_pdv" placeholder="Ex.: PDV-CLIENTE-001" required>
-                </div>
-                <div class="form-group">
-                    <label for="chave_ativacao">Chave de Ativação (PDV_CHAVE)</label>
-                    <input type="text" id="chave_ativacao" name="chave_ativacao" placeholder="Cole aqui a chave gerada na Central" required>
-                    <div class="hint">Estes três dados são exibidos pela Central Acervo TI no cadastro do cliente.</div>
-                </div>
-                <button type="submit" id="btn-ativar" class="btn btn-primary">
-                    <span>Ativar Sistema</span>
-                </button>
-            </form>
-
-            <div id="status" style="display:none; margin-top:1.5rem; padding:1rem; border-radius:8px; font-weight:600; text-align:center;"></div>
-
-            <div style="margin-top: 1.75rem; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
-                Problemas para ativar?
-                <a href="https://wa.me/5519998082712?text=Ol%C3%A1!%20Preciso%20de%20suporte%20para%20ativar%20o%20Acervo%20TI." target="_blank" style="color: var(--primary); font-weight: 600; text-decoration: none;">Falar com o Suporte</a>
+                <div id="alerta-mensagem">Não foi possível validar a licença. Verifique os dados.</div>
             </div>
 
-            <script>
-                (function () {
-                    const form = document.getElementById('form-ativacao');
-                    const botao = document.getElementById('btn-ativar');
-                    const status = document.getElementById('status');
-                    function mostrar(mensagem, cor) {
-                        status.style.display = 'block';
-                        status.style.background = cor === 'ok' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
-                        status.style.color = cor === 'ok' ? '#34d399' : '#f87171';
-                        status.textContent = mensagem;
-                    }
-                    form.addEventListener('submit', async function (evento) {
-                        evento.preventDefault();
-                        status.style.display = 'none';
-                        botao.disabled = true;
-                        botao.querySelector('span').textContent = 'Validando licença...';
-                        try {
-                            const resposta = await fetch(form.action, { method: 'POST', body: new FormData(form) });
-                            const resultado = await resposta.json().catch(function () { return {}; });
-                            if (resultado.sucesso) {
-                                mostrar(resultado.mensagem || 'Licença ativada com sucesso!', 'ok');
-                                botao.querySelector('span').textContent = 'Ativado!';
-                                setTimeout(function () { window.location.href = '{{ url_for("auth.login") }}'; }, 1500);
-                                return;
-                            }
-                            mostrar(resultado.mensagem || 'Não foi possível ativar. Confira os dados e tente novamente.');
-                        } catch (erro) {
-                            mostrar('Falha de comunicação com o servidor local. Tente novamente.');
-                        } finally {
-                            botao.disabled = false;
-                            if (botao.querySelector('span').textContent !== 'Ativado!') {
-                                botao.querySelector('span').textContent = 'Ativar Sistema';
-                            }
-                        }
-                    });
-                })();
-            </script>
-
+            <!-- Flask Flash Messages fallback -->
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }}">{{ message | safe }}</div>
+                        <div class="alert-box alert-danger" style="display: block;">
+                            <div class="alert-title">
+                                <span class="material-icons-round" style="font-size: 18px;">info</span>
+                                <span>Aviso</span>
+                            </div>
+                            <div>{{ message | safe }}</div>
+                        </div>
                     {% endfor %}
                 {% endif %}
             {% endwith %}
+
+            <!-- Form View -->
+            <form id="form-ativacao" autocomplete="off" method="post" action="{{ url_for('ativacao_online') }}">
+                
+                <!-- COLEGIO_ID -->
+                <div class="form-group">
+                    <label class="form-label" for="colegio_id">
+                        <span>ID do Cliente (COLEGIO_ID)</span>
+                    </label>
+                    <div class="input-wrapper">
+                        <span class="material-icons-round input-icon">corporate_fare</span>
+                        <input type="text" 
+                               id="colegio_id" 
+                               name="colegio_id" 
+                               class="form-input" 
+                               placeholder="Ex.: CLIENTE-DEMO-2026" 
+                               value="{{ colegio_id }}" 
+                               required 
+                               spellcheck="false">
+                    </div>
+                </div>
+
+                <!-- PDV_SERIAL -->
+                <div class="form-group">
+                    <label class="form-label" for="serial_pdv">
+                        <span>Serial do Dispositivo (PDV_SERIAL)</span>
+                    </label>
+                    <div class="input-wrapper">
+                        <span class="material-icons-round input-icon">devices</span>
+                        <input type="text" 
+                               id="serial_pdv" 
+                               name="serial_pdv" 
+                               class="form-input monospace" 
+                               placeholder="Ex.: PDV-SERVER-01" 
+                               value="{{ serial_pdv }}" 
+                               required 
+                               spellcheck="false">
+                        {% if serial_pdv %}
+                        <button type="button" class="copy-btn" id="btn-copy-serial" title="Copiar Serial">
+                            <span class="material-icons-round" style="font-size: 13px;">content_copy</span>
+                            <span>Copiar</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- PDV_CHAVE -->
+                <div class="form-group">
+                    <label class="form-label" for="chave_ativacao">
+                        <span>Chave de Ativação (PDV_CHAVE)</span>
+                    </label>
+                    <div class="input-wrapper">
+                        <span class="material-icons-round input-icon">key</span>
+                        <input type="text" 
+                               id="chave_ativacao" 
+                               name="chave_ativacao" 
+                               class="form-input monospace" 
+                               placeholder="Cole a chave fornecida na Central" 
+                               required 
+                               spellcheck="false">
+                    </div>
+                    <div class="input-hint">
+                        <span class="material-icons-round" style="font-size: 14px;">info</span>
+                        <span>Fornecida pelo painel gestor Central Acervo TI.</span>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="btn-ativar" class="btn-submit">
+                    <div class="spinner" id="btn-spinner"></div>
+                    <span class="material-icons-round" id="btn-icon">bolt</span>
+                    <span id="btn-text">Ativar Instalação do Cliente</span>
+                </button>
+            </form>
+
+            <!-- Success Card View (Hidden by default) -->
+            <div id="sucesso-card" class="success-card">
+                <div class="success-icon-badge">
+                    <span class="material-icons-round">check_circle</span>
+                </div>
+                <h2 class="success-title">Licença Ativada com Sucesso!</h2>
+                <p class="success-desc">O ambiente foi vinculado à sua assinatura e está liberado para uso.</p>
+
+                <div class="info-grid">
+                    <div class="info-row">
+                        <span class="info-label">ID do Cliente</span>
+                        <span class="info-value" id="res-colegio">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Serial do PDV</span>
+                        <span class="info-value" id="res-serial">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Status da Licença</span>
+                        <span class="badge-active" id="res-status">ATIVA</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Validade do Contrato</span>
+                        <span class="info-value" id="res-validade" style="color: #60a5fa;">Garantida</span>
+                    </div>
+                </div>
+
+                <a href="{{ url_for('auth.login') }}" class="btn-submit" style="text-decoration: none;">
+                    <span class="material-icons-round">login</span>
+                    <span>Acessar o Sistema Agora</span>
+                </a>
+
+                <div class="redirect-progress-bar">
+                    <div class="redirect-progress-fill" id="progress-fill"></div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="card-footer">
+                <div>
+                    Dúvidas ou suporte com licenças?
+                    <a id="whatsapp-link" 
+                       href="https://wa.me/5519998082712?text=Ol%C3%A1!%20Preciso%20de%20suporte%20para%20ativar%20a%20licen%C3%A7a%20do%20Acervo%20TI." 
+                       target="_blank" 
+                       class="support-link">
+                       <span class="material-icons-round" style="font-size: 15px;">chat</span>
+                       Falar com Suporte Técnico
+                    </a>
+                </div>
+                
+                <div class="sec-badge">
+                    <span class="material-icons-round" style="font-size: 13px;">lock</span>
+                    Conexão Segura SSL 256-bit Supabase Enterprise
+                </div>
+            </div>
+
         </div>
     </div>
 
+    <!-- Script Flow & Logic -->
+    <script>
+        (function () {
+            const form = document.getElementById('form-ativacao');
+            const btnAtivar = document.getElementById('btn-ativar');
+            const btnText = document.getElementById('btn-text');
+            const btnIcon = document.getElementById('btn-icon');
+            const btnSpinner = document.getElementById('btn-spinner');
+            
+            const alertBox = document.getElementById('alerta-erro');
+            const alertMsg = document.getElementById('alerta-mensagem');
+            const successCard = document.getElementById('sucesso-card');
+            
+            const colegioInput = document.getElementById('colegio_id');
+            const serialInput = document.getElementById('serial_pdv');
+            const chaveInput = document.getElementById('chave_ativacao');
+            const copySerialBtn = document.getElementById('btn-copy-serial');
+            const whatsappLink = document.getElementById('whatsapp-link');
+
+            // Format inputs real-time
+            [colegioInput, serialInput, chaveInput].forEach(input => {
+                if (!input) return;
+                input.addEventListener('input', () => {
+                    input.value = input.value.trim();
+                    updateWhatsAppSupportUrl();
+                });
+            });
+
+            // Copy Serial helper
+            if (copySerialBtn && serialInput) {
+                copySerialBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(serialInput.value);
+                    const btnSpan = copySerialBtn.querySelector('span:not(.material-icons-round)');
+                    if (btnSpan) {
+                        btnSpan.textContent = 'Copiado!';
+                        setTimeout(() => { btnSpan.textContent = 'Copiar'; }, 2000);
+                    }
+                });
+            }
+
+            function updateWhatsAppSupportUrl() {
+                const colegio = colegioInput ? colegioInput.value : '';
+                const serial = serialInput ? serialInput.value : '';
+                const text = encodeURIComponent(`Olá! Preciso de suporte para ativar o Acervo TI.\nCliente ID: ${colegio || 'N/A'}\nSerial: ${serial || 'N/A'}`);
+                whatsappLink.href = `https://wa.me/5519998082712?text=${text}`;
+            }
+            updateWhatsAppSupportUrl();
+
+            function mostrarErro(mensagem) {
+                alertMsg.textContent = mensagem;
+                alertBox.style.display = 'block';
+                alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            function ocultarErro() {
+                alertBox.style.display = 'none';
+            }
+
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                ocultarErro();
+
+                // UI Loading state
+                btnAtivar.disabled = true;
+                btnSpinner.style.display = 'block';
+                btnIcon.style.display = 'none';
+                btnText.textContent = 'Validando licença no Supabase...';
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        body: new FormData(form)
+                    });
+
+                    const data = await response.json().catch(() => ({}));
+
+                    if (response.ok && data.sucesso) {
+                        // Success transition
+                        form.style.display = 'none';
+                        
+                        document.getElementById('res-colegio').textContent = data.colegio_id || colegioInput.value;
+                        document.getElementById('res-serial').textContent = data.serial_pdv || serialInput.value;
+                        
+                        if (data.data_expiracao) {
+                            try {
+                                const dt = new Date(data.data_expiracao);
+                                document.getElementById('res-validade').textContent = dt.toLocaleDateString('pt-BR');
+                            } catch (err) {
+                                document.getElementById('res-validade').textContent = 'Ativa';
+                            }
+                        } else {
+                            document.getElementById('res-validade').textContent = 'Ativa (SaaS)';
+                        }
+
+                        successCard.style.display = 'block';
+
+                        // Animate Progress Bar and redirect
+                        setTimeout(() => {
+                            const fill = document.getElementById('progress-fill');
+                            if (fill) fill.style.width = '100%';
+                        }, 50);
+
+                        setTimeout(() => {
+                            window.location.href = "{{ url_for('auth.login') }}";
+                        }, 2600);
+
+                        return;
+                    }
+
+                    // Error from server
+                    const msg = data.mensagem || 'Não foi possível ativar. Verifique os dados informados.';
+                    mostrarErro(msg);
+
+                } catch (err) {
+                    mostrarErro('Sem comunicação com o servidor local. Verifique sua conexão e tente novamente.');
+                } finally {
+                    btnAtivar.disabled = false;
+                    btnSpinner.style.display = 'none';
+                    btnIcon.style.display = 'inline-block';
+                    btnText.textContent = 'Ativar Instalação do Cliente';
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

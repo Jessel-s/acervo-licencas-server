@@ -1266,10 +1266,23 @@ def iot_devolucao_lote():
 
 @app.route('/ativacao')
 def ativacao():
+    serial_env = (os.environ.get('PDV_SERIAL') or '').strip()
+    colegio_env = (os.environ.get('COLEGIO_ID') or '').strip()
+    
+    if serial_env == 'Não configurado':
+        serial_env = ''
+    if colegio_env == 'Não configurado':
+        colegio_env = ''
+
+    supabase_url = app.config.get('SUPABASE_URL') or os.environ.get('SUPABASE_URL')
+    supabase_key = app.config.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY')
+    supabase_configured = bool(supabase_url and supabase_key)
+
     return render_template(
         'ativacao.html',
-        serial_pdv=os.environ.get('PDV_SERIAL', 'Não configurado'),
-        colegio_id=os.environ.get('COLEGIO_ID', 'Não configurado'),
+        serial_pdv=serial_env,
+        colegio_id=colegio_env,
+        supabase_configured=supabase_configured,
     )
 
 @app.route('/ativacao/online', methods=['POST'])
@@ -1283,12 +1296,12 @@ def ativacao_online():
     chave = (request.form.get('chave_ativacao') or '').strip()
 
     if not all([colegio_id, serial_pdv, chave]):
-        return jsonify({'sucesso': False, 'mensagem': 'Preencha todos os campos (COLEGIO_ID, Serial e Chave).'}), 400
+        return jsonify({'sucesso': False, 'mensagem': 'Preencha todos os campos obrigatórios (ID do Cliente, Serial e Chave de Ativação).'}), 400
 
     supabase_url = app.config.get('SUPABASE_URL') or os.environ.get('SUPABASE_URL')
     supabase_key = app.config.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY')
     if not supabase_url or not supabase_key:
-        return jsonify({'sucesso': False, 'mensagem': 'Supabase não configurado nesta instalação. Contate o suporte.'}), 500
+        return jsonify({'sucesso': False, 'mensagem': 'Servidor Supabase não configurado nesta instalação local. Contate o suporte técnico.'}), 500
 
     # 1. Valida os dados direto na Edge Function, antes de gravar qualquer coisa.
     try:
@@ -1303,12 +1316,22 @@ def ativacao_online():
         with urllib.request.urlopen(requisicao, timeout=15) as resposta:
             data = json.loads(resposta.read().decode('utf-8'))
         if not data.get('valid'):
-            mensagem = data.get('mensagem') or 'Licença inválida ou expirada. Confira os dados na Central.'
+            mensagem = data.get('mensagem') or 'Licença inválida, expirada ou revogada. Verifique os dados na Central Acervo TI.'
             app.logger.warning('Ativação recusada: %s', mensagem)
             return jsonify({'sucesso': False, 'mensagem': mensagem}), 403
+    except urllib.error.HTTPError as http_err:
+        mensagem_erro = 'Dados de ativação incorretos ou licença inexistente.'
+        try:
+            body_err = json.loads(http_err.read().decode('utf-8'))
+            if body_err.get('mensagem'):
+                mensagem_erro = body_err['mensagem']
+        except Exception:
+            pass
+        app.logger.warning(f'Erro HTTP na ativação ({http_err.code}): {mensagem_erro}')
+        return jsonify({'sucesso': False, 'mensagem': mensagem_erro}), http_err.code
     except Exception as exc:
         app.logger.error(f'Falha de comunicação na ativação: {exc}')
-        return jsonify({'sucesso': False, 'mensagem': 'Sem comunicação com o servidor de licenças. Tente novamente.'}), 502
+        return jsonify({'sucesso': False, 'mensagem': 'Falha na comunicação com a nuvem de licenças. Verifique sua conexão com a internet.'}), 502
 
     # 2. Licença válida: grava/atualiza o .env local com os dados deste cliente.
     env_path = os.path.join(basedir, '.env')
@@ -1351,7 +1374,16 @@ def ativacao_online():
 
     get_license_info(force_revalidate=True)
     app.logger.info(f'Ativação concluída para o cliente {colegio_id} (serial {serial_pdv}).')
-    return jsonify({'sucesso': True, 'mensagem': 'Licença ativada com sucesso! Redirecionando para o login...'})
+
+    # Retorna resposta rica para a interface do cliente
+    return jsonify({
+        'sucesso': True,
+        'mensagem': 'Licença ativada com sucesso!',
+        'colegio_id': colegio_id,
+        'serial_pdv': serial_pdv,
+        'status_licenca': data.get('status_licenca', 'ativa'),
+        'data_expiracao': data.get('data_expiracao')
+    })
 
 # Nova Rota: Redireciona links curtos (sem /scan) para o histórico ou ação correta
 @app.route('/ativo/<string:notebook_id>')
