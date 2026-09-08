@@ -760,8 +760,12 @@
             if (!response.ok || !result.ok) return setMessage(message, result.mensagem || 'Não foi possível criar o cliente.', true);
             const customer = result.cliente;
             byId('install-values').innerHTML = [
-                ['COLEGIO_ID', customer.colegio_id], ['PDV_SERIAL', customer.serial_pdv], ['PDV_CHAVE', customer.chave_ativacao], ['ADMINISTRADOR', customer.email_admin], ['VALIDADE', new Date(customer.data_expiracao).toLocaleDateString('pt-BR')]
-            ].map(([label, value]) => `<div><strong>${label}</strong> = ${value}</div>`).join('');
+                ['ID DO CLIENTE (COLEGIO_ID)', customer.colegio_id], 
+                ['SERIAL DO DISPOSITIVO (PDV_SERIAL)', customer.serial_pdv], 
+                ['CHAVE DE ATIVAÇÃO (PDV_CHAVE)', customer.chave_ativacao], 
+                ['ADMINISTRADOR DO CLIENTE', customer.email_admin], 
+                ['VALIDADE DO CONTRATO', new Date(customer.data_expiracao).toLocaleDateString('pt-BR')]
+            ].map(([label, value]) => `<div><strong>${label}</strong> = <span style="user-select: all; font-weight: 700;">${value}</span></div>`).join('');
             byId('result').classList.add('visible');
             byId('client-form').reset();
             setMessage(message, 'Cadastro concluído. Guarde os dados de instalação antes de fechar esta página.');
@@ -958,18 +962,32 @@
             byId('modal-badges').innerHTML = `<span class="badge ${badge.cls}">${badge.texto}</span>` +
                 (c.situacao === 'expirado' ? '<span class="badge off">Assinatura vencida</span>' : '');
             byId('modal-info').innerHTML = [
-                ['CNPJ', c.cnpj || '—'], ['E-mail', c.email || '—'],
-                ...(c.telefone ? [['Telefone', c.telefone]] : []), ...(c.responsavel ? [['Responsável', c.responsavel]] : []),
+                ['ID do Cliente (COLEGIO_ID)', c.colegio_id],
+                ['CNPJ', c.cnpj || '—'], 
+                ['E-mail Comercial', c.email || '—'],
+                ...(c.telefone ? [['Telefone', c.telefone]] : []), 
+                ...(c.responsavel ? [['Responsável', c.responsavel]] : []),
                 ['Expira em', formatarData(c.data_expiracao)],
                 ['Dias restantes', c.dias_restantes ?? '—'],
                 ['Cadastrado em', formatarData(c.created_at)],
-                ['Licenças', (c.licencas || []).length],
-            ].map(([k, v]) => `<div class="info-item"><div class="k">${k}</div><div class="v">${escapeHtml(String(v))}</div></div>`).join('');
+                ['Licenças Emitidas', (c.licencas || []).length],
+            ].map(([k, v]) => `<div class="info-item"><div class="k">${k}</div><div class="v" style="user-select: all; font-weight: 700;">${escapeHtml(String(v))}</div></div>`).join('');
+            
             byId('modal-licencas').innerHTML = (c.licencas || []).map((l) =>
-                `<div class="lic-card"><span>${escapeHtml(l.serial_pdv)}</span><span>${escapeHtml(l.chave_ativacao)}</span>
-                    <span class="badge ${l.status === 'ativa' ? 'ok' : 'off'}">${escapeHtml(l.status)}</span>
-                    <button class="copy-btn" data-copy="${escapeHtml(l.serial_pdv)}|${escapeHtml(l.chave_ativacao)}" title="Copiar">⧉</button></div>`
-            ).join('') || '<em>Nenhuma licença emitida.</em>';
+                `<div class="lic-card" style="display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #ffffff;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                        <div>
+                            <div><strong style="color: var(--muted); font-size: 0.72rem; text-transform: uppercase;">Serial (PDV_SERIAL):</strong> <span style="font-weight: 700; color: var(--primary-dark); font-family: 'DM Mono', monospace;">${escapeHtml(l.serial_pdv)}</span></div>
+                            <div style="margin-top: 2px;"><strong style="color: var(--muted); font-size: 0.72rem; text-transform: uppercase;">Chave (PDV_CHAVE):</strong> <span style="font-weight: 700; color: var(--ink); font-family: 'DM Mono', monospace;">${escapeHtml(l.chave_ativacao)}</span></div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="badge ${l.status === 'ativa' ? 'ok' : 'off'}">${escapeHtml(l.status)}</span>
+                            <button class="copy-btn" data-copy="${escapeHtml(l.serial_pdv)}|${escapeHtml(l.chave_ativacao)}" title="Copiar Serial e Chave">⧉ Copiar</button>
+                        </div>
+                    </div>
+                </div>`
+            ).join('') || '<em>Nenhuma licença emitida para este cliente.</em>';
+            
             const suspenso = c.status_assinatura !== 'ativo';
             byId('btn-status').textContent = suspenso ? 'Reativar cliente' : 'Suspender cliente';
             byId('btn-status').dataset.acao = suspenso ? 'reativar' : 'suspender';
