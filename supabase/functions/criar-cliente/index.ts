@@ -16,6 +16,20 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+// Gera o proximo serial sequencial (PDV-001, PDV-002, ...) ignorando os ja usados.
+async function gerarSerialPdv() {
+  const { data: existentes } = await supabase
+    .from("licencas")
+    .select("serial_pdv")
+    .not("serial_pdv", "is", null);
+  const usados = new Set((existentes ?? []).map((r) => String(r.serial_pdv).toUpperCase()));
+  for (let i = 1; i <= 999; i++) {
+    const candidato = `PDV-${String(i).padStart(3, "0")}`;
+    if (!usados.has(candidato)) return candidato;
+  }
+  return `PDV-${Date.now().toString().slice(-6)}`;
+}
+
 function requiredText(value: unknown, field: string) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`${field} obrigatório.`);
@@ -59,7 +73,8 @@ Deno.serve(async (request: Request) => {
     const nomeAdmin = requiredText(body?.nome_admin, "Nome do administrador");
     const emailAdmin = requiredText(body?.email_admin, "E-mail do administrador").toLowerCase();
     const senhaAdmin = requiredText(body?.senha_admin, "Senha temporária");
-    const serialPdv = requiredText(body?.serial_pdv, "Serial do dispositivo").toUpperCase();
+    // Serial e gerado automaticamente e sequencial; o campo do formulario e ignorado.
+    const serialPdv = await gerarSerialPdv();
     const cnpj = typeof body?.cnpj === "string" ? body.cnpj.trim() || null : null;
     const telefone = typeof body?.telefone === "string" ? body.telefone.trim() || null : null;
     const diasValidade = Number.isInteger(body?.dias_validade) && body.dias_validade > 0

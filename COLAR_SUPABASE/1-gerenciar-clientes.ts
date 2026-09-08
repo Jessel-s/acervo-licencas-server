@@ -318,34 +318,6 @@ async function alterarStatus(user: { id: string; email?: string }, colegioId: st
   return json({ ok: true, mensagem: `Cliente ${novoStatus}` });
 }
 
-async function trocarSenhaCliente(user: { id: string; email?: string }, colegioId: string, novaSenha: string) {
-  if (typeof novaSenha !== "string" || novaSenha.trim().length < 8) {
-    return json({ ok: false, mensagem: "Nova senha obrigatoria com pelo menos 8 caracteres" }, 400);
-  }
-
-  const { data: perfil, error: perfilError } = await supabase
-    .from("perfis")
-    .select("id, papel")
-    .eq("colegio_id", colegioId)
-    .in("papel", ["admin_geral", "gestor_colegio"])
-    .order("criado_em", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (perfilError) throw perfilError;
-  if (!perfil) {
-    return json({ ok: false, mensagem: "Nenhum usuário administrador encontrado para este cliente" }, 404);
-  }
-
-  const { error: updateError } = await supabase.auth.admin.updateUserById(perfil.id, {
-    password: novaSenha.trim(),
-  });
-  if (updateError) throw updateError;
-
-  await registrarAuditoria(user.id, user.email, colegioId, "trocar_senha_cliente", { user_id: perfil.id });
-  return json({ ok: true, mensagem: "Senha do administrador do cliente atualizada com sucesso" });
-}
-
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -389,10 +361,6 @@ Deno.serve(async (request: Request) => {
       }
       if (acao === "editar") {
         return await editarCliente(user, colegioId, body);
-      }
-      if (acao === "trocar_senha") {
-        const novaSenha = typeof body?.nova_senha === "string" ? body.nova_senha : "";
-        return await trocarSenhaCliente(user, colegioId, novaSenha);
       }
       if (acao === "exportar") {
         return await exportarCliente(colegioId);

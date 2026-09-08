@@ -22,6 +22,8 @@ create table if not exists public.auditoria_admin (
 
 alter table public.auditoria_admin enable row level security;
 
+drop policy if exists "auditoria_admin_select" on public.auditoria_admin;
+
 create policy "auditoria_admin_select"
   on public.auditoria_admin for select
   to authenticated
