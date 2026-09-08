@@ -569,7 +569,12 @@
                                placeholder="Ex.: 78d55a14-7906-49fc-8cd3-68810bb9b4b1" 
                                value="{{ colegio_id }}" 
                                required 
-                               spellcheck="false">
+                               spellcheck="false"
+                               style="padding-right: 80px;">
+                        <button type="button" class="copy-btn" id="btn-paste-colegio" title="Colar ID da área de transferência">
+                            <span class="material-icons-round" style="font-size: 13px;">content_paste</span>
+                            <span>Colar</span>
+                        </button>
                     </div>
                     <div class="input-hint">
                         <span class="material-icons-round" style="font-size: 14px;">info</span>
@@ -591,13 +596,12 @@
                                placeholder="Ex.: PDV-SERVER-01" 
                                value="{{ serial_pdv }}" 
                                required 
-                               spellcheck="false">
-                        {% if serial_pdv %}
-                        <button type="button" class="copy-btn" id="btn-copy-serial" title="Copiar Serial">
-                            <span class="material-icons-round" style="font-size: 13px;">content_copy</span>
-                            <span>Copiar</span>
+                               spellcheck="false"
+                               style="padding-right: 80px;">
+                        <button type="button" class="copy-btn" id="btn-paste-serial" title="Colar Serial da área de transferência">
+                            <span class="material-icons-round" style="font-size: 13px;">content_paste</span>
+                            <span>Colar</span>
                         </button>
-                        {% endif %}
                     </div>
                 </div>
 
@@ -614,7 +618,12 @@
                                class="form-input monospace" 
                                placeholder="Cole a chave fornecida na Central" 
                                required 
-                               spellcheck="false">
+                               spellcheck="false"
+                               style="padding-right: 80px;">
+                        <button type="button" class="copy-btn" id="btn-paste-chave" title="Colar Chave da área de transferência">
+                            <span class="material-icons-round" style="font-size: 13px;">content_paste</span>
+                            <span>Colar</span>
+                        </button>
                     </div>
                     <div class="input-hint">
                         <span class="material-icons-round" style="font-size: 14px;">info</span>
@@ -717,17 +726,34 @@
                 });
             });
 
-            // Copy Serial helper
-            if (copySerialBtn && serialInput) {
-                copySerialBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(serialInput.value);
-                    const btnSpan = copySerialBtn.querySelector('span:not(.material-icons-round)');
-                    if (btnSpan) {
-                        btnSpan.textContent = 'Copiado!';
-                        setTimeout(() => { btnSpan.textContent = 'Copiar'; }, 2000);
+            // Paste helpers
+            function setupPasteButton(btnId, targetInput) {
+                const btn = document.getElementById(btnId);
+                if (!btn || !targetInput) return;
+                btn.addEventListener('click', async () => {
+                    try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) {
+                            targetInput.value = text.trim();
+                            targetInput.dispatchEvent(new Event('input'));
+                            const btnSpan = btn.querySelector('span:not(.material-icons-round)');
+                            if (btnSpan) {
+                                btnSpan.textContent = 'Colado!';
+                                setTimeout(() => { btnSpan.textContent = 'Colar'; }, 1500);
+                            }
+                        }
+                    } catch (err) {
+                        // Fallback em caso de permissão do navegador
+                        targetInput.focus();
+                        targetInput.select();
+                        mostrarErro('Use o atalho Ctrl + V para colar o texto no campo.');
                     }
                 });
             }
+
+            setupPasteButton('btn-paste-colegio', colegioInput);
+            setupPasteButton('btn-paste-serial', serialInput);
+            setupPasteButton('btn-paste-chave', chaveInput);
 
             function updateWhatsAppSupportUrl() {
                 const colegio = colegioInput ? colegioInput.value : '';
