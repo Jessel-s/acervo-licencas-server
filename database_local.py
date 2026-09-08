@@ -25,6 +25,7 @@ class LocalDatabase:
                 status TEXT NOT NULL DEFAULT 'pendente',
                 ultima_checagem TEXT,
                 ultima_validacao_sucesso TEXT,
+                data_expiracao TEXT,
                 bloqueado INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
@@ -33,6 +34,10 @@ class LocalDatabase:
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_licenca_estado_serial ON licenca_estado(serial_pdv, chave_ativacao)"
         )
+        try:
+            self.conn.execute("ALTER TABLE licenca_estado ADD COLUMN data_expiracao TEXT")
+        except sqlite3.OperationalError:
+            pass
         self.conn.commit()
 
     def salvar_estado(
@@ -43,6 +48,7 @@ class LocalDatabase:
         status: str,
         ultima_checagem: Optional[datetime] = None,
         ultima_validacao_sucesso: Optional[datetime] = None,
+        data_expiracao: Optional[str] = None,
         bloqueado: int = 0,
     ) -> None:
         self.conn.execute(
@@ -54,8 +60,9 @@ class LocalDatabase:
                 status,
                 ultima_checagem,
                 ultima_validacao_sucesso,
+                data_expiracao,
                 bloqueado
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 serial_pdv,
@@ -64,6 +71,7 @@ class LocalDatabase:
                 status,
                 self._fmt(ultima_checagem),
                 self._fmt(ultima_validacao_sucesso),
+                data_expiracao,
                 bloqueado,
             ),
         )

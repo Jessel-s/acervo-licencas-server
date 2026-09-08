@@ -63,6 +63,7 @@ class LicencaManager:
 
             data = response.json()
             agora = datetime.now(timezone.utc)
+            data_expiracao = data.get("data_expiracao")
 
             estado = self.db.get_estado(self.serial_pdv, self.chave_ativacao)
             if estado:
@@ -72,6 +73,7 @@ class LicencaManager:
                     status="ativa" if data.get("valid") else "expirada",
                     ultima_checagem=agora,
                     ultima_validacao_sucesso=agora if data.get("valid") else None,
+                    data_expiracao=data_expiracao,
                     bloqueado=0 if data.get("valid") else 1,
                 )
             else:
@@ -82,6 +84,7 @@ class LicencaManager:
                     status="ativa" if data.get("valid") else "expirada",
                     ultima_checagem=agora,
                     ultima_validacao_sucesso=agora if data.get("valid") else None,
+                    data_expiracao=data_expiracao,
                     bloqueado=0 if data.get("valid") else 1,
                 )
 
@@ -116,6 +119,21 @@ class LicencaManager:
             return False
         except Exception:
             return False
+
+    def obter_dias_restantes(self) -> int:
+        estado = self.db.get_estado(self.serial_pdv, self.chave_ativacao)
+        if not estado:
+            return 0
+        data_exp_str = estado.get("data_expiracao")
+        if not data_exp_str:
+            return 0
+        try:
+            dt_exp = datetime.fromisoformat(data_exp_str.replace("Z", "+00:00"))
+            agora = datetime.now(timezone.utc)
+            diff = (dt_exp - agora).total_seconds()
+            return max(0, int(diff // 86400))
+        except Exception:
+            return 0
 
     def verificar(self) -> bool:
         if self._online_status():

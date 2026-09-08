@@ -222,7 +222,9 @@ def get_saas_license_info():
             supabase_url=app.config.get('SUPABASE_URL'),
             supabase_key=app.config.get('SUPABASE_ANON_KEY'),
         )
-        return ('VALID', 0, SAAS_MODULES) if manager.verificar() else ('EXPIRED', 0, SAAS_MODULES)
+        is_valid = manager.verificar()
+        days_left = manager.obter_dias_restantes()
+        return ('VALID', days_left, SAAS_MODULES) if is_valid else ('EXPIRED', days_left, SAAS_MODULES)
     finally:
         local_db.close()
 
