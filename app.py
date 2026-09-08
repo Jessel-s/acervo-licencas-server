@@ -109,6 +109,20 @@ def start_background_sync():
     )
 
 
+def tentar_restauracao_automatica():
+    """Restaura dados e usuários do Supabase caso o banco SQLite local esteja completamente vazio."""
+    if not app.config.get('SUPABASE_ENABLED'):
+        return
+    try:
+        from restaurar_supabase import local_database_has_operational_data, apply_restore
+        if not local_database_has_operational_data():
+            app.logger.info("Banco SQLite local sem dados detectado. Baixando e restaurando dados e usuários do Supabase...")
+            result = apply_restore()
+            app.logger.info(f"Restauração automática concluída: {result}")
+    except Exception as exc:
+        app.logger.warning(f"Restauração automática não executada ou falhou: {exc}")
+
+
 def queue_asset_sync(asset):
     try:
         enqueue_asset(asset, queue_path=os.path.join(basedir, 'sync_queue.db'))
@@ -581,7 +595,6 @@ def dashboard():
     chamados_abertos = []
     total_chamados_abertos = 0
     try:
-        from models import Problema
         chamados_query = Problema.query.filter(Problema.status != 'Resolvido').order_by(Problema.id.desc()).limit(10).all()
         chamados_abertos = chamados_query
         total_chamados_abertos = len(chamados_query)
@@ -1537,6 +1550,7 @@ if __name__ == '__main__':
         except Exception:
             app.logger.exception('Falha ao criar backup automático na inicialização.')
 
+        tentar_restauracao_automatica()
         start_background_sync()
 
         cert_file = os.path.join(basedir, 'cert_secure.pem')

@@ -216,3 +216,33 @@ def enqueue_storeroom_movement(movement, operation: str = "upsert", queue_path: 
         queue.enqueue("almox_movimentacao", str(movement.id), operation, payload)
     finally:
         queue.close()
+
+
+def enqueue_user(user, operation: str = "upsert", queue_path: str = "sync_queue.db") -> None:
+    payload = None
+    if operation == "upsert":
+        last_login_val = None
+        if hasattr(user.last_login, "isoformat"):
+            last_login_val = user.last_login.isoformat()
+        elif user.last_login:
+            last_login_val = str(user.last_login)
+
+        payload = {
+            "colegio_id": os.getenv("COLEGIO_ID"),
+            "source_id": str(user.id),
+            "username": user.username,
+            "password": user.password,
+            "perm_movimentacao": bool(user.perm_movimentacao),
+            "perm_cadastro": bool(user.perm_cadastro),
+            "perm_config": bool(user.perm_config),
+            "perm_kiosk": bool(user.perm_kiosk),
+            "perm_chamados": bool(user.perm_chamados),
+            "perm_ajuda": bool(user.perm_ajuda),
+            "perm_almoxarifado": bool(user.perm_almoxarifado),
+            "last_login": last_login_val,
+        }
+    queue = SyncQueue(queue_path)
+    try:
+        queue.enqueue("usuario", str(user.id), operation, payload)
+    finally:
+        queue.close()

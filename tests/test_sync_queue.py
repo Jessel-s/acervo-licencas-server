@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from sync_queue import SyncQueue, enqueue_asset, enqueue_booking, enqueue_history, enqueue_issue, enqueue_session
+from sync_queue import SyncQueue, enqueue_asset, enqueue_booking, enqueue_history, enqueue_issue, enqueue_session, enqueue_user
 
 
 class SyncQueueTests(unittest.TestCase):
@@ -212,6 +212,41 @@ class SyncQueueTests(unittest.TestCase):
                     pending = queue.pending()[0]
                     self.assertEqual(pending["entity_type"], "agendamento")
                     self.assertEqual(pending["payload"]["source_id"], "45")
+                finally:
+                    queue.close()
+            finally:
+                if previous is None:
+                    os.environ.pop("COLEGIO_ID", None)
+                else:
+                    os.environ["COLEGIO_ID"] = previous
+
+    def test_enqueue_user_records_permissions_and_username(self):
+        class User:
+            id = 50
+            username = "pedro"
+            password = "hashedpassword"
+            perm_movimentacao = True
+            perm_cadastro = True
+            perm_config = False
+            perm_kiosk = False
+            perm_chamados = True
+            perm_ajuda = False
+            perm_almoxarifado = True
+            last_login = None
+
+        with tempfile.TemporaryDirectory() as directory:
+            queue_path = str(Path(directory) / "sync_queue.db")
+            previous = os.environ.get("COLEGIO_ID")
+            os.environ["COLEGIO_ID"] = "tenant"
+            try:
+                enqueue_user(User(), queue_path=queue_path)
+                queue = SyncQueue(queue_path)
+                try:
+                    pending = queue.pending()[0]
+                    self.assertEqual(pending["entity_type"], "usuario")
+                    self.assertEqual(pending["payload"]["username"], "pedro")
+                    self.assertEqual(pending["payload"]["source_id"], "50")
+                    self.assertTrue(pending["payload"]["perm_almoxarifado"])
                 finally:
                     queue.close()
             finally:

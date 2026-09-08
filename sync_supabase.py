@@ -19,6 +19,7 @@ from sync_queue import SyncQueue
 BASE_DIR = Path(__file__).resolve().parent
 SYNC_ORDER = (
     "ativo",
+    "usuario",
     "sessao_uso",
     "historico",
     "problema",

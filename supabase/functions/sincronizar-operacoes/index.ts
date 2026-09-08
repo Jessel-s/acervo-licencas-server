@@ -6,6 +6,7 @@ const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 const entityTables: Record<string, string> = {
   ativo: "ativos",
+  usuario: "usuarios",
   sessao_uso: "sessoes_uso",
   historico: "historico",
   problema: "problemas",
@@ -14,7 +15,7 @@ const entityTables: Record<string, string> = {
   almox_movimentacao: "almox_movimentacoes",
 };
 
-const deleteSupported = new Set(["ativo", "almox_produto", "almox_movimentacao"]);
+const deleteSupported = new Set(["ativo", "usuario", "almox_produto", "almox_movimentacao"]);
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {

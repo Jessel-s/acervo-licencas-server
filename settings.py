@@ -10,6 +10,7 @@ from PIL import Image
 
 from models import db, Usuario, ConfiguracaoSistema, Historico
 from auth import login_required, permission_required
+from sync_queue import enqueue_user
 
 settings_bp = Blueprint('settings', __name__)
 
@@ -81,6 +82,10 @@ def add_user():
         )
         db.session.add(novo_usuario)
         db.session.commit()
+        try:
+            enqueue_user(novo_usuario, "upsert")
+        except Exception:
+            pass
         flash(f'Usuário {username} criado!', 'success')
         return redirect(url_for('settings.configuracoes'))
     return render_template('add_user.html')
@@ -108,6 +113,10 @@ def edit_user(user_id):
         user.perm_ajuda = bool(perm_ajuda)
         user.perm_almoxarifado = bool(perm_almoxarifado)
         db.session.commit()
+        try:
+            enqueue_user(user, "upsert")
+        except Exception:
+            pass
         flash(f'Usuário atualizado!', 'success')
         return redirect(url_for('settings.configuracoes'))
     return render_template('edit_user.html', user=user)
@@ -120,6 +129,10 @@ def remove_user(user_id):
         return redirect(url_for('settings.configuracoes'))
     user = db.session.get(Usuario, user_id) # MODERNIZADO
     if user:
+        try:
+            enqueue_user(user, "delete")
+        except Exception:
+            pass
         db.session.delete(user)
         db.session.commit()
     flash('Usuário removido.', 'success')

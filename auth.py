@@ -6,6 +6,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 from models import db, Usuario
 from supabase_session import SupabaseSessionStore
+from sync_queue import enqueue_user
 
 try:
     from supabase_login import sign_in_with_supabase
@@ -136,6 +137,10 @@ def login():
         if user and check_password_hash(user.password, password):
             user.last_login = datetime.now()
             db.session.commit()
+            try:
+                enqueue_user(user, "upsert")
+            except Exception:
+                pass
 
             session.clear()
             session.permanent = True

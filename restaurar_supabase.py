@@ -18,6 +18,7 @@ SQLITE_PATH = BASE_DIR / "patrimonio_ti.db"
 RESTORE_TABLES = (
     "ativos",
     "configuracoes_sistema",
+    "usuarios",
     "sessoes_uso",
     "historico",
     "problemas",
@@ -29,6 +30,7 @@ RESTORE_TABLES = (
 TABLE_COLUMNS = {
     "ativos": "id, numero_carrinho, tipo, modelo, numero_serie, data_compra, status, localizacao, observacoes, data_cadastro",
     "configuracoes_sistema": "chave, valor",
+    "usuarios": "source_id, username, password, perm_movimentacao, perm_cadastro, perm_config, perm_kiosk, perm_chamados, perm_ajuda, perm_almoxarifado, last_login",
     "sessoes_uso": "source_id, turma, professor, programa, data_inicio, quantidade_notebooks, observacoes, previsao_devolucao, usuario_movimentacao",
     "historico": "source_id, id_etiqueta, acao, usuario_movimentacao, responsavel, data, obs",
     "problemas": "source_id, ativo_id, tipo_problema, descricao, data_registro, responsavel, status, prioridade, categoria, parecer_tecnico, local_incidente, data_resolucao",
@@ -139,7 +141,7 @@ def local_database_has_operational_data(database_path=SQLITE_PATH):
         return False
     connection = sqlite3.connect(database_path)
     try:
-        for table in ("notebooks", "sessoes_uso", "historico", "problemas", "agendamentos", "almox_produtos", "almox_movimentacoes"):
+        for table in ("notebooks", "sessoes_uso", "historico", "problemas", "agendamentos", "almox_produtos", "almox_movimentacoes", "usuarios"):
             try:
                 if connection.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone():
                     return True
@@ -174,6 +176,11 @@ def restore_to_sqlite(rows, database_path=SQLITE_PATH):
             "INSERT INTO configuracoes_sistema (chave, valor) VALUES (:chave, :valor)",
             rows["configuracoes_sistema"],
         )
+        if "usuarios" in rows:
+            connection.executemany(
+                "INSERT INTO usuarios (id, username, password, perm_movimentacao, perm_cadastro, perm_config, perm_kiosk, perm_chamados, perm_ajuda, perm_almoxarifado, last_login) VALUES (CAST(:source_id AS INTEGER), :username, :password, CAST(:perm_movimentacao AS INTEGER), CAST(:perm_cadastro AS INTEGER), CAST(:perm_config AS INTEGER), CAST(:perm_kiosk AS INTEGER), CAST(:perm_chamados AS INTEGER), CAST(:perm_ajuda AS INTEGER), CAST(:perm_almoxarifado AS INTEGER), :last_login)",
+                rows["usuarios"],
+            )
         connection.executemany(
             "INSERT INTO sessoes_uso (id, turma, professor, programa, data_inicio, quantidade_notebooks, observacoes, previsao_devolucao, usuario_movimentacao) VALUES (CAST(:source_id AS INTEGER), :turma, :professor, :programa, :data_inicio, :quantidade_notebooks, :observacoes, :previsao_devolucao, :usuario_movimentacao)",
             rows["sessoes_uso"],
