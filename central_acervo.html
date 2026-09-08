@@ -561,6 +561,30 @@
             return `${base}${base.includes('?') ? '&' : '?'}auth=done`;
         }
 
+        function translateSupabaseMessage(message) {
+            if (!message) return 'Ocorreu um erro ao processar a solicitação.';
+            const normalized = message.toLowerCase();
+            if (normalized.includes('email rate limit exceeded')) {
+                return 'O envio por e-mail foi bloqueado por excesso de tentativas. Aguarde alguns minutos e tente novamente.';
+            }
+            if (normalized.includes('signups not allowed for otp')) {
+                return 'Login por código SMS está desabilitado no painel do Supabase. Ative o provedor de telefone ou use a recuperação por e-mail.';
+            }
+            if (normalized.includes('invalid login credentials')) {
+                return 'E-mail ou senha inválidos.';
+            }
+            if (normalized.includes('user not found')) {
+                return 'Nenhum usuário encontrado com este e-mail.';
+            }
+            if (normalized.includes('too many requests')) {
+                return 'Muitas tentativas em pouco tempo. Tente novamente mais tarde.';
+            }
+            if (normalized.includes('otp')) {
+                return 'O código informado é inválido ou expirou. Solicite um novo código.';
+            }
+            return message;
+        }
+
         async function handleRecoveryCallback() {
             const params = new URLSearchParams(window.location.search);
             const code = params.get('code');
@@ -609,7 +633,7 @@
             const message = byId('login-message');
             setMessage(message, 'Validando acesso...');
             const { error } = await supabaseClient.auth.signInWithPassword({ email: byId('login-email').value, password: byId('login-password').value });
-            if (error) return setMessage(message, 'Não foi possível autenticar este usuário.', true);
+            if (error) return setMessage(message, translateSupabaseMessage(error.message), true);
             await showWorkspace();
         });
 
@@ -628,7 +652,7 @@
                 redirectTo: getAuthRedirectUrl(),
             });
             if (error) {
-                return setMessage(message, error.message || 'Não foi possível enviar o link de recuperação.', true);
+                return setMessage(message, translateSupabaseMessage(error.message), true);
             }
             setMessage(message, 'Se este e-mail estiver cadastrado, enviamos um link para redefinir sua senha.');
         });
@@ -652,7 +676,7 @@
             setMessage(message, 'Enviando código por SMS...');
             const { error } = await supabaseClient.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
             if (error) {
-                const msg = error.message || 'Não foi possível enviar o código por SMS.';
+                const msg = translateSupabaseMessage(error.message || 'Não foi possível enviar o código por SMS.');
                 setMessage(message, msg, true);
                 return;
             }
@@ -669,7 +693,7 @@
             }
             const { data, error } = await supabaseClient.auth.verifyOtp({ phone, token, type: 'sms' });
             if (error) {
-                return setMessage(message, error.message || 'Código inválido.', true);
+                return setMessage(message, translateSupabaseMessage(error.message || 'Código inválido.'), true);
             }
             if (data?.session) {
                 setMessage(message, 'Acesso validado por SMS.');
