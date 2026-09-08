@@ -156,14 +156,15 @@
             background: linear-gradient(135deg, var(--forest), #1d7a56);
             color: white; box-shadow: 0 12px 20px rgba(23,98,69,.18);
         }
-        table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .86rem; color: var(--ink); }
         th, td {
             text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line);
-            vertical-align: top;
+            vertical-align: top; color: var(--ink);
         }
-        th { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+        th { color: #304b43; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
         .badge {
             display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .72rem; font-weight: 800;
+            letter-spacing: .01em;
         }
         .badge.ok { background: #e2f3d8; color: #2d5a17; }
         .badge.warn { background: #fdeecd; color: #8a5a00; }
@@ -175,7 +176,7 @@
         button.quick:hover { background: #2d5a17; color: white; }
         button.quick-year { background: var(--forest); color: white; }
         button.quick-year:hover { background: var(--forest-dark); }
-        .serials { font: .72rem 'DM Mono', monospace; color: var(--muted); overflow-wrap: anywhere; }
+        .serials { font: .72rem 'DM Mono', monospace; color: #1e2d29; overflow-wrap: anywhere; }
         .stats {
             display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 12px;
             margin-bottom: 18px;
@@ -609,7 +610,7 @@
                 th.classList.toggle('desc', th.dataset.sort === ordenacao.campo && !ordenacao.asc);
             });
             if (!itens.length) {
-                body.innerHTML = `<tr><td colspan="5" class="empty-state">${clientesCache.length ? 'Nenhum cliente corresponde aos filtros.' : 'Nenhum cliente cadastrado ainda.'}</td></tr>`;
+                body.innerHTML = `<tr><td colspan="6" class="empty-state">${clientesCache.length ? 'Nenhum cliente corresponde aos filtros.' : 'Nenhum cliente cadastrado ainda.'}</td></tr>`;
                 return;
             }
             body.innerHTML = '';
@@ -618,13 +619,13 @@
                 const validade = c.data_expiracao ? new Date(c.data_expiracao).toLocaleDateString('pt-BR') : '—';
                 const badge = classificarCliente(c);
                 const licencasHtml = (c.licencas || []).map((l) =>
-                    `<div class="lic-item"><code>${escapeHtml(l.serial_pdv)}</code><span class="lic-chave">${escapeHtml(l.chave_ativacao)}</span>
-                        <button class="copy-btn" data-copy="${escapeHtml(l.serial_pdv)}|${escapeHtml(l.chave_ativacao)}" title="Copiar serial e chave">⧉</button></div>`
+                    `<div class="lic-item"><span class="serials">${escapeHtml(l.serial_pdv)}</span> <button class="copy-btn" data-copy="${escapeHtml(l.serial_pdv)}|${escapeHtml(l.chave_ativacao)}" title="Copiar serial e chave">⧉</button></div>`
                 ).join('') || '<span class="serials">Sem licenças</span>';
                 const suspenso = c.status_assinatura !== 'ativo';
                 tr.innerHTML = `
-                    <td><strong>${escapeHtml(c.nome)}</strong><br><span class="serials">${escapeHtml(c.email || '')}</span>${c.cnpj ? `<br><span class="serials">CNPJ: ${escapeHtml(c.cnpj)}</span>` : ''}</td>
-                    <td class="serials">${licencasHtml}</td>
+                    <td><strong>${escapeHtml(c.nome)}</strong><br><span class="serials">${escapeHtml(c.email || '')}</span></td>
+                    <td class="serials">${escapeHtml(c.cnpj || '—')}</td>
+                    <td>${licencasHtml}</td>
                     <td>${validade}${c.dias_restantes !== null ? `<br><span class="serials">${c.dias_restantes >= 0 ? c.dias_restantes + ' dia(s)' : 'vencida'}</span>` : ''}</td>
                     <td><span class="badge ${badge.cls}">${badge.texto}</span></td>
                     <td class="actions-cell">
