@@ -42,7 +42,21 @@ def configuracoes():
     ip_totem = config_iot.valor if config_iot else '192.168.0.50'
 
     # g.license_status e g.days_left são definidos no before_request do app.py
-    return render_template('configuracoes.html', users=users, status=g.license_status, days=g.days_left, url_acesso=url_acesso, log_content=log_content, modules=g.modules, ip_totem=ip_totem)
+    colegio_id = os.environ.get('COLEGIO_ID', 'Não ativado')
+    serial_pdv = os.environ.get('PDV_SERIAL', 'Não ativado')
+
+    return render_template(
+        'configuracoes.html',
+        users=users,
+        status=g.license_status,
+        days=g.days_left,
+        url_acesso=url_acesso,
+        log_content=log_content,
+        modules=g.modules,
+        ip_totem=ip_totem,
+        colegio_id=colegio_id,
+        serial_pdv=serial_pdv,
+    )
 
 @settings_bp.route('/configuracoes/salvar_iot', methods=['POST'])
 @permission_required('perm_config')
