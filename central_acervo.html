@@ -975,11 +975,12 @@
             
             byId('modal-licencas').innerHTML = (c.licencas || []).map((l) =>
                 `<div class="lic-card" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #ffffff;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                         <span class="badge ${l.status === 'ativa' ? 'ok' : 'off'}">${escapeHtml(l.status)}</span>
-                        <div style="display: flex; gap: 6px;">
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                             <button class="copy-btn" data-copy-type="serial" data-val="${escapeHtml(l.serial_pdv)}" title="Copiar somente Serial">Copiar Serial</button>
                             <button class="copy-btn" data-copy-type="chave" data-val="${escapeHtml(l.chave_ativacao)}" title="Copiar somente Chave">Copiar Chave</button>
+                            <button class="danger" data-revogar-serial="${escapeHtml(l.serial_pdv)}" style="padding: 3px 8px; font-size: 0.72rem;" title="Revogar/Revogar esta licença">Revogar Licença</button>
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
@@ -1242,12 +1243,43 @@
         });
         byId('btn-excluir').addEventListener('click', async () => {
             if (!clienteSelecionado) return;
-            if (!confirm(`EXCLUIR o cliente "${clienteSelecionado.nome}" permanentemente?\nTodas as licenças serão apagadas. Esta ação não pode ser desfeita.`)) return;
-            setMessage(byId('modal-message'), 'Excluindo...');
+            const nomeDigitado = prompt(
+                `⚠️ CONFIRMAÇÃO DE SEGURANÇA ⚠️\n\n` +
+                `Você está prestes a EXCLUIR PERMANENTEMENTE o cliente:\n` +
+                `👉 "${clienteSelecionado.nome}"\n\n` +
+                `Esta ação removerá o tenant e TODAS as licenças associadas!\n\n` +
+                `Para confirmar a exclusão, digite ou cole exatamente o nome do cliente abaixo:`
+            );
+            
+            if (nomeDigitado === null) return; // Cancelado
+            
+            if (nomeDigitado.trim().toLowerCase() !== (clienteSelecionado.nome || '').trim().toLowerCase()) {
+                alert('❌ O nome digitado não corresponde ao nome do cliente. Exclusão cancelada por segurança.');
+                return;
+            }
+
+            setMessage(byId('modal-message'), 'Excluindo cliente...');
             const result = await postAcao('excluir', clienteSelecionado.colegio_id);
-            if (result.ok) { fecharModal(); setMessage(byId('admin-message'), 'Cliente excluído.'); }
+            if (result.ok) { fecharModal(); setMessage(byId('admin-message'), 'Cliente excluído com sucesso.'); }
             else setMessage(byId('modal-message'), result.mensagem || 'Falha ao excluir.', true);
             await carregarClientes();
+        });
+
+        byId('modal-licencas').addEventListener('click', async (e) => {
+            const btnRevogar = e.target.closest('button[data-revogar-serial]');
+            if (btnRevogar && clienteSelecionado) {
+                const serial = btnRevogar.dataset.revogar-serial || btnRevogar.getAttribute('data-revogar-serial');
+                if (!serial) return;
+                if (!confirm(`Revogar a licença "${serial}" de "${clienteSelecionado.nome}"?`)) return;
+                setMessage(byId('modal-message'), `Revogando licença ${serial}...`);
+                const result = await postAcao('revogar_licenca', clienteSelecionado.colegio_id, { serial_pdv: serial });
+                setMessage(byId('modal-message'), result.mensagem || (result.ok ? 'Licença revogada.' : 'Falha ao revogar licença.'), !result.ok);
+                await carregarClientes();
+                if (result.ok) {
+                    const atualizado = clientesCache.find((c) => c.colegio_id === clienteSelecionado.colegio_id);
+                    if (atualizado) abrirDetalhes(atualizado);
+                }
+            }
         });
 
         byId('export-csv').addEventListener('click', () => {
