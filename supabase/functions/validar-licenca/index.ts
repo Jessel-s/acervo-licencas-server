@@ -7,9 +7,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
-    const serial_pdv = body?.serial_pdv;
-    const chave_ativacao = body?.chave_ativacao;
-    const colegio_id = body?.colegio_id;
+    const serial_pdv = body?.serial_pdv ? String(body.serial_pdv).trim() : "";
+    const chave_ativacao = body?.chave_ativacao ? String(body.chave_ativacao).trim() : "";
+    const colegio_id = body?.colegio_id ? String(body.colegio_id).trim() : "";
 
     if (!serial_pdv || !chave_ativacao) {
       return new Response(
@@ -65,8 +65,10 @@ Deno.serve(async (req: Request) => {
 
     // Status terminais decididos pelo admin NAO sao sobrescritos pela validacao,
     // caso contrario uma licenca revogada voltaria a ficar 'ativa' sozinha.
+    // Permite que licencas em estado 'pendente' fiquem 'ativa' na primeira validacao.
     const statusTerminal = ["revogada", "bloqueada", "cancelada"].includes(licenca.status);
-    const valid = !statusTerminal && licenca.status === "ativa" && assinaturaAtiva && !expirou;
+    const statusValido = ["ativa", "pendente"].includes(licenca.status);
+    const valid = !statusTerminal && statusValido && assinaturaAtiva && !expirou;
 
     // Renova o update para ativar licenca pendente na primeira validacao,
     // e expira automaticamente quando a assinatura acaba.
