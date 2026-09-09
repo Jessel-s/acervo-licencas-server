@@ -17,13 +17,13 @@
             --surface: #ffffff;
             --surface-strong: #ffffff;
             --canvas: #f8fafc;
-            
+
             --primary: #2563eb;
             --primary-dark: #1d4ed8;
             --primary-hover: #1e40af;
             --primary-soft: #eff6ff;
             --primary-border: #bfdbfe;
-            
+
             --sky-accent: #38bdf8;
             --danger: #dc2626;
             --danger-soft: #fef2f2;
@@ -31,7 +31,7 @@
             --warning-soft: #fffbeb;
             --success: #16a34a;
             --success-soft: #f0fdf4;
-            
+
             --shadow-soft: 0 10px 30px -5px rgba(15, 23, 42, 0.08);
             --text-strong: #0f172a;
         }
@@ -130,7 +130,7 @@
             display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 24px;
         }
         button {
-            border: 0; border-radius: 10px; padding: 11px 18px; 
+            border: 0; border-radius: 10px; padding: 11px 18px;
             background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: #ffffff; cursor: pointer; font: 800 .88rem "Manrope", "Segoe UI", sans-serif; letter-spacing: .01em;
             transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
@@ -320,7 +320,16 @@
             display: flex; justify-content: space-between; align-items: center; gap: 10px;
             padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: .78rem 'DM Mono', monospace;
         }
-        .modal-actions { display: grid; gap: 12px; }
+        .modal-actions { display: grid; gap: 16px; }
+        .modal-footer {
+            display: flex; align-items: center; gap: 10px;
+            margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border, #e2e8f0);
+        }
+        .modal-footer-spacer { flex: 1; }
+        .action-group { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border, #e2e8f0); border-radius: 12px; }
+        .action-group-danger { border-color: #fecaca; background: #fef2f2; }
+        .action-group-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+        .action-group-danger .action-group-title { color: #dc2626; }
         .action-row {
             display: grid; grid-template-columns: 150px 1fr auto; gap: 8px; align-items: center;
         }
@@ -476,53 +485,53 @@
                 <div id="modal-licencas" class="modal-licencas"></div>
                 <h3>Ações</h3>
                 <div class="modal-actions">
-                    <div class="action-row">
-                        <label for="modal-renovar">Renovar por</label>
-                        <select id="modal-renovar"><option value="30">30 dias</option><option value="180">6 meses</option><option value="365" selected>12 meses</option><option value="730">24 meses</option><option value="1825">5 anos</option></select>
-                        <button id="btn-renovar">Renovar</button>
-                    </div>
-                    <div class="action-row">
-                        <label for="modal-data">Definir validade</label>
-                        <input id="modal-data" type="date">
-                        <button id="btn-data" class="secondary">Salvar</button>
-                    </div>
-                    <div class="action-row">
-                        <label>Status da conta</label>
-                        <button id="btn-status" class="secondary">Suspender cliente</button>
-                    </div>
-                    <div class="action-row">
-                        <label for="modal-edit-nome">Editar nome</label>
-                        <input id="modal-edit-nome" placeholder="Nome do cliente">
-                        <button id="btn-editar" class="secondary">Salvar</button>
-                    </div>
-                    <div class="action-row">
-                        <label for="modal-edit-cnpj">Editar CNPJ / e-mail</label>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                            <input id="modal-edit-cnpj" placeholder="CNPJ">
-                            <input id="modal-edit-email" type="email" placeholder="E-mail comercial">
+                    <div class="action-group">
+                        <div class="action-group-title">Licença e validade</div>
+                        <div class="action-row">
+                            <label for="modal-renovar">Renovar por</label>
+                            <select id="modal-renovar"><option value="30">30 dias</option><option value="180">6 meses</option><option value="365" selected>12 meses</option><option value="730">24 meses</option><option value="1825">5 anos</option></select>
+                            <button id="btn-renovar">Renovar</button>
                         </div>
-                        <span></span>
-                    </div>
-                    <div class="action-row">
-                        <label>Nova licença</label>
-                        <button id="btn-nova-licenca" class="secondary">Emitir nova licença de PDV</button>
-                    </div>
-                    <div class="action-row">
-                        <label>Senha do cliente</label>
-                        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
-                            <input id="modal-senha-nova" type="password" placeholder="Nova senha do admin do cliente" minlength="8">
-                            <button id="btn-trocar-senha" class="secondary">Trocar senha</button>
+                        <div class="action-row">
+                            <label for="modal-data">Definir validade</label>
+                            <input id="modal-data" type="date">
+                            <button id="btn-data" class="secondary">Aplicar</button>
+                        </div>
+                        <div class="action-row">
+                            <label>Nova licença</label>
+                            <button id="btn-nova-licenca" class="secondary">Emitir nova licença de PDV</button>
                         </div>
                     </div>
-                    <div class="action-row">
-                        <label>Backup</label>
-                        <button id="btn-exportar" class="secondary">Exportar dados do cliente</button>
+                    <div class="action-group">
+                        <div class="action-group-title">Conta e dados</div>
+                        <div class="action-row">
+                            <label for="modal-edit-nome">Cadastro</label>
+                            <input id="modal-edit-nome" placeholder="Nome do cliente">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                <input id="modal-edit-cnpj" placeholder="CNPJ">
+                                <input id="modal-edit-email" type="email" placeholder="E-mail comercial">
+                            </div>
+                        </div>
+                        <div class="action-row">
+                            <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+                                <input id="modal-senha-nova" type="password" placeholder="Nova senha do admin do cliente" minlength="8">
+                                <button id="btn-trocar-senha" class="secondary">Trocar senha</button>
+                            </div>
+                        </div>
+                        <div class="action-row">
+                            <label>Status da conta</label>
+                            <button id="btn-status" class="secondary">Suspender cliente</button>
+                        </div>
+                        <div class="action-row">
+                            <label>Backup</label>
+                            <button id="btn-exportar" class="secondary">Exportar dados do cliente</button>
+                        </div>
                     </div>
-                    <div class="action-row">
-                        <label>Zona de risco</label>
-                        <button id="btn-excluir" class="danger">Excluir cliente</button>
-                        <span></span>
-                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="btn-editar" class="primary">Salvar alterações</button>
+                    <div class="modal-footer-spacer"></div>
+                    <button id="btn-excluir" class="danger">Excluir cliente</button>
                 </div>
                 <p id="modal-message" class="message"></p>
             </div>
@@ -760,10 +769,10 @@
             if (!response.ok || !result.ok) return setMessage(message, result.mensagem || 'Não foi possível criar o cliente.', true);
             const customer = result.cliente;
             byId('install-values').innerHTML = [
-                ['ID DO CLIENTE (COLEGIO_ID)', customer.colegio_id], 
-                ['SERIAL DO DISPOSITIVO (PDV_SERIAL)', customer.serial_pdv], 
-                ['CHAVE DE ATIVAÇÃO (PDV_CHAVE)', customer.chave_ativacao], 
-                ['ADMINISTRADOR DO CLIENTE', customer.email_admin], 
+                ['ID DO CLIENTE (COLEGIO_ID)', customer.colegio_id],
+                ['SERIAL DO DISPOSITIVO (PDV_SERIAL)', customer.serial_pdv],
+                ['CHAVE DE ATIVAÇÃO (PDV_CHAVE)', customer.chave_ativacao],
+                ['ADMINISTRADOR DO CLIENTE', customer.email_admin],
                 ['VALIDADE DO CONTRATO', new Date(customer.data_expiracao).toLocaleDateString('pt-BR')]
             ].map(([label, value]) => `<div><strong>${label}</strong> = <span style="user-select: all; font-weight: 700;">${value}</span></div>`).join('');
             byId('result').classList.add('visible');
@@ -863,7 +872,7 @@
         function filtrarClientes() {
             let termo = (byId('busca-cliente').value || '').trim().toLowerCase();
             const sessionEmail = (byId('session-email').textContent || '').trim().toLowerCase();
-            
+
             // Previne injeção de autofill passivo do gerenciador de senhas do navegador
             if (termo && sessionEmail && termo === sessionEmail && document.activeElement !== byId('busca-cliente')) {
                 byId('busca-cliente').value = '';
@@ -970,7 +979,7 @@
         function abrirDetalhes(c) {
             clienteSelecionado = c;
             const badge = classificarCliente(c);
-            
+
             // Encontra o último check-in entre todas as licenças do cliente
             let ultimoCheckinGeral = null;
             (c.licencas || []).forEach(l => {
@@ -987,16 +996,16 @@
             byId('modal-info').innerHTML = [
                 ['ID do Cliente (COLEGIO_ID)', c.colegio_id],
                 ['Último Uso Local (Check-in)', formatarTempoDecorrido(ultimoCheckinGeral)],
-                ['CNPJ', c.cnpj || '—'], 
+                ['CNPJ', c.cnpj || '—'],
                 ['E-mail Comercial', c.email || '—'],
-                ...(c.telefone ? [['Telefone', c.telefone]] : []), 
+                ...(c.telefone ? [['Telefone', c.telefone]] : []),
                 ...(c.responsavel ? [['Responsável', c.responsavel]] : []),
                 ['Expira em', formatarData(c.data_expiracao)],
                 ['Dias restantes', c.dias_restantes ?? '—'],
                 ['Cadastrado em', formatarData(c.created_at)],
                 ['Licenças Emitidas', (c.licencas || []).length],
             ].map(([k, v]) => `<div class="info-item"><div class="k">${k}</div><div class="v" style="user-select: all; font-weight: 700;">${escapeHtml(String(v))}</div></div>`).join('');
-            
+
             byId('modal-licencas').innerHTML = (c.licencas || []).map((l) =>
                 `<div class="lic-card" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #ffffff;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
@@ -1022,7 +1031,7 @@
                     </div>
                 </div>`
             ).join('') || '<em>Nenhuma licença emitida para este cliente.</em>';
-            
+
             const suspenso = c.status_assinatura !== 'ativo';
             byId('btn-status').textContent = suspenso ? 'Reativar cliente' : 'Suspender cliente';
             byId('btn-status').dataset.acao = suspenso ? 'reativar' : 'suspender';
@@ -1277,9 +1286,9 @@
                 `Esta ação removerá o tenant e TODAS as licenças associadas!\n\n` +
                 `Para confirmar a exclusão, digite ou cole exatamente o nome do cliente abaixo:`
             );
-            
+
             if (nomeDigitado === null) return; // Cancelado
-            
+
             if (nomeDigitado.trim().toLowerCase() !== (clienteSelecionado.nome || '').trim().toLowerCase()) {
                 alert('❌ O nome digitado não corresponde ao nome do cliente. Exclusão cancelada por segurança.');
                 return;
