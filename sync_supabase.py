@@ -286,6 +286,8 @@ def sync_once(queue_path="sync_queue.db"):
 
 
 def start_periodic_sync(queue_path, interval_seconds, log: Callable[[str], None]):
+    last_message = {"text": None}
+
     def run():
         stop_event = threading.Event()
         while True:
@@ -293,8 +295,14 @@ def start_periodic_sync(queue_path, interval_seconds, log: Callable[[str], None]
                 pending, sent = sync_once(queue_path)
                 if pending:
                     log(f"Sincronizacao de ativos concluida: {sent}/{pending} pendencias enviadas.")
+                last_message["text"] = None
             except Exception as error:
-                log(f"Sincronizacao pendente indisponivel: {type(error).__name__}.")
+                detail = str(error) or type(error).__name__
+                message = f"Sincronizacao pendente indisponivel: {detail}"
+                # Evita spam no log: so registra de novo se a mensagem mudar.
+                if message != last_message["text"]:
+                    last_message["text"] = message
+                    log(message)
             stop_event.wait(interval_seconds)
 
     worker = threading.Thread(target=run, name="supabase-sync", daemon=True)

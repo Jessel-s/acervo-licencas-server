@@ -46,7 +46,10 @@ def sign_in_with_supabase(email: str, password: str) -> Dict[str, Any]:
         .maybe_single()
         .execute()
     )
-    if not profile_response.data:
+    # Com maybe_single(), algumas versões da lib retornam None quando não há linha
+    # (em vez de um objeto com .data), o que causava AttributeError.
+    profile_data = getattr(profile_response, "data", None) if profile_response is not None else None
+    if not profile_data:
         raise ValueError("Usuário autenticado sem perfil de acesso.")
 
     return {
@@ -54,5 +57,5 @@ def sign_in_with_supabase(email: str, password: str) -> Dict[str, Any]:
         "email": response.user.email,
         "access_token": response.session.access_token if response.session else None,
         "refresh_token": response.session.refresh_token if response.session else None,
-        "profile": profile_response.data,
+        "profile": profile_data,
     }

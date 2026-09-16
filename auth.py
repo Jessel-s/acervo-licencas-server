@@ -128,9 +128,15 @@ def login():
             except DeviceTenantMismatchError as error:
                 flash(str(error), 'error')
                 return render_template('login.html')
-            except Exception:
+            except Exception as supabase_error:
                 # Se falhar no Supabase, cai para o login local do sistema.
-                pass
+                # CORREÇÃO: Registra o motivo real da falha no log em vez de engolir o erro.
+                from flask import current_app
+                current_app.logger.warning(
+                    'Falha no login via Supabase para %s: %s',
+                    username,
+                    supabase_error,
+                )
 
         user = Usuario.query.filter_by(username=username).first()
 
@@ -194,7 +200,7 @@ def kiosk_unlock():
         session['perm_chamados'] = user.perm_chamados
         session['perm_ajuda'] = user.perm_ajuda
         session['perm_almoxarifado'] = user.perm_almoxarifado
-        
+
         return jsonify({"success": True})
     return jsonify({"success": False})
 
@@ -227,7 +233,7 @@ def kiosk_exit():
             session['perm_chamados'] = user.perm_chamados
             session['perm_ajuda'] = user.perm_ajuda
             session['perm_almoxarifado'] = user.perm_almoxarifado
-            
+
             return jsonify({"success": True})
         else:
             return jsonify({"success": False, "msg": "Apenas Administradores podem desligar o Totem."})
@@ -238,8 +244,8 @@ def current_user():
     """Informa ao JavaScript quem está usando a tela agora"""
     if 'user_id' in session:
         return jsonify({
-            "logged_in": True, 
-            "username": session.get('username'), 
+            "logged_in": True,
+            "username": session.get('username'),
             "is_admin": session.get('perm_config') == 1
         })
     return jsonify({"logged_in": False})
