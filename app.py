@@ -1611,12 +1611,24 @@ if __name__ == '__main__':
             time.sleep(2)
             url = f"https://127.0.0.1:8080"
 
-            # Se for Windows, força o Chrome a abrir num ambiente isolado e com impressão invisível
+            # Se for Windows, força o Chrome a abrir em modo kiosk (tela cheia travada,
+            # sem barra de endereço nem menu) com escala configurável pela env KIOSK_SCALE.
             if platform.system() == "Windows":
                 chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
                 chrome_path_x86 = r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
                 user_dir = r"C:\ChromeTotem"
-                args = ["--kiosk-printing", f"--user-data-dir={user_dir}", url]
+                args = [
+                    "--kiosk",                      # tela cheia sem barra do navegador
+                    "--kiosk-printing",             # impressão invisível (sem dialogo)
+                    "--noerrdialogs",               # silencia erros do Chrome
+                    "--disable-pinch",              # evita zoom acidental por toque
+                    "--overscroll-history-navigation=0",  # sem voltar/avancar por gesto
+                    f"--user-data-dir={user_dir}",
+                    url,
+                ]
+                escala = (os.environ.get('KIOSK_SCALE') or '').strip()
+                if escala:
+                    args.insert(1, f"--force-device-scale-factor={escala}")
 
                 if os.path.exists(chrome_path): subprocess.Popen([chrome_path] + args)
                 elif os.path.exists(chrome_path_x86): subprocess.Popen([chrome_path_x86] + args)
