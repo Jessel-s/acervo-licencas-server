@@ -1609,7 +1609,8 @@ if __name__ == '__main__':
 
         def open_browser():
             time.sleep(2)
-            url = f"https://127.0.0.1:8080"
+            # Abre direto na tela do TOTEM (kiosk), e não no dashboard.
+            url = f"https://127.0.0.1:8080/kiosk"
 
             # Se for Windows, força o Chrome a abrir em modo kiosk (tela cheia travada,
             # sem barra de endereço nem menu) com escala configurável pela env KIOSK_SCALE.
@@ -1617,6 +1618,16 @@ if __name__ == '__main__':
                 chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
                 chrome_path_x86 = r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
                 user_dir = r"C:\ChromeTotem"
+
+                # Fecha qualquer Chrome antigo do totem. Se ele ficar rodando,
+                # o novo comando só abre uma aba numa janela NORMAL (com barra
+                # de endereço), em vez de abrir em modo kiosk.
+                subprocess.run(
+                    ['taskkill', '/F', '/FI', 'IMAGENAME eq chrome.exe'],
+                    capture_output=True
+                )
+                time.sleep(1)
+
                 args = [
                     "--kiosk",                      # tela cheia sem barra do navegador
                     "--kiosk-printing",             # impressão invisível (sem dialogo)
