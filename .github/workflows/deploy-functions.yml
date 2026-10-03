@@ -16,9 +16,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Instalar Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: 2.101.0
 
       - name: Verificar credencial de deploy Supabase
         env:
