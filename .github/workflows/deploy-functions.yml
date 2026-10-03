@@ -55,7 +55,17 @@ jobs:
           printf '%s\n' "$output"
           if [ "$result" -ne 0 ]; then
             details="$(printf '%s\n' "$output" | grep -Ei 'error|failed|unauthorized|forbidden|invalid|denied' | tail -n 3 | tr '\n' ' ' | sed -E 's/(Bearer )[A-Za-z0-9._-]+/\1[REDACTED]/g; s/sbp_[A-Za-z0-9_-]+/[REDACTED]/g' | cut -c1-700)"
-            echo "::error title=Supabase sincronizar-operacoes deploy failed::${details:-CLI exited with code $result; inspect this step's log for details.}"
+            details="${details:-CLI exited with code $result; inspect this step's log for details.}"
+            echo "::error title=Supabase sincronizar-operacoes deploy failed::${details}"
+            {
+              echo "### Supabase function deployment failed"
+              echo
+              echo 'The CLI output below is filtered and token patterns are redacted.'
+              echo
+              echo '```text'
+              printf '%s\n' "$details"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
             exit "$result"
           fi
 
