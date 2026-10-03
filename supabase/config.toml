@@ -1,0 +1,4 @@
+project_id = "knasgssawkkiwmeyjhhb"
+
+[functions.sincronizar-operacoes]
+verify_jwt = false
