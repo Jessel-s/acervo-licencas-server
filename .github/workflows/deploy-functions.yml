@@ -48,26 +48,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
-        run: |
-          set +e
-          output="$(supabase functions deploy sincronizar-operacoes --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt --use-api 2>&1)"
-          result=$?
-          printf '%s\n' "$output"
-          if [ "$result" -ne 0 ]; then
-            details="$(printf '%s\n' "$output" | grep -Ei 'error|failed|unauthorized|forbidden|invalid|denied' | tail -n 3 | tr '\n' ' ' | sed -E 's/(Bearer )[A-Za-z0-9._-]+/\1[REDACTED]/g; s/sbp_[A-Za-z0-9_-]+/[REDACTED]/g' | cut -c1-700)"
-            details="${details:-CLI exited with code $result; inspect this step's log for details.}"
-            echo "::error title=Supabase sincronizar-operacoes deploy failed::${details}"
-            {
-              echo "### Supabase function deployment failed"
-              echo
-              echo 'The CLI output below is filtered and token patterns are redacted.'
-              echo
-              echo '```text'
-              printf '%s\n' "$details"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit "$result"
-          fi
+        run: supabase functions deploy sincronizar-operacoes --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt --use-api
 
       - name: Deploy criar-cliente
         env:
