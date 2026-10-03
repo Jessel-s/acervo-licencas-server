@@ -20,16 +20,21 @@ jobs:
         with:
           version: latest
 
+      - name: Verificar credencial de deploy Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error title=Credencial Supabase ausente::Configure SUPABASE_ACCESS_TOKEN em Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
       - name: Publicar Edge Functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
         run: |
           set -euo pipefail
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "SUPABASE_ACCESS_TOKEN nao esta configurado nos GitHub Actions secrets."
-            exit 1
-          fi
           echo "Publicando sincronizar-operacoes com autenticacao de dispositivo validada pela propria funcao..."
           supabase functions deploy sincronizar-operacoes --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
           supabase functions deploy criar-cliente --project-ref "$SUPABASE_PROJECT_ID"
