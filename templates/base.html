@@ -234,7 +234,7 @@
     }
     </style>
 </head>
-<body data-flash-messages="{{ get_flashed_messages(with_categories=true) | tojson | forceescape }}">
+<body data-kiosk="{{ '1' if request.args.get('kiosk') else '0' }}" data-flash-messages="{{ get_flashed_messages(with_categories=true) | tojson | forceescape }}">
 
     <!-- Overlay de Loading Global -->
     <div class="global-loader" id="globalLoader">

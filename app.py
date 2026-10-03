@@ -33,7 +33,7 @@ from models import db, Ativo, Historico, SessaoUso, Agendamento, AlmoxProduto, P
 from utils import trigger_iot_relay
 from availability import is_available_after_return, parse_datetime_value, schedule_start
 from backup import create_database_backup
-from sync_supabase import start_periodic_sync
+from sync_supabase import get_sync_health, start_periodic_sync
 from sync_queue import SyncQueue, enqueue_asset, enqueue_booking, enqueue_session
 
 # Define o caminho absoluto para a pasta do projeto
@@ -151,7 +151,14 @@ def get_sync_status():
             pending_count = queue.pending_count()
         finally:
             queue.close()
-        return {'pending_count': pending_count, 'is_synced': pending_count == 0}
+        health = get_sync_health()
+        return {
+            'pending_count': pending_count,
+            'is_synced': pending_count == 0,
+            'last_attempt': health['last_attempt'],
+            'last_success': health['last_success'],
+            'last_error': health['last_error'],
+        }
     except Exception:
         return {'pending_count': None, 'is_synced': False}
 
@@ -1609,11 +1616,26 @@ if __name__ == '__main__':
 
         def open_browser():
             time.sleep(2)
-            # Abre direto na tela do TOTEM (kiosk), e não no dashboard.
-            url = f"https://127.0.0.1:8080/kiosk"
 
-            # Se for Windows, força o Chrome a abrir em modo kiosk (tela cheia travada,
-            # sem barra de endereço nem menu) com escala configurável pela env KIOSK_SCALE.
+            # Decide se abre a tela do Totem (Kiosk travado) ou o dashboard normal.
+            # O modo Totem só fica ativo quando o admin clicou em "Fixar Totem" nas Configurações.
+            totem_fixado = False
+            try:
+                from models import ConfiguracaoSistema
+                with app.app_context():
+                    cfg = db.session.get(ConfiguracaoSistema, 'totem_fixado')
+                    totem_fixado = bool(cfg and (cfg.valor == '1' or cfg.valor in ('1', 'True', 'true')))
+            except Exception:
+                app.logger.exception('Falha ao ler configuracao totem_fixado; abrindo modo normal.')
+
+            if totem_fixado:
+                url = f"https://127.0.0.1:8080/kiosk"
+                app.logger.info('TOTEM FIXADO: abrindo Chrome em modo Kiosk.')
+            else:
+                url = f"https://127.0.0.1:8080/"
+                app.logger.info('Totem nao fixado: abrindo dashboard normal.')
+
+            # Se for Windows:
             if platform.system() == "Windows":
                 chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
                 chrome_path_x86 = r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
@@ -1628,18 +1650,23 @@ if __name__ == '__main__':
                 )
                 time.sleep(1)
 
-                args = [
-                    "--kiosk",                      # tela cheia sem barra do navegador
-                    "--kiosk-printing",             # impressão invisível (sem dialogo)
-                    "--noerrdialogs",               # silencia erros do Chrome
-                    "--disable-pinch",              # evita zoom acidental por toque
-                    "--overscroll-history-navigation=0",  # sem voltar/avancar por gesto
-                    f"--user-data-dir={user_dir}",
-                    url,
-                ]
-                escala = (os.environ.get('KIOSK_SCALE') or '').strip()
-                if escala:
-                    args.insert(1, f"--force-device-scale-factor={escala}")
+                if totem_fixado:
+                    # Modo Totem: tela cheia travada (sem barra de endereço nem menu)
+                    args = [
+                        "--kiosk",                      # tela cheia sem barra do navegador
+                        "--kiosk-printing",             # impressão invisível (sem dialogo)
+                        "--noerrdialogs",               # silencia erros do Chrome
+                        "--disable-pinch",              # evita zoom acidental por toque
+                        "--overscroll-history-navigation=0",  # sem voltar/avancar por gesto
+                        f"--user-data-dir={user_dir}",
+                        url,
+                    ]
+                    escala = (os.environ.get('KIOSK_SCALE') or '0.75').strip()
+                    if escala:
+                        args.insert(1, f"--force-device-scale-factor={escala}")
+                else:
+                    # Modo normal: dashboard comum, com navegação livre
+                    args = [url]
 
                 if os.path.exists(chrome_path): subprocess.Popen([chrome_path] + args)
                 elif os.path.exists(chrome_path_x86): subprocess.Popen([chrome_path_x86] + args)

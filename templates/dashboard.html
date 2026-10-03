@@ -19,23 +19,8 @@
     @media (max-width: 700px) { .dashboard-grid { gap: 12px !important; } }
 </style>
 <!-- MÉTRICAS PRINCIPAIS -->
-<div id="sync-status" style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
-    {% if sync_status.is_synced %}
-    <span title="Não há alterações locais aguardando envio" style="display: inline-flex; align-items: center; gap: 6px; color: #047857; font-size: .82rem; font-weight: 700;">
-        <span class="material-icons-round" style="font-size: 17px;">cloud_done</span>
-        Sincronizado
-    </span>
-    {% elif sync_status.pending_count is not none %}
-    <span title="As alterações serão enviadas automaticamente quando houver conexão" style="display: inline-flex; align-items: center; gap: 6px; color: #b45309; font-size: .82rem; font-weight: 700;">
-        <span class="material-icons-round" style="font-size: 17px;">cloud_upload</span>
-        {{ sync_status.pending_count }} registro(s) pendente(s)
-    </span>
-    {% else %}
-    <span title="Não foi possível consultar a fila local" style="display: inline-flex; align-items: center; gap: 6px; color: #b91c1c; font-size: .82rem; font-weight: 700;">
-        <span class="material-icons-round" style="font-size: 17px;">cloud_off</span>
-        Estado da sincronização indisponível
-    </span>
-    {% endif %}
+<div id="sync-status" role="status" aria-live="polite" style="display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font-size: .82rem; font-weight: 700;">
+    <span style="color: #475569;">Consultando sincronização...</span>
 </div>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -43,19 +28,52 @@
         if (!status) return;
 
         const updateStatus = (data) => {
-            if (data.is_synced) {
-                status.innerHTML = '<span title="Não há alterações locais aguardando envio" style="display: inline-flex; align-items: center; gap: 6px; color: #047857; font-size: .82rem; font-weight: 700;"><span class="material-icons-round" style="font-size: 17px;">cloud_done</span>Sincronizado</span>';
-            } else if (data.pending_count !== null) {
-                status.innerHTML = `<span title="As alterações serão enviadas automaticamente quando houver conexão" style="display: inline-flex; align-items: center; gap: 6px; color: #b45309; font-size: .82rem; font-weight: 700;"><span class="material-icons-round" style="font-size: 17px;">cloud_upload</span>${data.pending_count} registro(s) pendente(s)</span>`;
+            status.replaceChildren();
+            const summary = document.createElement('span');
+            summary.style.cssText = 'display:inline-flex;align-items:center;gap:6px;';
+            const icon = document.createElement('span');
+            icon.className = 'material-icons-round';
+            icon.style.fontSize = '17px';
+            const label = document.createElement('span');
+
+            if (data.pending_count === null) {
+                summary.style.color = '#b91c1c';
+                icon.textContent = 'cloud_off';
+                label.textContent = 'Fila local indisponível';
+            } else if (data.pending_count === 0 && !data.last_error) {
+                summary.style.color = '#047857';
+                icon.textContent = 'cloud_done';
+                label.textContent = 'Sincronizado';
+            } else {
+                summary.style.color = data.last_error ? '#b91c1c' : '#b45309';
+                icon.textContent = data.last_error ? 'cloud_off' : 'cloud_upload';
+                label.textContent = `${data.pending_count} registro(s) pendente(s)`;
+            }
+            summary.append(icon, label);
+            status.append(summary);
+
+            if (data.last_error) {
+                const error = document.createElement('span');
+                error.style.cssText = 'color:#b91c1c;font-weight:600;max-width:100%;overflow-wrap:anywhere;';
+                error.textContent = `Falha mais recente: ${data.last_error}`;
+                status.append(error);
+            } else if (data.last_success) {
+                const lastSuccess = new Date(data.last_success).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const detail = document.createElement('span');
+                detail.style.cssText = 'color:#64748b;font-weight:500;';
+                detail.textContent = `Última verificação: ${lastSuccess}`;
+                status.append(detail);
             }
         };
 
-        setInterval(() => {
+        const refreshStatus = () => {
             fetch('/api/sincronizacao/status')
                 .then((response) => response.ok ? response.json() : null)
                 .then((data) => data && updateStatus(data))
                 .catch(() => {});
-        }, 15000);
+        };
+        refreshStatus();
+        setInterval(refreshStatus, 15000);
     });
 </script>
 <div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">

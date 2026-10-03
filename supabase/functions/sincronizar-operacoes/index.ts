@@ -29,28 +29,60 @@ Deno.serve(async (request: Request) => {
     return json({ ok: false, mensagem: "Metodo nao permitido" }, 405);
   }
 
-  const authorization = request.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return json({ ok: false, mensagem: "Token de autenticacao ausente" }, 401);
-  }
-
   try {
-    const token = authorization.slice("Bearer ".length);
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !authData.user) {
-      return json({ ok: false, mensagem: "Token de autenticacao invalido" }, 401);
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from("perfis")
-      .select("colegio_id")
-      .eq("id", authData.user.id)
-      .maybeSingle();
-    if (profileError || !profile) {
-      return json({ ok: false, mensagem: "Perfil de acesso nao encontrado" }, 403);
-    }
-
     const body = await request.json();
+    let colegioId: string | null = null;
+    const authorization = request.headers.get("Authorization");
+
+    if (authorization?.startsWith("Bearer ")) {
+      const token = authorization.slice("Bearer ".length);
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (!authError && authData.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from("perfis")
+          .select("colegio_id")
+          .eq("id", authData.user.id)
+          .maybeSingle();
+        if (!profileError && profile) colegioId = profile.colegio_id;
+      }
+    }
+
+    if (!colegioId) {
+      const device = body?.device_license;
+      const deviceColegioId = typeof device?.colegio_id === "string" ? device.colegio_id.trim() : "";
+      const serialPdv = typeof device?.serial_pdv === "string" ? device.serial_pdv.trim() : "";
+      const chaveAtivacao = typeof device?.chave_ativacao === "string" ? device.chave_ativacao.trim() : "";
+      if (!deviceColegioId || !serialPdv || !chaveAtivacao) {
+        return json({ ok: false, mensagem: "Sessao Supabase ou credenciais validas da licenca sao necessarias para sincronizar" }, 401);
+      }
+
+      const { data: license, error: licenseError } = await supabase
+        .from("licencas")
+        .select("id, colegio_id, status")
+        .eq("colegio_id", deviceColegioId)
+        .eq("serial_pdv", serialPdv)
+        .eq("chave_ativacao", chaveAtivacao)
+        .maybeSingle();
+      if (licenseError || !license || license.status !== "ativa") {
+        return json({ ok: false, mensagem: "Licenca deste dispositivo invalida, revogada ou inativa" }, 403);
+      }
+
+      const { data: colegio, error: colegioError } = await supabase
+        .from("colegios")
+        .select("status_assinatura, data_expiracao")
+        .eq("id", license.colegio_id)
+        .maybeSingle();
+      if (colegioError || !colegio || !["ativo", "trial"].includes(colegio.status_assinatura)) {
+        return json({ ok: false, mensagem: "Assinatura do cliente nao esta ativa para sincronizacao" }, 403);
+      }
+      if (colegio.data_expiracao && new Date(colegio.data_expiracao).getTime() < Date.now()) {
+        return json({ ok: false, mensagem: "Assinatura do cliente expirou" }, 403);
+      }
+
+      colegioId = license.colegio_id;
+      await supabase.from("licencas").update({ ultima_checagem: new Date().toISOString() }).eq("id", license.id);
+    }
+
     const events = Array.isArray(body?.events) ? body.events : [];
     if (!events.length || events.length > 100) {
       return json({ ok: false, mensagem: "Informe entre 1 e 100 operacoes" }, 400);
@@ -67,7 +99,7 @@ Deno.serve(async (request: Request) => {
       }
 
       if (event.operation === "upsert") {
-        if (!event.payload || event.payload.colegio_id !== profile.colegio_id) {
+        if (!event.payload || event.payload.colegio_id !== colegioId) {
           return json({ ok: false, mensagem: "Tenant invalido na operacao" }, 403);
         }
         const conflict = event.entity_type === "ativo"
@@ -82,7 +114,7 @@ Deno.serve(async (request: Request) => {
         const { error } = await supabase
           .from(table)
           .delete()
-          .eq("colegio_id", profile.colegio_id)
+          .eq("colegio_id", colegioId)
           .eq(identifier, event.entity_id);
         if (error) throw error;
       }

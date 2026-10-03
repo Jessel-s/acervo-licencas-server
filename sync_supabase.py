@@ -3,6 +3,7 @@
 import os
 import sys
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -17,6 +18,12 @@ from sync_queue import SyncQueue
 
 
 BASE_DIR = Path(__file__).resolve().parent
+_sync_health_lock = threading.Lock()
+_sync_health = {
+    "last_attempt": None,
+    "last_success": None,
+    "last_error": None,
+}
 SYNC_ORDER = (
     "ativo",
     "usuario",
@@ -36,7 +43,13 @@ def get_sync_configuration():
     anon_key = os.getenv("SUPABASE_ANON_KEY")
     if not url or not anon_key:
         raise RuntimeError("SUPABASE_URL e SUPABASE_ANON_KEY devem estar configurados.")
-    return {"url": url.rstrip("/"), "anon_key": anon_key}
+    return {
+        "url": url.rstrip("/"),
+        "anon_key": anon_key,
+        "colegio_id": os.getenv("COLEGIO_ID"),
+        "serial_pdv": os.getenv("PDV_SERIAL"),
+        "chave_ativacao": os.getenv("PDV_CHAVE"),
+    }
 
 
 def get_access_token():
@@ -79,24 +92,42 @@ def sync_with_edge_function(queue):
         return 0, 0
 
     configuration = get_sync_configuration()
-    token = get_access_token()
+    try:
+        token = get_access_token()
+    except Exception:
+        token = None
+    device_license = {
+        "colegio_id": configuration.get("colegio_id"),
+        "serial_pdv": configuration.get("serial_pdv"),
+        "chave_ativacao": configuration.get("chave_ativacao"),
+    }
+    if not token and not all(device_license.values()):
+        raise RuntimeError(
+            "Sincronização requer uma sessão Supabase ou uma licença de instalação válida."
+        )
     endpoint = f"{configuration['url']}/functions/v1/sincronizar-operacoes"
     ordered_events = _ordered_events(events)
     sent = 0
 
     for start in range(0, len(ordered_events), 100):
         batch = ordered_events[start:start + 100]
+        headers = {"apikey": configuration["anon_key"]}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         response = requests.post(
             endpoint,
-            json={"events": batch},
-            headers={
-                "apikey": configuration["anon_key"],
-                "Authorization": f"Bearer {token}",
-            },
+            json={"events": batch, "device_license": device_license if not token else None},
+            headers=headers,
             timeout=30,
         )
         if response.status_code != 200:
-            raise RuntimeError(f"Edge Function recusou a sincronizacao: HTTP {response.status_code}")
+            try:
+                detail = response.json().get("mensagem")
+            except (ValueError, AttributeError):
+                detail = None
+            raise RuntimeError(
+                detail or f"Edge Function recusou a sincronizacao: HTTP {response.status_code}"
+            )
         result = response.json()
         if not result.get("ok") or result.get("processed") != len(batch):
             raise RuntimeError("Edge Function nao confirmou todas as operacoes.")
@@ -291,14 +322,22 @@ def start_periodic_sync(queue_path, interval_seconds, log: Callable[[str], None]
     def run():
         stop_event = threading.Event()
         while True:
+            attempted_at = datetime.now(timezone.utc).isoformat()
+            with _sync_health_lock:
+                _sync_health["last_attempt"] = attempted_at
             try:
                 pending, sent = sync_once(queue_path)
                 if pending:
                     log(f"Sincronizacao de ativos concluida: {sent}/{pending} pendencias enviadas.")
+                with _sync_health_lock:
+                    _sync_health["last_success"] = datetime.now(timezone.utc).isoformat()
+                    _sync_health["last_error"] = None
                 last_message["text"] = None
             except Exception as error:
                 detail = str(error) or type(error).__name__
                 message = f"Sincronizacao pendente indisponivel: {detail}"
+                with _sync_health_lock:
+                    _sync_health["last_error"] = detail
                 # Evita spam no log: so registra de novo se a mensagem mudar.
                 if message != last_message["text"]:
                     last_message["text"] = message
@@ -308,6 +347,11 @@ def start_periodic_sync(queue_path, interval_seconds, log: Callable[[str], None]
     worker = threading.Thread(target=run, name="supabase-sync", daemon=True)
     worker.start()
     return worker
+
+
+def get_sync_health():
+    with _sync_health_lock:
+        return dict(_sync_health)
 
 
 def main():

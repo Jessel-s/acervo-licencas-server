@@ -114,6 +114,40 @@ class SyncSupabaseTests(unittest.TestCase):
             sync_supabase.get_access_token = original_token
             sync_supabase.requests.post = original_post
 
+    def test_edge_function_sync_falls_back_to_installation_license(self):
+        queue = FakeQueue()
+        calls = []
+        original_configuration = sync_supabase.get_sync_configuration
+        original_token = sync_supabase.get_access_token
+        original_post = sync_supabase.requests.post
+        try:
+            sync_supabase.get_sync_configuration = lambda: {
+                "url": "https://example.test",
+                "anon_key": "anon",
+                "colegio_id": "tenant",
+                "serial_pdv": "PDV-001",
+                "chave_ativacao": "license-key",
+            }
+            sync_supabase.get_access_token = lambda: (_ for _ in ()).throw(
+                RuntimeError("No Supabase login")
+            )
+            sync_supabase.requests.post = lambda *args, **kwargs: calls.append((args, kwargs)) or type(
+                "Response", (), {"status_code": 200, "json": lambda _: {"ok": True, "processed": 1}}
+            )()
+
+            pending, sent = sync_supabase.sync_with_edge_function(queue)
+
+            self.assertEqual((pending, sent), (1, 1))
+            self.assertEqual(queue.removed, [1])
+            payload = calls[0][1]["json"]
+            self.assertEqual(payload["device_license"]["serial_pdv"], "PDV-001")
+            self.assertEqual(payload["device_license"]["chave_ativacao"], "license-key")
+            self.assertNotIn("Authorization", calls[0][1]["headers"])
+        finally:
+            sync_supabase.get_sync_configuration = original_configuration
+            sync_supabase.get_access_token = original_token
+            sync_supabase.requests.post = original_post
+
     def test_successful_session_sync_removes_event(self):
         import sync_supabase
 

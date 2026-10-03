@@ -4,6 +4,22 @@
 
 {% block content %}
 <style>
+    body[data-kiosk="1"] .swal2-popup {
+        width: min(92vw, 430px) !important;
+        max-height: 88vh !important;
+        overflow-y: auto !important;
+        padding: 1.1rem !important;
+        border-radius: 14px !important;
+    }
+    body[data-kiosk="1"] .swal2-title { font-size: 1.25rem !important; padding: .35rem 0 0 !important; }
+    body[data-kiosk="1"] .swal2-html-container { font-size: .95rem !important; line-height: 1.4 !important; margin: .65rem 0 !important; }
+    body[data-kiosk="1"] .swal2-icon { transform: scale(.78); margin: .25rem auto .45rem !important; }
+    body[data-kiosk="1"] .swal2-actions { gap: .5rem !important; margin: .65rem auto 0 !important; }
+    body[data-kiosk="1"] .swal2-styled { min-height: 44px; padding: .65rem 1rem !important; font-size: .88rem !important; }
+    body[data-kiosk="1"] .swal2-html-container img { width: min(128px, 34vw) !important; height: auto !important; margin-top: 8px !important; }
+    body[data-kiosk="1"] .swal2-html-container h1 { font-size: clamp(1.6rem, 7vw, 2.4rem) !important; letter-spacing: .14em !important; margin: 8px 0 !important; }
+    body[data-kiosk="1"] .swal2-html-container p { font-size: .9rem !important; letter-spacing: 0 !important; }
+
     /* --- MODO KIOSK (FULLSCREEN & NO HEADER) --- */
     .top-header, .local-page-header { display: none !important; }
     
