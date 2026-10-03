@@ -50,7 +50,7 @@ jobs:
           SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
         run: |
           set +e
-          output="$(supabase functions deploy sincronizar-operacoes --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt 2>&1)"
+          output="$(supabase functions deploy sincronizar-operacoes --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt --use-api 2>&1)"
           result=$?
           printf '%s\n' "$output"
           if [ "$result" -ne 0 ]; then
