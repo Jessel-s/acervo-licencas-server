@@ -37,16 +37,6 @@ function requiredText(value: unknown, field: string) {
   return value.trim();
 }
 
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character]!);
-}
-
 function normalizeDigits(value: string | null | undefined) {
   return String(value ?? "").replace(/\D/g, "");
 }
@@ -75,6 +65,19 @@ function isValidCnpj(value: string | null | undefined) {
   const dig1 = calc(12);
   const dig2 = calc(13);
   return dig1 === Number(cnpj[12]) && dig2 === Number(cnpj[13]);
+}
+
+async function rollbackClient(colegioId: string, authUserId?: string) {
+  for (const table of ["pdv_devices", "licencas", "perfis"]) {
+    const { error } = await supabase.from(table).delete().eq("colegio_id", colegioId);
+    if (error) console.error(`Falha ao remover ${table} do cadastro incompleto`, error);
+  }
+  if (authUserId) {
+    const { error } = await supabase.auth.admin.deleteUser(authUserId);
+    if (error) console.error("Falha ao remover usuario convidado apos erro no cadastro", error);
+  }
+  const { error } = await supabase.from("colegios").delete().eq("id", colegioId);
+  if (error) console.error("Falha ao remover cliente incompleto", error);
 }
 
 Deno.serve(async (request: Request) => {
@@ -112,7 +115,6 @@ Deno.serve(async (request: Request) => {
     const emailCliente = requiredText(body?.email_cliente, "E-mail do cliente").toLowerCase();
     const nomeAdmin = requiredText(body?.nome_admin, "Nome do administrador");
     const emailAdmin = requiredText(body?.email_admin, "E-mail do administrador").toLowerCase();
-    const senhaAdmin = requiredText(body?.senha_admin, "Senha temporária");
     // Serial e gerado automaticamente e sequencial; o campo do formulario e ignorado.
     const serialPdv = await gerarSerialPdv();
     const cnpj = typeof body?.cnpj === "string" ? body.cnpj.trim() || null : null;
@@ -130,10 +132,6 @@ Deno.serve(async (request: Request) => {
     if (cnpj && !isValidCnpj(cnpj)) {
       throw new Error("CNPJ inválido.");
     }
-    if (senhaAdmin.length < 8) {
-      throw new Error("Senha temporária deve ter no mínimo 8 caracteres.");
-    }
-
     const diasValidade = Number.isInteger(body?.dias_validade) && body.dias_validade > 0
       ? Math.min(body.dias_validade, 3650)
       : 365;
@@ -153,101 +151,53 @@ Deno.serve(async (request: Request) => {
       .single();
     if (colegioError || !colegio) throw colegioError || new Error("Não foi possível criar o cliente.");
 
-    const { data: adminUser, error: adminError } = await supabase.auth.admin.createUser({
-      email: emailAdmin,
-      password: senhaAdmin,
-      email_confirm: true,
+    const { data: invitation, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(emailAdmin, {
+      data: { full_name: nomeAdmin },
+      redirectTo: "https://jessel-s.github.io/acervo-licencas-server/?auth=invite",
     });
-    if (adminError || !adminUser.user) {
-      await supabase.from("colegios").delete().eq("id", colegio.id);
-      const mensagem = String(adminError?.message ?? "").toLowerCase();
+    if (inviteError || !invitation.user) {
+      await rollbackClient(colegio.id, invitation?.user?.id);
+      const mensagem = String(inviteError?.message ?? "").toLowerCase();
       if (mensagem.includes("already registered") || mensagem.includes("already exists") || mensagem.includes("user already")) {
         throw new Error("Este e-mail de acesso já está cadastrado no sistema.");
       }
-      if (mensagem.includes("password")) {
-        throw new Error("Senha inválida. Use uma senha mais forte.");
-      }
-      throw adminError || new Error("Não foi possível criar o administrador.");
+      throw inviteError || new Error("Não foi possível enviar o convite do administrador.");
     }
 
-    const { error: profileError } = await supabase.from("perfis").insert({
-      id: adminUser.user.id,
-      colegio_id: colegio.id,
-      papel: "admin_geral",
-      nome: nomeAdmin,
-      telefone,
-    });
-    if (profileError) throw profileError;
+    const authUserId = invitation.user.id;
+    try {
+      const { error: profileError } = await supabase.from("perfis").insert({
+        id: authUserId,
+        colegio_id: colegio.id,
+        papel: "admin_geral",
+        nome: nomeAdmin,
+        telefone,
+      });
+      if (profileError) throw profileError;
 
-    const { error: licenseError } = await supabase.from("licencas").insert({
-      colegio_id: colegio.id,
-      chave_ativacao: chaveAtivacao,
-      serial_pdv: serialPdv,
-      status: "ativa",
-    });
-    if (licenseError) throw licenseError;
+      const { error: licenseError } = await supabase.from("licencas").insert({
+        colegio_id: colegio.id,
+        chave_ativacao: chaveAtivacao,
+        serial_pdv: serialPdv,
+        status: "ativa",
+      });
+      if (licenseError) throw licenseError;
 
-    const { error: deviceError } = await supabase.from("pdv_devices").insert({
-      colegio_id: colegio.id,
-      serial_pdv: serialPdv,
-      nome_dispositivo: `PDV ${serialPdv}`,
-      status: "ativo",
-    });
-    if (deviceError) throw deviceError;
-
-    // --- ENVIO AUTOMÁTICO DE E-MAIL VIA RESEND (SE CONFIGURADO) ---
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    let emailEnviado = false;
-    if (resendApiKey) {
-      try {
-        const emailResponse = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${resendApiKey}`,
-          },
-          body: JSON.stringify({
-            from: "Acervo TI <nao-responder@acervoti.com.br>",
-            to: [emailAdmin],
-            subject: `🎉 Bem-vindo ao Acervo TI - Dados de Ativação (${nomeCliente})`,
-            html: `
-              <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background: #ffffff;">
-                <h2 style="color: #2563eb; margin-top: 0;">Sua licença do Acervo TI foi criada!</h2>
-                <p>Olá <strong>${escapeHtml(nomeAdmin)}</strong>,</p>
-                <p>Parabéns por adquirir o <strong>Acervo TI Enterprise</strong> para a empresa/escola <strong>${escapeHtml(nomeCliente)}</strong>.</p>
-                
-                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                  <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">🔑 Dados para Ativação do Sistema Local:</h3>
-                  <p style="margin: 6px 0;"><strong>ID do Cliente (COLEGIO_ID):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${escapeHtml(colegio.id)}</code></p>
-                  <p style="margin: 6px 0;"><strong>Serial do Dispositivo (PDV_SERIAL):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${escapeHtml(serialPdv)}</code></p>
-                  <p style="margin: 6px 0;"><strong>Chave de Ativação (PDV_CHAVE):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${escapeHtml(chaveAtivacao)}</code></p>
-                </div>
-
-                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                  <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">👤 Acesso do Administrador:</h3>
-                  <p style="margin: 6px 0;"><strong>E-mail de Acesso:</strong> ${escapeHtml(emailAdmin)}</p>
-                  <p style="margin: 6px 0;"><strong>Senha temporária:</strong> <code>${escapeHtml(senhaAdmin)}</code></p>
-                </div>
-
-                <p style="color: #64748b; font-size: 14px;">No computador onde o sistema foi instalado, abra o link de ativação e insira os dados acima para liberar o seu acesso.</p>
-                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-                <p style="font-size: 12px; color: #94a3b8; text-align: center;">Acervo TI • Gestão de Ativos & Almoxarifado Enterprise</p>
-              </div>
-            `,
-          }),
-        });
-        emailEnviado = emailResponse.ok;
-        if (!emailResponse.ok) {
-          console.error("Falha no envio do e-mail de acesso:", emailResponse.status, await emailResponse.text());
-        }
-      } catch (emailErr) {
-        console.error("Falha ao enviar e-mail de boas-vindas via Resend:", emailErr);
-      }
+      const { error: deviceError } = await supabase.from("pdv_devices").insert({
+        colegio_id: colegio.id,
+        serial_pdv: serialPdv,
+        nome_dispositivo: `PDV ${serialPdv}`,
+        status: "ativo",
+      });
+      if (deviceError) throw deviceError;
+    } catch (error) {
+      await rollbackClient(colegio.id, authUserId);
+      throw error;
     }
 
     return json({
       ok: true,
-      email_enviado: emailEnviado,
+      convite_enviado: true,
       cliente: {
         colegio_id: colegio.id,
         serial_pdv: serialPdv,

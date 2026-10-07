@@ -34,9 +34,9 @@ O deploy e feito pelo GitHub Actions quando ha push na branch `main` com alterac
 
 As funcoes publicadas pelo workflow estao em `supabase/functions/`.
 
-### E-mail de acesso do cliente
+### Convite de acesso do cliente
 
-O cadastro envia os dados de ativacao e a senha temporaria somente para o e-mail de acesso do administrador (`email_admin`), nunca para o e-mail comercial. Configure `RESEND_API_KEY` nos secrets das Edge Functions e mantenha o dominio remetente validado no Resend. Se o envio falhar, a Central avisa que o cliente foi criado, mas que o e-mail nao foi enviado; nao repita o cadastro por causa desse aviso.
+O cadastro cria a conta e envia o convite pelo Supabase Auth para `email_admin`; o administrador define a própria senha pelo link. Não é enviada senha temporária nem é necessário configurar Resend. Confirme em Authentication > URL Configuration que a Central publicada está na lista de redirecionamentos permitidos e revise o template de convite em Authentication > Email Templates. Os dados de ativação continuam disponíveis na confirmação da Central para o operador repassar ao cliente.
 
 ## 5) Criar o primeiro tenant
 

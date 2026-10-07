@@ -422,7 +422,6 @@
                         <div><label for="nome-admin">Nome do administrador</label><input id="nome-admin" name="admin_nome_field" autocomplete="off" required></div>
                         <div><label for="telefone">Telefone</label><input id="telefone" name="cliente_telefone_field" autocomplete="off" placeholder="Opcional"></div>
                         <div><label for="email-admin">E-mail de acesso</label><input id="email-admin" type="text" inputmode="email" name="admin_email_field" autocomplete="off" required></div>
-                        <div><label for="senha-admin">Senha temporária</label><input id="senha-admin" type="password" minlength="8" name="admin_senha_field" autocomplete="new-password" required></div>
                         <div><label for="serial-pdv">Serial do PDV (automático)</label><input id="serial-pdv" placeholder="Gerado automaticamente" disabled></div>
                         <div><label for="dias-validade">Validade</label><select id="dias-validade"><option value="30">30 dias</option><option value="365" selected>12 meses</option><option value="730">24 meses</option></select></div>
                     </div>
@@ -609,39 +608,77 @@
 
         async function handleRecoveryCallback() {
             const params = new URLSearchParams(window.location.search);
+            const hashParams = new URLSearchParams(window.location.hash.slice(1));
             const code = params.get('code');
-            const type = params.get('type');
-            if (!code || type !== 'recovery') return;
+            const type = params.get('type') || hashParams.get('type');
+            const isInvite = type === 'invite' || params.get('auth') === 'invite';
+            const isRecovery = type === 'recovery';
+            if (!isInvite && !isRecovery) return false;
 
             const message = byId('login-message');
-            setMessage(message, 'Link de recuperação validado. Defina uma nova senha.');
-            const novaSenha = window.prompt('Digite a nova senha para o administrador da plataforma (mínimo 8 caracteres):');
-            if (!novaSenha || novaSenha.length < 8) {
-                setMessage(message, 'A nova senha precisa ter no mínimo 8 caracteres.', true);
-                return;
+            setMessage(message, isInvite ? 'Convite validado. Defina sua senha de acesso ao sistema do cliente.' : 'Link de recuperação validado. Defina uma nova senha.');
+
+            let session = null;
+            if (code) {
+                const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
+                if (error) {
+                    setMessage(message, 'Não foi possível validar o convite. Solicite um novo convite ao suporte.', true);
+                    return isInvite;
+                }
+                session = data?.session || null;
+            } else {
+                const { data, error } = await supabaseClient.auth.getSession();
+                if (error || !data?.session) {
+                    setMessage(message, 'Não foi possível validar o convite. Solicite um novo convite ao suporte.', true);
+                    return isInvite;
+                }
+                session = data.session;
             }
 
-            const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
-            if (error) {
-                setMessage(message, 'Não foi possível concluir a redefinição de senha.', true);
-                return;
+            const novaSenha = window.prompt(isInvite
+                ? 'Crie uma senha com pelo menos 8 caracteres para acessar o sistema do cliente:'
+                : 'Digite a nova senha para o administrador da plataforma (mínimo 8 caracteres):');
+            if (!novaSenha || novaSenha.length < 8) {
+                setMessage(message, 'A nova senha precisa ter no mínimo 8 caracteres.', true);
+                if (isInvite) await supabaseClient.auth.signOut();
+                return isInvite;
             }
 
             const { error: updateError } = await supabaseClient.auth.updateUser({ password: novaSenha });
             if (updateError) {
-                setMessage(message, updateError.message || 'Não foi possível atualizar a senha.', true);
-                return;
+                setMessage(message, translateSupabaseMessage(updateError.message) || 'Não foi possível atualizar a senha.', true);
+                if (isInvite) await supabaseClient.auth.signOut();
+                return isInvite;
+            }
+
+            if (isInvite) {
+                await supabaseClient.auth.signOut();
+                window.history.replaceState({}, document.title, window.location.pathname);
+                setMessage(message, 'Senha criada. O administrador já pode entrar no aplicativo instalado no cliente.');
+                return true;
             }
 
             setMessage(message, 'Senha redefinida com sucesso. Faça login novamente.');
-            if (data?.session) {
-                await showWorkspace();
-            }
+            return false;
         }
 
         async function showWorkspace() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) return;
+            let platformAccessResponse;
+            try {
+                platformAccessResponse = await fetch(`${SUPABASE_URL}/functions/v1/gerenciar-clientes`, {
+                    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` },
+                });
+            } catch {
+                platformAccessResponse = null;
+            }
+            if (!platformAccessResponse?.ok) {
+                await supabaseClient.auth.signOut();
+                byId('login-panel').style.display = '';
+                setMessage(byId('login-message'), 'Esta conta não tem acesso de administrador da plataforma. Use o aplicativo instalado no cliente.', true);
+                return;
+            }
             const email = session.user?.email || '—';
             byId('session-email').textContent = email;
             byId('session-initial').textContent = email.charAt(0).toUpperCase();
@@ -664,8 +701,6 @@
         });
 
         byId('logout').addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.reload(); });
-
-        handleRecoveryCallback();
 
         byId('recover-password').addEventListener('click', async () => {
             const email = byId('login-email').value.trim();
@@ -738,7 +773,6 @@
             const nomeAdmin = byId('nome-admin').value.trim();
             const telefone = byId('telefone').value.trim();
             const emailAdmin = byId('email-admin').value.trim();
-            const senhaAdmin = byId('senha-admin').value;
 
             if (!nomeCliente) return setMessage(message, 'Informe o nome do cliente.', true);
             if (!isValidEmail(emailCliente)) return setMessage(message, 'E-mail comercial inválido.', true);
@@ -746,7 +780,6 @@
             if (!isValidEmail(emailAdmin)) return setMessage(message, 'E-mail de acesso inválido.', true);
             if (telefone && !isValidPhone(telefone)) return setMessage(message, 'Telefone inválido. Use DDD + 8 ou 9 dígitos.', true);
             if (cnpj && !isValidCnpj(cnpj)) return setMessage(message, 'CNPJ inválido.', true);
-            if (senhaAdmin.length < 8) return setMessage(message, 'A senha temporária deve ter no mínimo 8 caracteres.', true);
 
             button.disabled = true;
             setMessage(message, 'Criando cliente, licença e administrador...');
@@ -757,7 +790,6 @@
                 nome_admin: nomeAdmin,
                 telefone,
                 email_admin: emailAdmin,
-                senha_admin: senhaAdmin,
                 dias_validade: Number(byId('dias-validade').value),
             };
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -772,15 +804,14 @@
                 ['ID DO CLIENTE (COLEGIO_ID)', customer.colegio_id],
                 ['SERIAL DO DISPOSITIVO (PDV_SERIAL)', customer.serial_pdv],
                 ['CHAVE DE ATIVAÇÃO (PDV_CHAVE)', customer.chave_ativacao],
-                ['ADMINISTRADOR DO CLIENTE', customer.email_admin],
-                ['SENHA TEMPORÁRIA (COMPARTILHE EM CANAL SEGURO)', senhaAdmin],
+                ['CONVITE DE ACESSO ENVIADO PARA', customer.email_admin],
                 ['VALIDADE DO CONTRATO', new Date(customer.data_expiracao).toLocaleDateString('pt-BR')]
             ].map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong> = <span style="user-select: all; font-weight: 700;">${escapeHtml(value)}</span></div>`).join('');
             byId('result').classList.add('visible');
             byId('client-form').reset();
-            setMessage(message, result.email_enviado
-                ? `Cadastro concluído. Os dados de acesso foram enviados para ${escapeHtml(emailAdmin)}.`
-                : 'Cliente criado, mas o e-mail não foi enviado. Confira a configuração do Resend e use os dados exibidos nesta tela.', !result.email_enviado);
+            setMessage(message, result.convite_enviado
+                ? `Cadastro concluído. O Supabase enviou o convite para ${escapeHtml(emailAdmin)}.`
+                : 'Cliente criado, mas não foi possível confirmar o envio do convite. Confira o log da Edge Function.', !result.convite_enviado);
         });
 
         // --- ABA DE ADMINISTRAÇÃO DE CLIENTES ---
@@ -790,7 +821,7 @@
         function limparFormularioNovoCliente() {
             const form = byId('client-form');
             if (form) form.reset();
-            ['nome-cliente', 'cnpj', 'email-cliente', 'nome-admin', 'telefone', 'email-admin', 'senha-admin'].forEach((id) => {
+            ['nome-cliente', 'cnpj', 'email-cliente', 'nome-admin', 'telefone', 'email-admin'].forEach((id) => {
                 const el = byId(id);
                 if (el) el.value = '';
             });
@@ -1351,7 +1382,12 @@
         renderChips();
         switchTab('novo');
 
-        showWorkspace();
+        async function initializeCentral() {
+            const inviteHandled = await handleRecoveryCallback();
+            if (!inviteHandled) await showWorkspace();
+        }
+
+        initializeCentral();
     </script>
 </body>
 </html>
