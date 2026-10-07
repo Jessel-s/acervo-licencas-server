@@ -37,6 +37,16 @@ function requiredText(value: unknown, field: string) {
   return value.trim();
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]!);
+}
+
 function normalizeDigits(value: string | null | undefined) {
   return String(value ?? "").replace(/\D/g, "");
 }
@@ -187,9 +197,10 @@ Deno.serve(async (request: Request) => {
 
     // --- ENVIO AUTOMÁTICO DE E-MAIL VIA RESEND (SE CONFIGURADO) ---
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    let emailEnviado = false;
     if (resendApiKey) {
       try {
-        await fetch("https://api.resend.com/emails", {
+        const emailResponse = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -197,25 +208,25 @@ Deno.serve(async (request: Request) => {
           },
           body: JSON.stringify({
             from: "Acervo TI <nao-responder@acervoti.com.br>",
-            to: [emailCliente, emailAdmin],
+            to: [emailAdmin],
             subject: `🎉 Bem-vindo ao Acervo TI - Dados de Ativação (${nomeCliente})`,
             html: `
               <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background: #ffffff;">
                 <h2 style="color: #2563eb; margin-top: 0;">Sua licença do Acervo TI foi criada!</h2>
-                <p>Olá <strong>${nomeAdmin}</strong>,</p>
-                <p>Parabéns por adquirir o <strong>Acervo TI Enterprise</strong> para a empresa/escola <strong>${nomeCliente}</strong>.</p>
+                <p>Olá <strong>${escapeHtml(nomeAdmin)}</strong>,</p>
+                <p>Parabéns por adquirir o <strong>Acervo TI Enterprise</strong> para a empresa/escola <strong>${escapeHtml(nomeCliente)}</strong>.</p>
                 
                 <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
                   <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">🔑 Dados para Ativação do Sistema Local:</h3>
-                  <p style="margin: 6px 0;"><strong>ID do Cliente (COLEGIO_ID):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${colegio.id}</code></p>
-                  <p style="margin: 6px 0;"><strong>Serial do Dispositivo (PDV_SERIAL):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${serialPdv}</code></p>
-                  <p style="margin: 6px 0;"><strong>Chave de Ativação (PDV_CHAVE):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${chaveAtivacao}</code></p>
+                  <p style="margin: 6px 0;"><strong>ID do Cliente (COLEGIO_ID):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${escapeHtml(colegio.id)}</code></p>
+                  <p style="margin: 6px 0;"><strong>Serial do Dispositivo (PDV_SERIAL):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${escapeHtml(serialPdv)}</code></p>
+                  <p style="margin: 6px 0;"><strong>Chave de Ativação (PDV_CHAVE):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${escapeHtml(chaveAtivacao)}</code></p>
                 </div>
 
                 <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
                   <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">👤 Acesso do Administrador:</h3>
-                  <p style="margin: 6px 0;"><strong>E-mail de Acesso:</strong> ${emailAdmin}</p>
-                  <p style="margin: 6px 0;">Por segurança, a senha temporária não é enviada por e-mail. O responsável pelo cadastro deve compartilhá-la com o administrador por um canal seguro.</p>
+                  <p style="margin: 6px 0;"><strong>E-mail de Acesso:</strong> ${escapeHtml(emailAdmin)}</p>
+                  <p style="margin: 6px 0;"><strong>Senha temporária:</strong> <code>${escapeHtml(senhaAdmin)}</code></p>
                 </div>
 
                 <p style="color: #64748b; font-size: 14px;">No computador onde o sistema foi instalado, abra o link de ativação e insira os dados acima para liberar o seu acesso.</p>
@@ -225,6 +236,10 @@ Deno.serve(async (request: Request) => {
             `,
           }),
         });
+        emailEnviado = emailResponse.ok;
+        if (!emailResponse.ok) {
+          console.error("Falha no envio do e-mail de acesso:", emailResponse.status, await emailResponse.text());
+        }
       } catch (emailErr) {
         console.error("Falha ao enviar e-mail de boas-vindas via Resend:", emailErr);
       }
@@ -232,6 +247,7 @@ Deno.serve(async (request: Request) => {
 
     return json({
       ok: true,
+      email_enviado: emailEnviado,
       cliente: {
         colegio_id: colegio.id,
         serial_pdv: serialPdv,

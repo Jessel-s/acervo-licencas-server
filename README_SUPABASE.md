@@ -34,6 +34,10 @@ O deploy e feito pelo GitHub Actions quando ha push na branch `main` com alterac
 
 As funcoes publicadas pelo workflow estao em `supabase/functions/`.
 
+### E-mail de acesso do cliente
+
+O cadastro envia os dados de ativacao e a senha temporaria somente para o e-mail de acesso do administrador (`email_admin`), nunca para o e-mail comercial. Configure `RESEND_API_KEY` nos secrets das Edge Functions e mantenha o dominio remetente validado no Resend. Se o envio falhar, a Central avisa que o cliente foi criado, mas que o e-mail nao foi enviado; nao repita o cadastro por causa desse aviso.
+
 ## 5) Criar o primeiro tenant
 
 O primeiro colegio normalmente é o cliente principal.

@@ -778,7 +778,9 @@
             ].map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong> = <span style="user-select: all; font-weight: 700;">${escapeHtml(value)}</span></div>`).join('');
             byId('result').classList.add('visible');
             byId('client-form').reset();
-            setMessage(message, 'Cadastro concluído. Guarde os dados de instalação antes de fechar esta página.');
+            setMessage(message, result.email_enviado
+                ? `Cadastro concluído. Os dados de acesso foram enviados para ${escapeHtml(emailAdmin)}.`
+                : 'Cliente criado, mas o e-mail não foi enviado. Confira a configuração do Resend e use os dados exibidos nesta tela.', !result.email_enviado);
         });
 
         // --- ABA DE ADMINISTRAÇÃO DE CLIENTES ---
