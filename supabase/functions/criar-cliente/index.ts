@@ -212,10 +212,10 @@ Deno.serve(async (request: Request) => {
                   <p style="margin: 6px 0;"><strong>Chave de Ativação (PDV_CHAVE):</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${chaveAtivacao}</code></p>
                 </div>
 
-                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                  <h3 style="margin-top: 0; color: #1e40af; font-size: 16px;">👤 Credenciais do Administrador:</h3>
+                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                  <h3 style="margin-top: 0; color: #0f172a; font-size: 16px;">👤 Acesso do Administrador:</h3>
                   <p style="margin: 6px 0;"><strong>E-mail de Acesso:</strong> ${emailAdmin}</p>
-                  <p style="margin: 6px 0;"><strong>Senha Temporária:</strong> ${senhaAdmin}</p>
+                  <p style="margin: 6px 0;">Por segurança, a senha temporária não é enviada por e-mail. O responsável pelo cadastro deve compartilhá-la com o administrador por um canal seguro.</p>
                 </div>
 
                 <p style="color: #64748b; font-size: 14px;">No computador onde o sistema foi instalado, abra o link de ativação e insira os dados acima para liberar o seu acesso.</p>

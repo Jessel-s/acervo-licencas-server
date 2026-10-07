@@ -30,15 +30,9 @@ Execute a query.
 
 ## 4) Publicar Edge Functions
 
-No painel do Supabase:
-- Edge Functions > New function
-- Crie duas funções:
-  - validar-licenca
-  - webhook-pagamento
+O deploy e feito pelo GitHub Actions quando ha push na branch `main` com alteracoes em `supabase/functions/` ou `supabase/config.toml`. Configure o segredo `SUPABASE_ACCESS_TOKEN` em GitHub > Settings > Secrets and variables > Actions.
 
-Copie os arquivos correspondentes de:
-- supabase/functions/validar-licenca/index.ts
-- supabase/functions/webhook-pagamento/index.ts
+As funcoes publicadas pelo workflow estao em `supabase/functions/`.
 
 ## 5) Criar o primeiro tenant
 

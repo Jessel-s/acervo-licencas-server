@@ -773,8 +773,9 @@
                 ['SERIAL DO DISPOSITIVO (PDV_SERIAL)', customer.serial_pdv],
                 ['CHAVE DE ATIVAÇÃO (PDV_CHAVE)', customer.chave_ativacao],
                 ['ADMINISTRADOR DO CLIENTE', customer.email_admin],
+                ['SENHA TEMPORÁRIA (COMPARTILHE EM CANAL SEGURO)', senhaAdmin],
                 ['VALIDADE DO CONTRATO', new Date(customer.data_expiracao).toLocaleDateString('pt-BR')]
-            ].map(([label, value]) => `<div><strong>${label}</strong> = <span style="user-select: all; font-weight: 700;">${value}</span></div>`).join('');
+            ].map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong> = <span style="user-select: all; font-weight: 700;">${escapeHtml(value)}</span></div>`).join('');
             byId('result').classList.add('visible');
             byId('client-form').reset();
             setMessage(message, 'Cadastro concluído. Guarde os dados de instalação antes de fechar esta página.');
