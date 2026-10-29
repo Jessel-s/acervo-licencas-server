@@ -361,8 +361,18 @@
 
         <section id="login-panel" class="gate">
             <div class="eyebrow">Acesso restrito</div>
-            <h1>Administração da plataforma</h1>
-            <p class="lead">Use o seu e-mail de administrador da plataforma para cadastrar uma nova instalação comercial.</p>
+            <h1 id="gate-title">Administração da plataforma</h1>
+            <p id="gate-lead" class="lead">Use o seu e-mail de administrador da plataforma para cadastrar uma nova instalação comercial.</p>
+            <div id="set-password-panel" style="display:none;">
+                <form id="set-password-form">
+                    <label for="new-password">Nova senha</label>
+                    <input id="new-password" type="password" minlength="8" autocomplete="new-password" required>
+                    <label for="confirm-password" style="margin-top: 15px;">Confirmar senha</label>
+                    <input id="confirm-password" type="password" minlength="8" autocomplete="new-password" required>
+                    <div class="actions"><button type="submit" id="save-password">Salvar senha</button></div>
+                </form>
+            </div>
+            <button type="button" id="back-to-login" class="secondary" style="display:none; margin-top: 14px;">Voltar ao login da Central</button>
             <form id="login-form">
                 <label for="login-email">E-mail</label>
                 <input id="login-email" type="email" autocomplete="email" required>
@@ -390,7 +400,7 @@
                 </div>
             </div>
 
-            <div style="margin-top: 16px;">
+            <div id="login-extra" style="margin-top: 16px;">
                 <button type="button" id="show-sms-auth" class="secondary" style="width:100%;">Usar código do celular</button>
             </div>
             <p id="login-message" class="message"></p>
@@ -432,6 +442,14 @@
                     <h2>Cliente criado e pronto para instalação</h2>
                     <p class="lead">No computador do cliente, abra o ConfigurarCliente e use estes dados.</p>
                     <div id="install-values" class="install-values"></div>
+                    <div id="access-link-box" style="display:none; margin-top: 16px;">
+                        <label for="access-link">Link para o administrador criar a senha</label>
+                        <input id="access-link" readonly>
+                        <div class="actions" style="justify-content:flex-start; margin-top: 10px;">
+                            <button type="button" id="copy-access-link" class="secondary">Copiar link</button>
+                        </div>
+                        <p class="lead" style="margin: 10px 0 0;">Envie este link ao administrador do cliente (por exemplo, pelo WhatsApp). Ele só pode ser usado uma vez e expira em pouco tempo. Se vencer, gere outro em Clientes cadastrados &gt; Detalhes &gt; Gerar link de acesso.</p>
+                    </div>
                 </section>
             </section>
 
@@ -516,6 +534,15 @@
                             <label for="modal-senha-nova">Nova senha</label>
                             <input id="modal-senha-nova" type="password" placeholder="Digite a nova senha do admin do cliente (mín. 8 caracteres)" minlength="8" autocomplete="new-password">
                             <button id="btn-trocar-senha" class="secondary">Trocar senha</button>
+                        </div>
+                        <div class="action-row">
+                            <label>Acesso do administrador</label>
+                            <button id="btn-link-acesso" class="secondary">Gerar link de acesso</button>
+                        </div>
+                        <div class="action-row" id="modal-link-box" style="display:none;">
+                            <label for="modal-link">Link</label>
+                            <input id="modal-link" readonly>
+                            <button id="modal-copy-link" class="secondary">Copiar</button>
                         </div>
                         <div class="action-row">
                             <label>Status da conta</label>
@@ -606,61 +633,63 @@
             return message;
         }
 
-        async function handleRecoveryCallback() {
-            const params = new URLSearchParams(window.location.search);
-            const hashParams = new URLSearchParams(window.location.hash.slice(1));
-            const code = params.get('code');
-            const type = params.get('type') || hashParams.get('type');
-            const isInvite = type === 'invite' || params.get('auth') === 'invite';
-            const isRecovery = type === 'recovery';
-            if (!isInvite && !isRecovery) return false;
+        function mostrarFormularioSenha(titulo, texto) {
+            byId('gate-title').textContent = titulo;
+            byId('gate-lead').textContent = texto;
+            ['login-form', 'sms-auth-panel', 'login-extra'].forEach((id) => { byId(id).style.display = 'none'; });
+            byId('set-password-panel').style.display = 'block';
+        }
+
+        async function handleAccessLink() {
+            const hash = new URLSearchParams(window.location.hash.slice(1));
+            const query = new URLSearchParams(window.location.search);
+            const tokenHash = hash.get('token_hash');
+            const tipo = hash.get('tipo') || hash.get('type') || query.get('type');
+            if (!['invite', 'recovery'].includes(tipo)) return false;
 
             const message = byId('login-message');
-            setMessage(message, isInvite ? 'Convite validado. Defina sua senha de acesso ao sistema do cliente.' : 'Link de recuperação validado. Defina uma nova senha.');
-
-            let session = null;
-            if (code) {
-                const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
-                if (error) {
-                    setMessage(message, 'Não foi possível validar o convite. Solicite um novo convite ao suporte.', true);
-                    return isInvite;
-                }
-                session = data?.session || null;
+            setMessage(message, 'Validando link de acesso...');
+            let error = null;
+            if (tokenHash) {
+                ({ error } = await supabaseClient.auth.verifyOtp({ token_hash: tokenHash, type: tipo }));
+            } else if (query.get('code')) {
+                ({ error } = await supabaseClient.auth.exchangeCodeForSession(query.get('code')));
             } else {
-                const { data, error } = await supabaseClient.auth.getSession();
-                if (error || !data?.session) {
-                    setMessage(message, 'Não foi possível validar o convite. Solicite um novo convite ao suporte.', true);
-                    return isInvite;
-                }
-                session = data.session;
+                const { data, error: sessionError } = await supabaseClient.auth.getSession();
+                error = sessionError || (data?.session ? null : new Error('Sem sessão'));
             }
-
-            const novaSenha = window.prompt(isInvite
-                ? 'Crie uma senha com pelo menos 8 caracteres para acessar o sistema do cliente:'
-                : 'Digite a nova senha para o administrador da plataforma (mínimo 8 caracteres):');
-            if (!novaSenha || novaSenha.length < 8) {
-                setMessage(message, 'A nova senha precisa ter no mínimo 8 caracteres.', true);
-                if (isInvite) await supabaseClient.auth.signOut();
-                return isInvite;
-            }
-
-            const { error: updateError } = await supabaseClient.auth.updateUser({ password: novaSenha });
-            if (updateError) {
-                setMessage(message, translateSupabaseMessage(updateError.message) || 'Não foi possível atualizar a senha.', true);
-                if (isInvite) await supabaseClient.auth.signOut();
-                return isInvite;
-            }
-
-            if (isInvite) {
-                await supabaseClient.auth.signOut();
-                window.history.replaceState({}, document.title, window.location.pathname);
-                setMessage(message, 'Senha criada. O administrador já pode entrar no aplicativo instalado no cliente.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            if (error) {
+                setMessage(message, 'Link inválido, já utilizado ou expirado. Peça um novo link de acesso.', true);
                 return true;
             }
 
-            setMessage(message, 'Senha redefinida com sucesso. Faça login novamente.');
-            return false;
+            setMessage(message, '');
+            mostrarFormularioSenha(
+                tipo === 'invite' ? 'Criar senha de acesso' : 'Redefinir senha',
+                'Defina uma senha com pelo menos 8 caracteres.'
+            );
+            return true;
         }
+
+        byId('set-password-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const message = byId('login-message');
+            const senha = byId('new-password').value;
+            if (senha.length < 8) return setMessage(message, 'A senha deve ter no mínimo 8 caracteres.', true);
+            if (senha !== byId('confirm-password').value) return setMessage(message, 'As senhas não conferem.', true);
+            const { error } = await supabaseClient.auth.updateUser({ password: senha });
+            if (error) return setMessage(message, translateSupabaseMessage(error.message), true);
+            await supabaseClient.auth.signOut();
+            byId('set-password-form').reset();
+            byId('set-password-panel').style.display = 'none';
+            byId('gate-title').textContent = 'Senha definida';
+            byId('gate-lead').textContent = 'Sua senha foi salva. Entre no sistema instalado no cliente com o seu e-mail e esta senha.';
+            byId('back-to-login').style.display = '';
+            setMessage(message, '');
+        });
+
+        byId('back-to-login').addEventListener('click', () => window.location.reload());
 
         async function showWorkspace() {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -804,14 +833,16 @@
                 ['ID DO CLIENTE (COLEGIO_ID)', customer.colegio_id],
                 ['SERIAL DO DISPOSITIVO (PDV_SERIAL)', customer.serial_pdv],
                 ['CHAVE DE ATIVAÇÃO (PDV_CHAVE)', customer.chave_ativacao],
-                ['CONVITE DE ACESSO ENVIADO PARA', customer.email_admin],
+                ['ADMINISTRADOR DO CLIENTE (E-MAIL DE ACESSO)', customer.email_admin],
                 ['VALIDADE DO CONTRATO', new Date(customer.data_expiracao).toLocaleDateString('pt-BR')]
             ].map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong> = <span style="user-select: all; font-weight: 700;">${escapeHtml(value)}</span></div>`).join('');
+            byId('access-link').value = result.link_acesso || '';
+            byId('access-link-box').style.display = result.link_acesso ? '' : 'none';
             byId('result').classList.add('visible');
             byId('client-form').reset();
-            setMessage(message, result.convite_enviado
-                ? `Cadastro concluído. O Supabase enviou o convite para ${escapeHtml(emailAdmin)}.`
-                : 'Cliente criado, mas não foi possível confirmar o envio do convite. Confira o log da Edge Function.', !result.convite_enviado);
+            setMessage(message, result.link_acesso
+                ? `Cadastro concluído. Envie o link de acesso ao administrador (${emailAdmin}).`
+                : 'Cliente criado, mas o link de acesso não foi gerado. Use Gerar link de acesso em Clientes cadastrados.', !result.link_acesso);
         });
 
         // --- ABA DE ADMINISTRAÇÃO DE CLIENTES ---
@@ -1012,6 +1043,8 @@
 
         function abrirDetalhes(c) {
             clienteSelecionado = c;
+            byId('modal-link').value = '';
+            byId('modal-link-box').style.display = 'none';
             const badge = classificarCliente(c);
 
             // Encontra o último check-in entre todas as licenças do cliente
@@ -1167,16 +1200,35 @@
             if (result.ok) byId('modal-senha-nova').value = '';
         });
 
-        byId('btn-excluir').addEventListener('click', async () => {
-            if (!clienteSelecionado) return;
-            if (!confirm(`Excluir permanentemente o cliente "${clienteSelecionado.nome}"?\nEsta ação remove o tenant e todas as licenças vinculadas.`)) return;
-            const result = await postAcao('excluir', clienteSelecionado.colegio_id);
-            setMessage(byId('modal-message'), result.mensagem || (result.ok ? 'Cliente excluído.' : 'Falha ao excluir.'), !result.ok);
-            if (result.ok) {
-                byId('modal-overlay').classList.remove('visible');
-                await carregarClientes();
+        async function copiarTexto(input, botao) {
+            try {
+                await navigator.clipboard.writeText(input.value);
+            } catch {
+                input.select();
+                document.execCommand('copy');
             }
+            const original = botao.textContent;
+            botao.textContent = 'Copiado';
+            setTimeout(() => { botao.textContent = original; }, 1500);
+        }
+
+        byId('copy-access-link').addEventListener('click', (e) => copiarTexto(byId('access-link'), e.target));
+        byId('modal-copy-link').addEventListener('click', (e) => copiarTexto(byId('modal-link'), e.target));
+
+        byId('btn-link-acesso').addEventListener('click', async () => {
+            if (!clienteSelecionado) return;
+            if (!confirm(`Gerar um novo link de acesso para o administrador de "${clienteSelecionado.nome}"?`)) return;
+            setMessage(byId('modal-message'), 'Gerando link...');
+            const result = await postAcao('gerar_link_acesso', clienteSelecionado.colegio_id);
+            if (!result.ok) {
+                setMessage(byId('modal-message'), result.mensagem || 'Falha ao gerar o link.', true);
+                return;
+            }
+            byId('modal-link').value = result.link_acesso;
+            byId('modal-link-box').style.display = '';
+            setMessage(byId('modal-message'), `Link gerado para ${result.email_admin}. Envie ao administrador; ele expira em pouco tempo.`);
         });
+
 
         byId('btn-nova-licenca').addEventListener('click', async () => {
             if (!clienteSelecionado) {
@@ -1268,7 +1320,12 @@
             await carregarClientes();
         });
 
-        function fecharModal() { byId('modal-overlay').classList.remove('visible'); clienteSelecionado = null; }
+        function fecharModal() {
+            byId('modal-overlay').classList.remove('visible');
+            byId('modal-link').value = '';
+            byId('modal-link-box').style.display = 'none';
+            clienteSelecionado = null;
+        }
         byId('modal-fechar').addEventListener('click', fecharModal);
         byId('modal-overlay').addEventListener('click', (e) => { if (e.target === byId('modal-overlay')) fecharModal(); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharModal(); });
@@ -1317,7 +1374,7 @@
                 `⚠️ CONFIRMAÇÃO DE SEGURANÇA ⚠️\n\n` +
                 `Você está prestes a EXCLUIR PERMANENTEMENTE o cliente:\n` +
                 `👉 "${clienteSelecionado.nome}"\n\n` +
-                `Esta ação removerá o tenant e TODAS as licenças associadas!\n\n` +
+                `Esta ação remove o cadastro, as licenças e o acesso do administrador. Só é permitida para clientes sem dados registrados.\n\n` +
                 `Para confirmar a exclusão, digite ou cole exatamente o nome do cliente abaixo:`
             );
 
@@ -1383,8 +1440,8 @@
         switchTab('novo');
 
         async function initializeCentral() {
-            const inviteHandled = await handleRecoveryCallback();
-            if (!inviteHandled) await showWorkspace();
+            const accessLinkHandled = await handleAccessLink();
+            if (!accessLinkHandled) await showWorkspace();
         }
 
         initializeCentral();

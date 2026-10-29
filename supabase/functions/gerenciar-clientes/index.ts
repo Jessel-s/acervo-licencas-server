@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, serviceRoleKey);
+const CENTRAL_URL = "https://jessel-s.github.io/acervo-licencas-server/";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type",
@@ -137,8 +138,9 @@ async function cadastrarCliente(user: { id: string; email?: string }, body: Reco
     return json({ ok: false, mensagem: "nome do cliente obrigatorio" }, 400);
   }
 
-  const dias = Number.isInteger(body?.dias_validade) && body.dias_validade > 0
-    ? Math.min(body.dias_validade, 3650)
+  const diasInformados = Number(body?.dias_validade);
+  const dias = Number.isInteger(diasInformados) && diasInformados > 0
+    ? Math.min(diasInformados, 3650)
     : 365;
   const trial = body?.trial === true;
   const dataExpiracao = new Date(Date.now() + dias * 24 * 60 * 60 * 1000).toISOString();
@@ -265,12 +267,54 @@ async function exportarCliente(colegioId: string) {
   });
 }
 
-async function excluirCliente(colegioId: string) {
-  // Remove licencas primeiro (seguranca caso nao haja ON DELETE CASCADE)
-  const { error: erroLic } = await supabase.from("licencas").delete().eq("colegio_id", colegioId);
-  if (erroLic) throw erroLic;
+const TABELAS_COM_DADOS = [
+  "ativos", "configuracoes_sistema", "sessoes_uso", "problemas", "historico",
+  "agendamentos", "almox_produtos", "almox_movimentacoes", "usuarios", "pagamentos",
+];
+
+async function excluirCliente(user: { id: string; email?: string }, colegioId: string) {
+  const { data: colegio } = await supabase.from("colegios").select("nome").eq("id", colegioId).maybeSingle();
+  if (!colegio) return json({ ok: false, mensagem: "Cliente nao encontrado" }, 404);
+
+  // Sem ON DELETE CASCADE no banco: nao apagamos dados operacionais nem pagamentos do cliente.
+  const comDados: string[] = [];
+  for (const tabela of TABELAS_COM_DADOS) {
+    const { count, error } = await supabase
+      .from(tabela)
+      .select("*", { count: "exact", head: true })
+      .eq("colegio_id", colegioId);
+    if (error) throw error;
+    if ((count ?? 0) > 0) comDados.push(tabela);
+  }
+  if (comDados.length) {
+    return json({
+      ok: false,
+      mensagem: `Este cliente já tem dados registrados (${comDados.join(", ")}). Exporte os dados e suspenda o cliente em vez de excluí-lo.`,
+    }, 409);
+  }
+
+  const { data: perfis, error: perfisError } = await supabase.from("perfis").select("id").eq("colegio_id", colegioId);
+  if (perfisError) throw perfisError;
+  const perfilIds = (perfis ?? []).map((p) => String(p.id));
+
+  for (const tabela of ["pdv_devices", "licencas", "perfis"]) {
+    const { error } = await supabase.from(tabela).delete().eq("colegio_id", colegioId);
+    if (error) throw error;
+  }
   const { error } = await supabase.from("colegios").delete().eq("id", colegioId);
   if (error) throw error;
+
+  if (perfilIds.length) {
+    const { data: plataforma } = await supabase.from("administradores_plataforma").select("user_id").in("user_id", perfilIds);
+    const protegidos = new Set((plataforma ?? []).map((a) => String(a.user_id)));
+    for (const id of perfilIds) {
+      if (protegidos.has(id)) continue;
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(id);
+      if (deleteError) console.error("Falha ao remover usuario do cliente excluido", deleteError);
+    }
+  }
+
+  await registrarAuditoria(user.id, user.email, colegioId, "excluir", { nome: colegio.nome });
   return json({ ok: true, mensagem: "Cliente excluido permanentemente" });
 }
 
@@ -351,6 +395,37 @@ async function trocarSenhaCliente(user: { id: string; email?: string }, colegioI
   return json({ ok: true, mensagem: "Senha do administrador do cliente atualizada com sucesso" });
 }
 
+async function gerarLinkAcesso(user: { id: string; email?: string }, colegioId: string) {
+  const { data: perfil, error: perfilError } = await supabase
+    .from("perfis")
+    .select("id")
+    .eq("colegio_id", colegioId)
+    .in("papel", ["admin_geral", "gestor_colegio"])
+    .order("criado_em", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (perfilError) throw perfilError;
+  if (!perfil) {
+    return json({ ok: false, mensagem: "Nenhum usuário administrador encontrado para este cliente" }, 404);
+  }
+
+  const { data: authUser, error: userError } = await supabase.auth.admin.getUserById(perfil.id);
+  const email = authUser?.user?.email;
+  if (userError || !email) throw userError ?? new Error("Administrador sem e-mail de acesso.");
+
+  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email });
+  const hashedToken = linkData?.properties?.hashed_token;
+  if (linkError || !hashedToken) throw linkError ?? new Error("Não foi possível gerar o link de acesso.");
+
+  await registrarAuditoria(user.id, user.email, colegioId, "gerar_link_acesso", { user_id: perfil.id });
+  return json({
+    ok: true,
+    mensagem: "Link de acesso gerado",
+    email_admin: email,
+    link_acesso: `${CENTRAL_URL}#tipo=recovery&token_hash=${encodeURIComponent(hashedToken)}`,
+  });
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -399,11 +474,14 @@ Deno.serve(async (request: Request) => {
         const novaSenha = typeof body?.nova_senha === "string" ? body.nova_senha : "";
         return await trocarSenhaCliente(user, colegioId, novaSenha);
       }
+      if (acao === "gerar_link_acesso") {
+        return await gerarLinkAcesso(user, colegioId);
+      }
       if (acao === "exportar") {
         return await exportarCliente(colegioId);
       }
       if (acao === "excluir") {
-        return await excluirCliente(colegioId);
+        return await excluirCliente(user, colegioId);
       }
       if (acao === "nova_licenca") {
         return await novaLicenca(user, colegioId);

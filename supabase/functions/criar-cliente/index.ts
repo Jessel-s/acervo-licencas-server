@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, serviceRoleKey);
+const centralUrl = "https://jessel-s.github.io/acervo-licencas-server/";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type",
@@ -151,20 +152,24 @@ Deno.serve(async (request: Request) => {
       .single();
     if (colegioError || !colegio) throw colegioError || new Error("Não foi possível criar o cliente.");
 
-    const { data: invitation, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(emailAdmin, {
-      data: { full_name: nomeAdmin },
-      redirectTo: "https://jessel-s.github.io/acervo-licencas-server/?auth=invite",
+    // generateLink cria o usuario sem enviar e-mail; o link e entregue pelo operador.
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: "invite",
+      email: emailAdmin,
+      options: { data: { full_name: nomeAdmin } },
     });
-    if (inviteError || !invitation.user) {
-      await rollbackClient(colegio.id, invitation?.user?.id);
-      const mensagem = String(inviteError?.message ?? "").toLowerCase();
-      if (mensagem.includes("already registered") || mensagem.includes("already exists") || mensagem.includes("user already")) {
+    const hashedToken = linkData?.properties?.hashed_token;
+    if (linkError || !linkData?.user || !hashedToken) {
+      await rollbackClient(colegio.id, linkData?.user?.id);
+      const mensagem = String(linkError?.message ?? "").toLowerCase();
+      if (linkError?.code === "email_exists" || mensagem.includes("already been registered") || mensagem.includes("already registered") || mensagem.includes("already exists")) {
         throw new Error("Este e-mail de acesso já está cadastrado no sistema.");
       }
-      throw inviteError || new Error("Não foi possível enviar o convite do administrador.");
+      throw linkError || new Error("Não foi possível gerar o link de acesso do administrador.");
     }
 
-    const authUserId = invitation.user.id;
+    const authUserId = linkData.user.id;
+    const linkAcesso = `${centralUrl}#tipo=invite&token_hash=${encodeURIComponent(hashedToken)}`;
     try {
       const { error: profileError } = await supabase.from("perfis").insert({
         id: authUserId,
@@ -197,7 +202,7 @@ Deno.serve(async (request: Request) => {
 
     return json({
       ok: true,
-      convite_enviado: true,
+      link_acesso: linkAcesso,
       cliente: {
         colegio_id: colegio.id,
         serial_pdv: serialPdv,
