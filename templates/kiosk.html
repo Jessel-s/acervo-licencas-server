@@ -31,26 +31,83 @@
         .swal2-popup:not(.swal2-toast) .swal2-html-container img { width: min(88px, 17vh) !important; height: auto !important; margin: 5px auto !important; }
         .swal2-popup:not(.swal2-toast) .swal2-html-container h1 { font-size: clamp(1.25rem, 4vh, 1.7rem) !important; letter-spacing: .08em !important; margin: 5px 0 !important; }
         .swal2-popup:not(.swal2-toast) .swal2-html-container p { font-size: clamp(.76rem, 1.7vh, .82rem) !important; letter-spacing: 0 !important; margin: .25rem 0 !important; }
+        /* Seletores com mais especificidade que o .kiosk-mode do script.js (ambos usam !important). */
+        .swal2-container.kiosk-reservation-container {
+            overflow: hidden !important;
+            padding: 8px !important;
+        }
+        div.swal2-popup.swal2-modal.kiosk-reservation-popup:not(.swal2-toast) {
+            width: min(420px, calc(100vw - 24px)) !important;
+            max-height: calc(100dvh - 16px) !important;
+            overflow: hidden !important;
+            padding: .75rem 1rem !important;
+            border-radius: 14px !important;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, .35) !important;
+        }
+        div.swal2-popup.swal2-modal.kiosk-reservation-popup:not(.swal2-toast) .swal2-title {
+            margin: 0 0 .5rem !important;
+            padding: 0 !important;
+            font-size: 1.15rem !important;
+            font-weight: 800 !important;
+            letter-spacing: 0 !important;
+            text-transform: none !important;
+        }
+        div.swal2-popup.swal2-modal.kiosk-reservation-popup:not(.swal2-toast) .swal2-html-container {
+            max-height: none !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        div.swal2-popup.swal2-modal.kiosk-reservation-popup:not(.swal2-toast) .swal2-actions {
+            width: auto !important;
+            margin: .75rem 0 0 !important;
+            padding: 0 !important;
+        }
+        div.swal2-popup.swal2-modal.kiosk-reservation-popup:not(.swal2-toast) button.swal2-styled {
+            width: auto !important;
+            min-height: 44px !important;
+            margin: 0 !important;
+            padding: .5rem 2rem !important;
+            border-radius: 10px !important;
+            font-size: 1rem !important;
+            font-weight: 800 !important;
+            letter-spacing: 0 !important;
+            text-transform: none !important;
+            box-shadow: none !important;
+        }
         .kiosk-reservation-confirmation {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
-            gap: 6px;
-            text-align: center;
+            justify-content: center;
+            gap: 16px;
+            text-align: left;
         }
-        .kiosk-reservation-copy { min-width: 0; }
-        .kiosk-reservation-copy { width: 100%; font-size: .8rem; overflow-wrap: anywhere; }
-        .kiosk-reservation-copy p { text-align: center; }
-        .kiosk-reservation-copy > div > div { margin: 6px 0 !important; padding: 7px !important; }
-        .kiosk-reservation-copy > div > div b { font-size: .85rem !important; }
-        .kiosk-reservation-qr {
+        .kiosk-reservation-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        div.swal2-popup.swal2-modal.kiosk-reservation-popup:not(.swal2-toast) .kiosk-reservation-code {
+            margin: 0 !important;
+            color: #10b981;
+            font-size: 1.7rem !important;
+            font-weight: 800 !important;
+            letter-spacing: .06em !important;
+            line-height: 1.1 !important;
+            overflow-wrap: anywhere;
+        }
+        div.swal2-popup.swal2-modal.kiosk-reservation-popup:not(.swal2-toast) p.kiosk-reservation-hint {
+            margin: 0 !important;
+            font-size: .85rem !important;
+            font-weight: 600 !important;
+            line-height: 1.3 !important;
+            color: #94a3b8;
+        }
+        div.swal2-popup.swal2-modal.kiosk-reservation-popup:not(.swal2-toast) img.kiosk-reservation-qr {
             display: block;
-            width: 88px;
-            height: 88px;
-            max-width: 100%;
+            flex: 0 0 96px;
+            width: 96px !important;
+            height: 96px !important;
+            margin: 0 !important;
+            border: 2px solid #10b981;
             border-radius: 8px;
-            border: 3px solid #10b981;
-            margin: 4px auto;
         }
 
         /* ============================================================
@@ -348,29 +405,25 @@
                             const agCode = matchAg[0].toUpperCase();
                             Swal.fire({
                                 title: 'Reserva Confirmada!',
-                                                                html: `<div class="kiosk-reservation-confirmation">
-                                                                                    <div class="kiosk-reservation-copy">
-                                                                                        <div>${message}</div>
-                                                                                        <p style="color: #94a3b8; margin: 8px 0 0;">Apresente o QR Code ao operador para retirar os equipamentos.</p>
-                                                                                    </div>
-                                                                                       <img class="kiosk-reservation-qr" src="/api/gerar_qr/${agCode}" alt="QR Code da reserva ${agCode}">
-                                                                             </div>`,
-                                icon: 'success',
+                                html: `<div class="kiosk-reservation-confirmation">
+                                    <img class="kiosk-reservation-qr" src="/api/gerar_qr/${agCode}" alt="QR Code da reserva ${agCode}">
+                                    <div class="kiosk-reservation-info">
+                                        <div class="kiosk-reservation-code">${agCode}</div>
+                                        <p class="kiosk-reservation-hint">Apresente este QR Code ao operador.</p>
+                                    </div>
+                                </div>`,
+                                customClass: { container: 'kiosk-reservation-container', popup: 'kiosk-reservation-popup' },
                                 confirmButtonText: 'Continuar',
                                 confirmButtonColor: '#10b981',
                                 timer: 15000,
                                 timerProgressBar: true,
-                                backdrop: `rgba(15, 23, 42, 0.85)`
-                            }).then(() => {
-                                const printIframe = document.createElement('iframe');
-                                printIframe.style.position = 'fixed';
-                                printIframe.style.right = '-2000px';
-                                printIframe.style.bottom = '-2000px';
-                                printIframe.style.width = '200px';
-                                printIframe.style.height = '200px';
-                                printIframe.style.border = 'none';
-                                printIframe.src = `/imprimir_ticket/${agCode}`;
-                                document.body.appendChild(printIframe);
+                                backdrop: `rgba(15, 23, 42, 0.85)`,
+                                didOpen: () => {
+                                    const printIframe = document.createElement('iframe');
+                                    printIframe.style.cssText = 'position:fixed;right:-2000px;bottom:-2000px;width:200px;height:200px;border:none;';
+                                    printIframe.src = `/imprimir_ticket/${agCode}`;
+                                    document.body.appendChild(printIframe);
+                                }
                             });
                         } else if (message.includes('Retirada Liberada com Sucesso!')) { // Mensagem de sucesso da Saída Rápida
                             Swal.fire({
