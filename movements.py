@@ -284,16 +284,87 @@ def efetivar_agendamento(agendamento_id):
         if request.args.get('kiosk'):
             return redirect(url_for('movements.resgatar', kiosk=1))
         return redirect(request.referrer or url_for('dashboard'))
-        
-    ids_list = extrair_ids_limpos(lista_ids_str)
-    quantidade = len(ids_list)
-    
-    previsao_devolucao = ""
-    if agendamento.data_uso and agendamento.horario_devolucao:
-        previsao_devolucao = datetime.strptime(f"{agendamento.data_uso} {agendamento.horario_devolucao}", '%Y-%m-%d %H:%M')
 
-    # CORREÇÃO: Redireciona para a API que confirma a saída, centralizando a lógica
-    return redirect(url_for('iot_confirmar_saida', agendamento_id=agendamento_id, kiosk=request.args.get('kiosk')))
+    ids_list = extrair_ids_limpos(lista_ids_str)
+    if not ids_list:
+        flash('Este agendamento não possui equipamentos válidos para retirar.', 'error')
+        if request.args.get('kiosk'):
+            return redirect(url_for('movements.resgatar', kiosk=1))
+        return redirect(request.referrer or url_for('dashboard'))
+
+    ativos = {ativo.id: ativo for ativo in Ativo.query.filter(Ativo.id.in_(ids_list)).all()}
+    faltantes = [item_id for item_id in ids_list if item_id not in ativos]
+    if faltantes:
+        flash(f'Não foi possível registrar a saída. Equipamento(s) não encontrado(s): {", ".join(faltantes)}.', 'error')
+        if request.args.get('kiosk'):
+            return redirect(url_for('movements.resgatar', kiosk=1))
+        return redirect(request.referrer or url_for('dashboard'))
+
+    try:
+        previsao_devolucao = (
+            datetime.strptime(f"{agendamento.data_uso} {agendamento.horario_devolucao}", '%Y-%m-%d %H:%M')
+            if agendamento.data_uso and agendamento.horario_devolucao else None
+        )
+    except ValueError:
+        flash('A previsão de devolução desta reserva é inválida. Peça ao administrador para revisar o agendamento.', 'error')
+        if request.args.get('kiosk'):
+            return redirect(url_for('movements.resgatar', kiosk=1))
+        return redirect(request.referrer or url_for('dashboard'))
+
+    operador = session.get('username', 'Sistema')
+    responsavel = agendamento.solicitante
+    turma = agendamento.finalidade
+    quantidade = len(ids_list)
+    nova_sessao = SessaoUso(
+        turma=turma,
+        professor=responsavel,
+        programa='Resgate de Reserva',
+        quantidade_notebooks=quantidade,
+        observacoes=f'Saída registrada pela reserva {agendamento.codigo_reserva}',
+        previsao_devolucao=previsao_devolucao,
+        usuario_movimentacao=operador,
+    )
+    historicos = []
+    for item_id in ids_list:
+        ativo = ativos[item_id]
+        ativo.status = 'Em uso'
+        ativo.localizacao = turma
+        historico = Historico(
+            id_etiqueta=item_id,
+            acao='Saída/Empréstimo',
+            usuario_movimentacao=operador,
+            responsavel=responsavel,
+            data=datetime.now(),
+            obs=f'Retirada da reserva {agendamento.codigo_reserva} - Destino: {turma}',
+        )
+        db.session.add(historico)
+        historicos.append(historico)
+
+    db.session.add(nova_sessao)
+    agendamento.status = 'Realizado'
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('Falha ao registrar a saída da reserva %s.', agendamento_id)
+        flash('Não foi possível registrar a saída. A reserva continua pendente; tente novamente ou contate o suporte.', 'error')
+        if request.args.get('kiosk'):
+            return redirect(url_for('movements.resgatar', kiosk=1))
+        return redirect(request.referrer or url_for('dashboard'))
+
+    _queue_session_sync(nova_sessao)
+    _queue_booking_sync(agendamento)
+    for historico in historicos:
+        _queue_history_sync(historico)
+    for ativo in ativos.values():
+        _queue_asset_sync(ativo)
+    trigger_iot_relay(force_open=getattr(g, 'modules', {}).get('iot', False))
+
+    flash(f'Retirada Liberada com Sucesso! 🔓<br>A saída de <b>{quantidade} equipamento(s)</b> para <b>{responsavel}</b> foi registrada.', 'success')
+    if request.args.get('kiosk'):
+        return redirect(url_for('kiosk_home'))
+    return redirect(url_for('dashboard'))
+
 @movements_bp.route('/sessoes/efetivar_codigo/<string:codigo>')
 @permission_required('perm_movimentacao')
 def efetivar_codigo(codigo):
