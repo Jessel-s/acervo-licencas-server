@@ -531,6 +531,10 @@
                             <input id="modal-edit-email" type="email" placeholder="E-mail comercial">
                         </div>
                         <div class="action-row">
+                            <label for="modal-email-admin">E-mail de acesso</label>
+                            <input id="modal-email-admin" type="email" autocomplete="off" placeholder="E-mail exato usado no login do aplicativo">
+                        </div>
+                        <div class="action-row">
                             <label for="modal-senha-nova">Nova senha</label>
                             <input id="modal-senha-nova" type="password" placeholder="Digite a nova senha do admin do cliente (mín. 8 caracteres)" minlength="8" autocomplete="new-password">
                             <button id="btn-trocar-senha" class="secondary">Trocar senha</button>
@@ -1055,6 +1059,7 @@
             clienteSelecionado = c;
             byId('modal-link').value = '';
             byId('modal-link-box').style.display = 'none';
+            byId('modal-email-admin').value = '';
             const badge = classificarCliente(c);
 
             // Encontra o último check-in entre todas as licenças do cliente
@@ -1201,12 +1206,20 @@
                 return;
             }
             const novaSenha = byId('modal-senha-nova').value.trim();
+            const emailAdmin = byId('modal-email-admin').value.trim();
+            if (!isValidEmail(emailAdmin)) {
+                setMessage(byId('modal-message'), 'Informe o e-mail exato usado no login do aplicativo do cliente.', true);
+                return;
+            }
             if (novaSenha.length < 8) {
                 setMessage(byId('modal-message'), 'Informe uma nova senha com pelo menos 8 caracteres.', true);
                 return;
             }
-            const result = await postAcao('trocar_senha', clienteSelecionado.colegio_id, { nova_senha: novaSenha });
-            setMessage(byId('modal-message'), result.mensagem || (result.ok ? 'Senha atualizada.' : 'Falha ao trocar a senha.'), !result.ok);
+            const result = await postAcao('trocar_senha', clienteSelecionado.colegio_id, { nova_senha: novaSenha, email_admin: emailAdmin });
+            const mensagem = result.ok
+                ? `${result.mensagem} E-mail de acesso: ${result.email_admin}. Não use o e-mail comercial, a menos que seja o mesmo.`
+                : (result.mensagem || 'Falha ao trocar a senha.');
+            setMessage(byId('modal-message'), mensagem, !result.ok);
             if (result.ok) byId('modal-senha-nova').value = '';
         });
 
@@ -1227,9 +1240,14 @@
 
         byId('btn-link-acesso').addEventListener('click', async () => {
             if (!clienteSelecionado) return;
+            const emailAdmin = byId('modal-email-admin').value.trim();
+            if (!isValidEmail(emailAdmin)) {
+                setMessage(byId('modal-message'), 'Informe o e-mail exato usado no login do aplicativo do cliente.', true);
+                return;
+            }
             if (!confirm(`Gerar um novo link de acesso para o administrador de "${clienteSelecionado.nome}"?`)) return;
             setMessage(byId('modal-message'), 'Gerando link...');
-            const result = await postAcao('gerar_link_acesso', clienteSelecionado.colegio_id);
+            const result = await postAcao('gerar_link_acesso', clienteSelecionado.colegio_id, { email_admin: emailAdmin });
             if (!result.ok) {
                 setMessage(byId('modal-message'), result.mensagem || 'Falha ao gerar o link.', true);
                 return;

@@ -172,7 +172,7 @@ def login():
                 return redirect(next_url)
             return redirect(url_for('dashboard'))
         else:
-            flash('Usuário ou senha inválidos.', 'error')
+            flash('E-mail/usuário ou senha inválidos. Para contas criadas pela Central, use o e-mail de acesso do administrador, não o e-mail comercial.', 'error')
 
     return render_template('login.html')
 

@@ -367,61 +367,74 @@ async function alterarStatus(user: { id: string; email?: string }, colegioId: st
   return json({ ok: true, mensagem: `Cliente ${novoStatus}` });
 }
 
-async function trocarSenhaCliente(user: { id: string; email?: string }, colegioId: string, novaSenha: string) {
+async function trocarSenhaCliente(user: { id: string; email?: string }, colegioId: string, novaSenha: string, emailAdminInformado: string) {
   if (typeof novaSenha !== "string" || novaSenha.trim().length < 8) {
     return json({ ok: false, mensagem: "Nova senha obrigatoria com pelo menos 8 caracteres" }, 400);
   }
+  if (typeof emailAdminInformado !== "string" || !emailAdminInformado.trim()) {
+    return json({ ok: false, mensagem: "Informe o e-mail de acesso exato do administrador." }, 400);
+  }
 
-  const { data: perfil, error: perfilError } = await supabase
+  const { data: perfis, error: perfilError } = await supabase
     .from("perfis")
     .select("id, papel")
     .eq("colegio_id", colegioId)
-    .in("papel", ["admin_geral", "gestor_colegio"])
-    .order("criado_em", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .in("papel", ["admin_geral", "gestor_colegio"]);
 
   if (perfilError) throw perfilError;
-  if (!perfil) {
-    return json({ ok: false, mensagem: "Nenhum usuário administrador encontrado para este cliente" }, 404);
+  let perfilSelecionado: { id: string; email: string } | null = null;
+  for (const perfil of perfis ?? []) {
+    const { data: authUser, error: authUserError } = await supabase.auth.admin.getUserById(perfil.id);
+    if (authUserError) throw authUserError;
+    const email = authUser.user?.email?.trim() ?? "";
+    if (email.toLowerCase() === emailAdminInformado.trim().toLowerCase()) {
+      perfilSelecionado = { id: perfil.id, email };
+      break;
+    }
+  }
+  if (!perfilSelecionado) {
+    return json({ ok: false, mensagem: "Esse e-mail não pertence a um administrador deste cliente. Confira o e-mail de acesso no Supabase Auth." }, 404);
   }
 
-  const { error: updateError } = await supabase.auth.admin.updateUserById(perfil.id, {
+  const { error: updateError } = await supabase.auth.admin.updateUserById(perfilSelecionado.id, {
     password: novaSenha.trim(),
   });
   if (updateError) throw updateError;
 
-  await registrarAuditoria(user.id, user.email, colegioId, "trocar_senha_cliente", { user_id: perfil.id });
-  return json({ ok: true, mensagem: "Senha do administrador do cliente atualizada com sucesso" });
+  await registrarAuditoria(user.id, user.email, colegioId, "trocar_senha_cliente", { user_id: perfilSelecionado.id });
+  return json({ ok: true, email_admin: perfilSelecionado.email, mensagem: "Senha atualizada para o e-mail de acesso informado." });
 }
 
-async function gerarLinkAcesso(user: { id: string; email?: string }, colegioId: string) {
-  const { data: perfil, error: perfilError } = await supabase
+async function gerarLinkAcesso(user: { id: string; email?: string }, colegioId: string, emailAdminInformado: string) {
+  const { data: perfis, error: perfilError } = await supabase
     .from("perfis")
     .select("id")
     .eq("colegio_id", colegioId)
-    .in("papel", ["admin_geral", "gestor_colegio"])
-    .order("criado_em", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .in("papel", ["admin_geral", "gestor_colegio"]);
   if (perfilError) throw perfilError;
-  if (!perfil) {
-    return json({ ok: false, mensagem: "Nenhum usuário administrador encontrado para este cliente" }, 404);
+  let perfilSelecionado: { id: string; email: string } | null = null;
+  for (const perfil of perfis ?? []) {
+    const { data: authUser, error: authUserError } = await supabase.auth.admin.getUserById(perfil.id);
+    if (authUserError) throw authUserError;
+    const email = authUser.user?.email?.trim() ?? "";
+    if (email.toLowerCase() === emailAdminInformado.trim().toLowerCase()) {
+      perfilSelecionado = { id: perfil.id, email };
+      break;
+    }
+  }
+  if (!perfilSelecionado) {
+    return json({ ok: false, mensagem: "Esse e-mail não pertence a um administrador deste cliente. Confira o e-mail de acesso no Supabase Auth." }, 404);
   }
 
-  const { data: authUser, error: userError } = await supabase.auth.admin.getUserById(perfil.id);
-  const email = authUser?.user?.email;
-  if (userError || !email) throw userError ?? new Error("Administrador sem e-mail de acesso.");
-
-  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email });
+  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email: perfilSelecionado.email });
   const hashedToken = linkData?.properties?.hashed_token;
   if (linkError || !hashedToken) throw linkError ?? new Error("Não foi possível gerar o link de acesso.");
 
-  await registrarAuditoria(user.id, user.email, colegioId, "gerar_link_acesso", { user_id: perfil.id });
+  await registrarAuditoria(user.id, user.email, colegioId, "gerar_link_acesso", { user_id: perfilSelecionado.id });
   return json({
     ok: true,
     mensagem: "Link de acesso gerado",
-    email_admin: email,
+    email_admin: perfilSelecionado.email,
     link_acesso: `${CENTRAL_URL}#tipo=recovery&token_hash=${encodeURIComponent(hashedToken)}`,
   });
 }
@@ -472,10 +485,12 @@ Deno.serve(async (request: Request) => {
       }
       if (acao === "trocar_senha") {
         const novaSenha = typeof body?.nova_senha === "string" ? body.nova_senha : "";
-        return await trocarSenhaCliente(user, colegioId, novaSenha);
+        const emailAdmin = typeof body?.email_admin === "string" ? body.email_admin : "";
+        return await trocarSenhaCliente(user, colegioId, novaSenha, emailAdmin);
       }
       if (acao === "gerar_link_acesso") {
-        return await gerarLinkAcesso(user, colegioId);
+        const emailAdmin = typeof body?.email_admin === "string" ? body.email_admin : "";
+        return await gerarLinkAcesso(user, colegioId, emailAdmin);
       }
       if (acao === "exportar") {
         return await exportarCliente(colegioId);
