@@ -36,7 +36,7 @@ As funcoes publicadas pelo workflow estao em `supabase/functions/`.
 
 ### Convite de acesso do cliente
 
-O cadastro cria a conta e envia o convite pelo Supabase Auth para `email_admin`; o administrador define a própria senha pelo link. Não é enviada senha temporária nem é necessário configurar Resend. Confirme em Authentication > URL Configuration que a Central publicada está na lista de redirecionamentos permitidos e revise o template de convite em Authentication > Email Templates. Os dados de ativação continuam disponíveis na confirmação da Central para o operador repassar ao cliente.
+O cadastro cria a conta sem enviar e-mail e mostra na Central um link de uso único para o operador repassar por WhatsApp. O administrador define a própria senha pela página pública; o token fica no fragmento da URL e não é enviado ao servidor nem exposto a prévias de link. Não é necessário SMTP ou Resend para esse fluxo. A URL de redirecionamento em Authentication > URL Configuration continua necessária apenas para recuperar a senha do administrador da plataforma. Os dados de ativação aparecem na confirmação da Central para o operador repassar ao cliente.
 
 ## 5) Criar o primeiro tenant
 

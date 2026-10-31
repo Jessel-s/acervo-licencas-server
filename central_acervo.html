@@ -569,6 +569,7 @@
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         const byId = (id) => document.getElementById(id);
         const setMessage = (element, text, error = false) => { element.textContent = text; element.className = `message${error ? ' error' : ''}`; };
+        let fluxoSenha = 'cliente';
 
         function digitsOnly(value) {
             return String(value ?? '').replace(/\D/g, '');
@@ -644,8 +645,9 @@
             const hash = new URLSearchParams(window.location.hash.slice(1));
             const query = new URLSearchParams(window.location.search);
             const tokenHash = hash.get('token_hash');
-            const tipo = hash.get('tipo') || hash.get('type') || query.get('type');
+            const tipo = hash.get('tipo') || hash.get('type') || query.get('type') || (query.get('auth') === 'done' ? 'recovery' : null);
             if (!['invite', 'recovery'].includes(tipo)) return false;
+            fluxoSenha = query.get('auth') === 'done' ? 'central' : 'cliente';
 
             const message = byId('login-message');
             setMessage(message, 'Validando link de acesso...');
@@ -666,7 +668,7 @@
 
             setMessage(message, '');
             mostrarFormularioSenha(
-                tipo === 'invite' ? 'Criar senha de acesso' : 'Redefinir senha',
+                tipo === 'invite' ? 'Criar senha de acesso' : (fluxoSenha === 'central' ? 'Redefinir senha da Central' : 'Redefinir senha do cliente'),
                 'Defina uma senha com pelo menos 8 caracteres.'
             );
             return true;
@@ -683,9 +685,17 @@
             await supabaseClient.auth.signOut();
             byId('set-password-form').reset();
             byId('set-password-panel').style.display = 'none';
-            byId('gate-title').textContent = 'Senha definida';
-            byId('gate-lead').textContent = 'Sua senha foi salva. Entre no sistema instalado no cliente com o seu e-mail e esta senha.';
-            byId('back-to-login').style.display = '';
+            if (fluxoSenha === 'central') {
+                byId('gate-title').textContent = 'Senha da Central atualizada';
+                byId('gate-lead').textContent = 'Entre na Central com seu e-mail e a nova senha.';
+                byId('login-form').style.display = '';
+                byId('login-extra').style.display = '';
+                byId('back-to-login').style.display = 'none';
+            } else {
+                byId('gate-title').textContent = 'Acesso do cliente pronto';
+                byId('gate-lead').textContent = 'A senha foi definida. Agora entre no sistema instalado no cliente com seu e-mail e esta senha.';
+                byId('back-to-login').style.display = 'none';
+            }
             setMessage(message, '');
         });
 

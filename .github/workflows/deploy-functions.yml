@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "supabase/functions/**"
+      - "supabase/config.toml"
       - ".github/workflows/deploy-functions.yml"
   workflow_dispatch:
 
@@ -44,32 +45,35 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy sincronizar-operacoes (device license auth)
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
-        run: supabase functions deploy sincronizar-operacoes --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt --use-api
+  deploy-functions:
+    needs: deploy
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        function:
+          - criar-cliente
+          - validar-licenca
+          - webhook-pagamento
+          - gerenciar-clientes
+          - sincronizar-operacoes
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
 
-      - name: Deploy criar-cliente
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
-        run: supabase functions deploy criar-cliente --project-ref "$SUPABASE_PROJECT_ID"
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.101.0
 
-      - name: Deploy validar-licenca
+      - name: Deploy ${{ matrix.function }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
-        run: supabase functions deploy validar-licenca --project-ref "$SUPABASE_PROJECT_ID"
-
-      - name: Deploy webhook-pagamento
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
-        run: supabase functions deploy webhook-pagamento --project-ref "$SUPABASE_PROJECT_ID"
-
-      - name: Deploy gerenciar-clientes
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: knasgssawkkiwmeyjhhb
-        run: supabase functions deploy gerenciar-clientes --project-ref "$SUPABASE_PROJECT_ID"
+        run: |
+          if [ "${{ matrix.function }}" = "sincronizar-operacoes" ]; then
+            supabase functions deploy "${{ matrix.function }}" --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt --use-api
+          else
+            supabase functions deploy "${{ matrix.function }}" --project-ref "$SUPABASE_PROJECT_ID"
+          fi
